@@ -1,5 +1,7 @@
 # OvertimeMiuix - Overtime Record App
 
+> [中文版](README.md)
+
 An overtime record application built with MIUIX Compose framework.
 
 ## Features

@@ -1,5 +1,7 @@
 # OvertimeMiuix 加班记录
 
+> [English Version](README_EN.md)
+
 基于 MIUIX Compose 框架开发的加班记录应用。
 
 ## 功能特性
