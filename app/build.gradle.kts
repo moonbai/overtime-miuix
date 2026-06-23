@@ -65,7 +65,8 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     
     // MIUIX
-    implementation("top.yukonga.miuix.kmp:lib:1.5.2")
+    implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.8.8")
+    implementation("top.yukonga.miuix.kmp:miuix-icons-android:0.8.8")
     
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
