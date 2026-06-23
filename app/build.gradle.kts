@@ -33,7 +33,7 @@ android {
         compose = true
     }
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.11"
+        kotlinCompilerExtensionVersion = "1.5.24"
     }
     packaging {
         resources {
@@ -49,7 +49,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.8.2")
     
     // Compose
-    implementation(platform("androidx.compose:compose-bom:2024.04.00"))
+    implementation(platform("androidx.compose:compose-bom:2024.09.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -65,8 +65,7 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     
     // MIUIX
-    implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.8.8")
-    implementation("top.yukonga.miuix.kmp:miuix-icons-android:0.8.8")
+    implementation("top.yukonga.miuix.kmp:miuix-android:0.8.8")
     
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
