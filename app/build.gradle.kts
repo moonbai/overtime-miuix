@@ -77,10 +77,8 @@ dependencies {
     // MCP SDK (umbrella 单依赖)
     implementation(libs.mcp.sdk)
 
-    // MIUIX (Android 专用版本)
+    // MIUIX
     implementation(libs.miuix.ui)
-    implementation(libs.miuix.preference)
-    implementation(libs.miuix.icons)
 
     // 其他
     implementation(libs.okhttp)

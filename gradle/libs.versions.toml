@@ -1,12 +1,12 @@
 [versions]
-agp = "8.7.3"
-kotlin = "2.1.0"
+agp = "8.13.2"
+kotlin = "2.3.20"
 coreKtx = "1.15.0"
 lifecycleRuntimeKtx = "2.8.7"
 activityCompose = "1.9.3"
 composeBom = "2024.12.01"
 room = "2.6.1"
-ksp = "2.1.0-1.0.29"
+ksp = "2.3.20-1.0.32"
 ktor = "3.0.3"
 miuix = "0.8.8"
 mcpSdk = "0.8.0"
@@ -47,8 +47,6 @@ mcp-sdk = { group = "io.modelcontextprotocol", name = "kotlin-sdk", version.ref 
 
 # MIUIX
 miuix-ui = { group = "top.yukonga.miuix.kmp", name = "miuix-android", version.ref = "miuix" }
-miuix-preference = { group = "top.yukonga.miuix.kmp", name = "miuix-preference-android", version.ref = "miuix" }
-miuix-icons = { group = "top.yukonga.miuix.kmp", name = "miuix-icons-android", version.ref = "miuix" }
 
 # Other
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
