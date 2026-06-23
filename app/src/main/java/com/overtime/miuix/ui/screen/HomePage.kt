@@ -18,8 +18,7 @@ import com.overtime.miuix.util.SalaryCalculator
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.icons.useful.Add
-import top.yukonga.miuix.kmp.icon.icons.useful.Delete
+import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.*
@@ -62,7 +61,7 @@ fun HomePage(
                     onClick = { navController.navigate("add_record") },
                     modifier = Modifier.height(32.dp)
                 ) {
-                    Icon(MiuixIcons.Useful.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(MiuixIcons.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("添加", style = MiuixTheme.textStyles.labelMedium)
                 }
@@ -262,7 +261,7 @@ private fun RecordCard(
             }
             
             IconButton(onClick = onDelete) {
-                Icon(MiuixIcons.Useful.Delete, contentDescription = "删除", tint = MiuixTheme.colorScheme.error)
+                Icon(MiuixIcons.Delete, contentDescription = "删除", tint = MiuixTheme.colorScheme.error)
             }
         }
     }

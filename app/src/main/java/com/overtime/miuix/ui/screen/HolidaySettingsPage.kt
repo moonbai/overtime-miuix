@@ -8,7 +8,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.icons.useful.ArrowLeft
+import top.yukonga.miuix.kmp.icon.extended.*
 
 @Composable
 fun HolidaySettingsPage(navController: NavHostController) {
@@ -18,7 +18,7 @@ fun HolidaySettingsPage(navController: NavHostController) {
                 title = "节假日管理",
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(MiuixIcons.Useful.ArrowLeft, contentDescription = "返回")
+                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
                     }
                 }
             )
@@ -35,7 +35,7 @@ fun HolidaySettingsPage(navController: NavHostController) {
                     ListItem(
                         title = "更新节假日数据",
                         summary = "从服务器获取最新节假日规则",
-                        leftAction = { Icon(MiuixIcons.Useful.Refresh, contentDescription = null) },
+                        leftAction = { Icon(MiuixIcons.Refresh, contentDescription = null) },
                         onClick = { }
                     )
                 }

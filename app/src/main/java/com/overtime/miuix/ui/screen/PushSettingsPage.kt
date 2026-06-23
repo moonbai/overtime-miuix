@@ -10,7 +10,7 @@ import com.overtime.miuix.data.repository.SettingsRepository
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.icons.useful.ArrowLeft
+import top.yukonga.miuix.kmp.icon.extended.*
 
 @Composable
 fun PushSettingsPage(
@@ -37,7 +37,7 @@ fun PushSettingsPage(
                 title = "推送设置",
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(MiuixIcons.Useful.ArrowLeft, contentDescription = "返回")
+                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
                     }
                 }
             )

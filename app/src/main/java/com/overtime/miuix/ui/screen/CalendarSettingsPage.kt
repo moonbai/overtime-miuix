@@ -8,7 +8,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.icons.useful.ArrowLeft
+import top.yukonga.miuix.kmp.icon.extended.*
 
 @Composable
 fun CalendarSettingsPage(navController: NavHostController) {
@@ -18,7 +18,7 @@ fun CalendarSettingsPage(navController: NavHostController) {
                 title = "日历同步",
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(MiuixIcons.Useful.ArrowLeft, contentDescription = "返回")
+                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
                     }
                 }
             )

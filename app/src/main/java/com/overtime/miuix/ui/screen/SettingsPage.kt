@@ -8,7 +8,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.icons.useful.*
+import top.yukonga.miuix.kmp.icon.extended.*
 
 @Composable
 fun SettingsPage(navController: NavHostController) {
@@ -21,19 +21,19 @@ fun SettingsPage(navController: NavHostController) {
                 ListItem(
                     title = "薪资设置",
                     summary = "基础薪资、加班倍率",
-                    leftAction = { Icon(MiuixIcons.Useful.Wallet, contentDescription = null) },
+                    leftAction = { Icon(MiuixIcons.BankCards, contentDescription = null) },
                     onClick = { navController.navigate("salary_settings") }
                 )
                 ListItem(
                     title = "推送设置",
                     summary = "配置推送渠道",
-                    leftAction = { Icon(MiuixIcons.Useful.Notification, contentDescription = null) },
+                    leftAction = { Icon(MiuixIcons.Alarm, contentDescription = null) },
                     onClick = { navController.navigate("push_settings") }
                 )
                 ListItem(
                     title = "日历同步",
                     summary = "同步到系统日历",
-                    leftAction = { Icon(MiuixIcons.Useful.Calendar, contentDescription = null) },
+                    leftAction = { Icon(MiuixIcons.Months, contentDescription = null) },
                     onClick = { navController.navigate("calendar_settings") }
                 )
             }
@@ -44,13 +44,13 @@ fun SettingsPage(navController: NavHostController) {
                 ListItem(
                     title = "备份与恢复",
                     summary = "本地/云端备份",
-                    leftAction = { Icon(MiuixIcons.Useful.Cloud, contentDescription = null) },
+                    leftAction = { Icon(MiuixIcons.CloudFill, contentDescription = null) },
                     onClick = { navController.navigate("backup_settings") }
                 )
                 ListItem(
                     title = "节假日管理",
                     summary = "更新节假日规则",
-                    leftAction = { Icon(MiuixIcons.Useful.Date, contentDescription = null) },
+                    leftAction = { Icon(MiuixIcons.Months, contentDescription = null) },
                     onClick = { navController.navigate("holiday_settings") }
                 )
             }
@@ -61,7 +61,7 @@ fun SettingsPage(navController: NavHostController) {
                 ListItem(
                     title = "外观设置",
                     summary = "主题、强调色、底栏样式",
-                    leftAction = { Icon(MiuixIcons.Useful.Theme, contentDescription = null) },
+                    leftAction = { Icon(MiuixIcons.Background, contentDescription = null) },
                     onClick = { navController.navigate("appearance_settings") }
                 )
             }
@@ -72,7 +72,7 @@ fun SettingsPage(navController: NavHostController) {
                 ListItem(
                     title = "MCP 服务设置",
                     summary = "配置 Model Context Protocol",
-                    leftAction = { Icon(MiuixIcons.Useful.Server, contentDescription = null) },
+                    leftAction = { Icon(MiuixIcons.CloudFill, contentDescription = null) },
                     onClick = { navController.navigate("mcp_settings") }
                 )
             }
@@ -83,7 +83,7 @@ fun SettingsPage(navController: NavHostController) {
                 ListItem(
                     title = "关于应用",
                     summary = "版本 1.0.0",
-                    leftAction = { Icon(MiuixIcons.Useful.Info, contentDescription = null) },
+                    leftAction = { Icon(MiuixIcons.Info, contentDescription = null) },
                     onClick = { navController.navigate("about") }
                 )
             }

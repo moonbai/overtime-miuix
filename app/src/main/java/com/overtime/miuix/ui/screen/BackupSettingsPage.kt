@@ -10,7 +10,7 @@ import com.overtime.miuix.data.repository.SettingsRepository
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.icons.useful.ArrowLeft
+import top.yukonga.miuix.kmp.icon.extended.*
 
 @Composable
 fun BackupSettingsPage(
@@ -25,7 +25,7 @@ fun BackupSettingsPage(
                 title = "备份与恢复",
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(MiuixIcons.Useful.ArrowLeft, contentDescription = "返回")
+                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
                     }
                 }
             )
@@ -42,13 +42,13 @@ fun BackupSettingsPage(
                     ListItem(
                         title = "导出数据",
                         summary = "导出为 JSON 文件",
-                        leftAction = { Icon(MiuixIcons.Useful.Upload, contentDescription = null) },
+                        leftAction = { Icon(MiuixIcons.Send, contentDescription = null) },
                         onClick = { }
                     )
                     ListItem(
                         title = "导入数据",
                         summary = "从 JSON 文件导入",
-                        leftAction = { Icon(MiuixIcons.Useful.Download, contentDescription = null) },
+                        leftAction = { Icon(MiuixIcons.Download, contentDescription = null) },
                         onClick = { }
                     )
                 }
@@ -59,7 +59,7 @@ fun BackupSettingsPage(
                     ListItem(
                         title = "WebDAV 同步",
                         summary = "配置 WebDAV 服务器",
-                        leftAction = { Icon(MiuixIcons.Useful.Cloud, contentDescription = null) },
+                        leftAction = { Icon(MiuixIcons.CloudFill, contentDescription = null) },
                         onClick = { }
                     )
                 }

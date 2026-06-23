@@ -10,9 +10,8 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.icons.useful.ArrowLeft
-import top.yukonga.miuix.kmp.icon.icons.useful.Info
-import top.yukonga.miuix.kmp.icon.icons.useful.Logo
+import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun AboutPage(navController: NavHostController) {
@@ -22,7 +21,7 @@ fun AboutPage(navController: NavHostController) {
                 title = "关于应用",
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(MiuixIcons.Useful.ArrowLeft, contentDescription = "返回")
+                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
                     }
                 }
             )
@@ -38,7 +37,7 @@ fun AboutPage(navController: NavHostController) {
             item {
                 Spacer(modifier = Modifier.height(32.dp))
                 Icon(
-                    MiuixIcons.Useful.Logo,
+                    MiuixIcons.AppRecording,
                     contentDescription = null,
                     modifier = Modifier.size(80.dp),
                     tint = MiuixTheme.colorScheme.primary

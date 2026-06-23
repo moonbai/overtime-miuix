@@ -15,8 +15,7 @@ import com.overtime.miuix.util.SalaryCalculator
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.icons.useful.ArrowLeft
-import top.yukonga.miuix.kmp.icon.icons.useful.Check
+import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.*
@@ -80,7 +79,7 @@ fun AddEditRecordPage(
                 title = if (isEdit) "编辑记录" else "添加记录",
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(MiuixIcons.Useful.ArrowLeft, contentDescription = "返回")
+                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
                     }
                 },
                 actions = {
@@ -107,7 +106,7 @@ fun AddEditRecordPage(
                             }
                         }
                     ) {
-                        Icon(MiuixIcons.Useful.Check, contentDescription = "保存")
+                        Icon(MiuixIcons.Ok, contentDescription = "保存")
                     }
                 }
             )

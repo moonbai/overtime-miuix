@@ -8,10 +8,7 @@ import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.icons.useful.Add
-import top.yukonga.miuix.kmp.icon.icons.useful.Home
-import top.yukonga.miuix.kmp.icon.icons.useful.Settings
-import top.yukonga.miuix.kmp.icon.icons.useful.Statistics
+import top.yukonga.miuix.kmp.icon.extended.*
 
 @Composable
 fun MainScreen(
@@ -38,9 +35,9 @@ fun MainScreen(
             when (bottomBarStyle) {
                 "ICON_ONLY" -> NavigationBar(
                     items = listOf(
-                        NavigationItem("首页", icon = MiuixIcons.Useful.Home),
-                        NavigationItem("统计", icon = MiuixIcons.Useful.Statistics),
-                        NavigationItem("设置", icon = MiuixIcons.Useful.Settings)
+                        NavigationItem("首页", icon = MiuixIcons.All),
+                        NavigationItem("统计", icon = MiuixIcons.Months),
+                        NavigationItem("设置", icon = MiuixIcons.Settings)
                     ),
                     selected = selectedTab,
                     onClick = { selectedTab = it },
@@ -58,9 +55,9 @@ fun MainScreen(
                 )
                 else -> NavigationBar(
                     items = listOf(
-                        NavigationItem("首页", icon = MiuixIcons.Useful.Home),
-                        NavigationItem("统计", icon = MiuixIcons.Useful.Statistics),
-                        NavigationItem("设置", icon = MiuixIcons.Useful.Settings)
+                        NavigationItem("首页", icon = MiuixIcons.All),
+                        NavigationItem("统计", icon = MiuixIcons.Months),
+                        NavigationItem("设置", icon = MiuixIcons.Settings)
                     ),
                     selected = selectedTab,
                     onClick = { selectedTab = it }
@@ -76,7 +73,7 @@ fun MainScreen(
                         }
                     }
                 ) {
-                    Icon(MiuixIcons.Useful.Add, contentDescription = "添加记录")
+                    Icon(MiuixIcons.Add, contentDescription = "添加记录")
                 }
             }
         }
