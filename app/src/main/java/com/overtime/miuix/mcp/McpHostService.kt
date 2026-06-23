@@ -25,7 +25,7 @@ import java.util.*
 import kotlinx.coroutines.*
 
 class McpHostService : Service() {
-    private var server: ApplicationEngine? = null
+    private var server: EmbeddedServer<*, *>? = null
     private val gson = Gson()
     
     override fun onBind(intent: Intent?): IBinder? = null
@@ -182,7 +182,8 @@ class McpHostService : Service() {
                     }
                 }
             }
-        }.start()
+        }
+        server?.start(wait = false)
         
         Log.d("McpHostService", "Server started on port $port")
     }

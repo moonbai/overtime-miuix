@@ -70,6 +70,7 @@ dependencies {
     // Ktor Server (CIO 引擎 + SSE + WebSockets)
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.cio)
+    implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.server.sse)
     implementation(libs.ktor.server.websockets)
     implementation(libs.ktor.serialization.gson)
