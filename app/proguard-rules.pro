@@ -1,14 +1,10 @@
-# Add project specific ProGuard rules here.
--keepattributes *Annotation*
--keepattributes SourceFile,LineNumberTable
--keep public class * extends java.lang.Exception
-
-# Room
--keep class * extends androidx.room.RoomDatabase
--keep @androidx.room.Entity class *
-
-# Gson
--keepattributes Signature
--keepattributes *Annotation*
--keep class com.google.gson.** { *; }
+# ProGuard rules for OvertimeMiuix
+-keep class com.overtime.miuix.data.model.** { *; }
 -keep class com.overtime.miuix.data.database.** { *; }
+-keep class com.overtime.miuix.mcp.** { *; }
+-keep class androidx.room.** { *; }
+-dontwarn io.netty.**
+-dontwarn org.slf4j.**
+-dontwarn io.ktor.**
+-dontwarn kotlinx.serialization.**
+-dontwarn io.modelcontextprotocol.**
