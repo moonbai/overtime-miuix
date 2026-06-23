@@ -21,9 +21,6 @@ jobs:
 
     - name: Set up Android SDK
       uses: android-actions/setup-android@v3
-      with:
-        api-level: 36
-        build-tools-version: 34.0.0
 
     - name: Set up Gradle
       uses: gradle/actions/setup-gradle@v3
