@@ -72,14 +72,19 @@ dependencies {
     implementation(libs.ktor.server.cio)
     implementation(libs.ktor.server.sse)
     implementation(libs.ktor.server.websockets)
+    implementation(libs.ktor.serialization.gson)
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
+
+    // Gson
+    implementation(libs.gson)
 
     // MCP SDK (umbrella 单依赖)
     implementation(libs.mcp.sdk)
 
     // MIUIX
     implementation(libs.miuix.ui)
+    implementation(libs.miuix.icons)
 
     // 其他
     implementation(libs.okhttp)

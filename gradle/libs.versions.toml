@@ -39,14 +39,19 @@ ktor-server-core = { group = "io.ktor", name = "ktor-server-core", version.ref =
 ktor-server-cio = { group = "io.ktor", name = "ktor-server-cio", version.ref = "ktor" }
 ktor-server-sse = { group = "io.ktor", name = "ktor-server-sse", version.ref = "ktor" }
 ktor-server-websockets = { group = "io.ktor", name = "ktor-server-websockets", version.ref = "ktor" }
+ktor-serialization-gson = { group = "io.ktor", name = "ktor-serialization-gson", version.ref = "ktor" }
 ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
+
+# Gson
+gson = { group = "com.google.code.gson", name = "gson", version = "2.11.0" }
 
 # MCP
 mcp-sdk = { group = "io.modelcontextprotocol", name = "kotlin-sdk", version.ref = "mcpSdk" }
 
 # MIUIX
 miuix-ui = { group = "top.yukonga.miuix.kmp", name = "miuix-android", version.ref = "miuix" }
+miuix-icons = { group = "top.yukonga.miuix.kmp", name = "miuix-icons-android", version.ref = "miuix" }
 
 # Other
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
