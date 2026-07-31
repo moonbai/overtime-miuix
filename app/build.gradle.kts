@@ -117,9 +117,6 @@ dependencies {
     // Gson
     implementation(libs.gson)
 
-    // MCP SDK (umbrella 单依赖)
-    implementation(libs.mcp.sdk)
-
     // MIUIX
     implementation(libs.miuix.ui)
     implementation(libs.miuix.icons)
