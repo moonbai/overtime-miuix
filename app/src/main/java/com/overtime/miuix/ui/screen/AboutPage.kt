@@ -445,8 +445,7 @@ private fun loadMipmapIcon(context: Context): Bitmap? {
     return try {
         val pm = context.packageManager
         val info = pm.getPackageInfo(packageName, 0)
-        val drawable = info.applicationInfo?.loadIcon(pm) ?: return null
-        drawableToBitmap(drawable)
+        info.applicationInfo?.loadIcon(pm)?.let { drawableToBitmap(it) }
     } catch (_: Exception) { null }
 }
 
