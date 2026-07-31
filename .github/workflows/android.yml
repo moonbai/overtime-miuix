@@ -21,14 +21,13 @@ jobs:
 
     - name: Set up Android SDK
       uses: android-actions/setup-android@v3
+      with:
+        packages: 'platforms;android-37'
 
     - name: Set up Gradle
       uses: gradle/actions/setup-gradle@v3
       with:
-        gradle-version: '8.13'
-
-    - name: Generate Gradle Wrapper
-      run: gradle wrapper --gradle-version 8.13 --no-daemon
+        gradle-version: '9.3.1'
 
     - name: Build with Gradle
       run: ./gradlew assembleDebug --no-daemon
