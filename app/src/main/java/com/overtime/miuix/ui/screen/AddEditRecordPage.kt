@@ -15,10 +15,7 @@ import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.push.CalendarSyncManager
 import com.overtime.miuix.push.PushManager
-import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import com.overtime.miuix.util.BackupManager
-import com.overtime.miuix.util.HolidayDataSource
-import com.overtime.miuix.util.HolidayManager
 import com.overtime.miuix.util.SalaryCalculator
 import com.overtime.miuix.util.WebDavManager
 import kotlinx.coroutines.flow.first
@@ -40,20 +37,12 @@ fun AddEditRecordPage(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val snackbarHostState = LocalSnackbarHostState.current
     val isEdit = recordId != null
 
     val baseSalary by settingsRepository.baseSalary.collectAsState(initial = 2200.0)
     val workdayRate by settingsRepository.workdayRate.collectAsState(initial = 1.5)
     val weekendRate by settingsRepository.weekendRate.collectAsState(initial = 2.0)
     val holidayRate by settingsRepository.holidayRate.collectAsState(initial = 3.0)
-
-    // 节假日数据源配置（用于自动判定加班类型）
-    val holidayDataSource by settingsRepository.holidayDataSource.collectAsState(initial = "TIMOR")
-    val holidayCustomUrl by settingsRepository.holidayCustomUrl.collectAsState(initial = "")
-    val holidayMxnzpAppId by settingsRepository.holidayMxnzpAppId.collectAsState(initial = "")
-    val holidayMxnzpAppSecret by settingsRepository.holidayMxnzpAppSecret.collectAsState(initial = "")
-    val holidayIgnoreHoliday by settingsRepository.holidayIgnoreHoliday.collectAsState(initial = false)
 
     var selectedDate by remember { mutableStateOf(Date()) }
     var selectedType by remember { mutableStateOf(OvertimeType.WORKDAY) }
@@ -64,36 +53,10 @@ fun AddEditRecordPage(
     // 请假时长：半天 = -4，全天 = -8（小时）
     var leaveDuration by remember { mutableStateOf(-4) }
 
+    var showTypePicker by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
-
-    // 同步节假日配置到 HolidayManager
-    LaunchedEffect(holidayDataSource, holidayCustomUrl, holidayMxnzpAppId, holidayMxnzpAppSecret, holidayIgnoreHoliday) {
-        HolidayManager.configure(
-            dataSource = try { HolidayDataSource.valueOf(holidayDataSource) } catch (_: Exception) { HolidayDataSource.TIMOR },
-            customUrl = holidayCustomUrl,
-            mxnzpAppId = holidayMxnzpAppId,
-            mxnzpAppSecret = holidayMxnzpAppSecret,
-            ignoreHoliday = holidayIgnoreHoliday
-        )
-    }
-
-    // 加班类型根据节假日管理下载的日期类型自动判定（非手动选择）
-    val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
-    LaunchedEffect(selectedDate) {
-        if (!isLeave) {
-            val type = HolidayManager.getOvertimeType(dateFormat.format(selectedDate))
-            selectedType = type
-            // 新建模式：根据类型设定默认加班时间段（工作日 17:00 起，其余 18:00 起）
-            if (recordId == null) {
-                when (type) {
-                    OvertimeType.WORKDAY -> { startTimeStr = "17:00"; endTimeStr = "19:00" }
-                    else -> { startTimeStr = "18:00"; endTimeStr = "20:00" }
-                }
-            }
-        }
-    }
 
     // 日期选择器状态（年/月/日）
     var pickYear by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
@@ -165,7 +128,7 @@ fun AddEditRecordPage(
         }
     }
 
-    fun triggerAfterSave(record: OvertimeRecord) {
+    fun triggerAfterSave(record: OvertimeRecord, oldRecord: OvertimeRecord? = null) {
         scope.launch {
             val settings = settingsRepository
             if (settings.pushEnabled.first()) {
@@ -175,7 +138,8 @@ fun AddEditRecordPage(
                 }
             }
             if (settings.calendarSyncEnabled.first() && CalendarSyncManager.hasCalendarPermission(context)) {
-                CalendarSyncManager.removeEvents(context, record)
+                // 编辑场景下先移除旧事件（按旧时间/类型匹配），避免产生重复事件
+                oldRecord?.let { CalendarSyncManager.removeEvents(context, it) }
                 CalendarSyncManager.addEvent(context, record)
             }
 
@@ -207,37 +171,36 @@ fun AddEditRecordPage(
                 },
                 actions = {
                     IconButton(
-                        onClick = {
-                            scope.launch {
-                                val saved = saveRecord(
-                                    repository,
-                                    recordId,
-                                    selectedDate,
-                                    selectedType,
-                                    startTimeStr,
-                                    endTimeStr,
-                                    baseSalary,
-                                    when (selectedType) {
-                                        OvertimeType.WORKDAY -> workdayRate
-                                        OvertimeType.WEEKEND -> weekendRate
-                                        OvertimeType.HOLIDAY -> holidayRate
-                                    },
-                                    note,
-                                    isLeave,
-                                    leaveDuration
-                                )
-                                saved?.let { triggerAfterSave(it) }
-                                snackbarHostState.showCustomToast("保存成功")
-                                navController.popBackStack()
-                            }
+                    onClick = {
+                        scope.launch {
+                            val oldRecord = if (recordId != null) repository.getRecordById(recordId) else null
+                            val saved = saveRecord(
+                                repository,
+                                recordId,
+                                selectedDate,
+                                selectedType,
+                                startTimeStr,
+                                endTimeStr,
+                                baseSalary,
+                                when (selectedType) {
+                                    OvertimeType.WORKDAY -> workdayRate
+                                    OvertimeType.WEEKEND -> weekendRate
+                                    OvertimeType.HOLIDAY -> holidayRate
+                                },
+                                note,
+                                isLeave,
+                                leaveDuration
+                            )
+                            saved?.let { triggerAfterSave(it, oldRecord) }
+                            navController.popBackStack()
                         }
+                    }
                     ) {
                         Icon(MiuixIcons.Ok, contentDescription = "保存")
                     }
                 }
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        }
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -284,7 +247,9 @@ fun AddEditRecordPage(
                 item {
                     BasicComponent(
                         title = "加班类型",
-                        summary = "${selectedType.label}（按日期自动判定）"
+                        summary = selectedType.label,
+                        endActions = { DropdownArrowEndAction(MiuixTheme.colorScheme.primary) },
+                        onClick = { showTypePicker = true }
                     )
                 }
 
@@ -347,10 +312,7 @@ fun AddEditRecordPage(
                     endActions = {
                         Switch(
                             checked = isLeave,
-                            onCheckedChange = {
-                                isLeave = it
-                                if (it) selectedType = OvertimeType.WORKDAY
-                            }
+                            onCheckedChange = { isLeave = it }
                         )
                     }
                 )
@@ -502,6 +464,28 @@ fun AddEditRecordPage(
                     ) {
                         Text("确定")
                     }
+                }
+            }
+        }
+
+        OverlayDialog(
+            show = showTypePicker,
+            title = "选择类型",
+            onDismissRequest = { showTypePicker = false }
+        ) {
+            Column {
+                val typeEntries = OvertimeType.entries
+                typeEntries.forEachIndexed { index, type ->
+                    DropdownImpl(
+                        text = type.label,
+                        optionSize = typeEntries.size,
+                        isSelected = selectedType == type,
+                        index = index,
+                        onSelectedIndexChange = {
+                            selectedType = typeEntries[it]
+                            showTypePicker = false
+                        }
+                    )
                 }
             }
         }

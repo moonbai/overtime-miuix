@@ -1,6 +1,5 @@
 package com.overtime.miuix.ui.screen
 
-import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -35,8 +34,9 @@ fun CalendarSettingsPage(
     var status by remember { mutableStateOf<String?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val granted = result.values.all { it }
         if (granted) {
             status = "日历权限已授予"
         } else {
@@ -99,7 +99,7 @@ fun CalendarSettingsPage(
                         startAction = { Icon(MiuixIcons.Months, contentDescription = null) },
                         onClick = {
                             if (!CalendarSyncManager.hasCalendarPermission(context)) {
-                                permissionLauncher.launch(Manifest.permission.READ_CALENDAR)
+                                permissionLauncher.launch(CalendarSyncManager.calendarPermissions())
                             } else {
                                 status = "日历权限已授予"
                             }
@@ -111,7 +111,7 @@ fun CalendarSettingsPage(
                         onClick = {
                             scope.launch {
                                 if (!CalendarSyncManager.hasCalendarPermission(context)) {
-                                    permissionLauncher.launch(Manifest.permission.READ_CALENDAR)
+                                    permissionLauncher.launch(CalendarSyncManager.calendarPermissions())
                                     return@launch
                                 }
                                 val ok = CalendarSyncManager.syncAll(context, records)

@@ -2,7 +2,9 @@ package com.overtime.miuix.push
 
 import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.CalendarContract
 import com.overtime.miuix.data.database.OvertimeRecord
 import com.overtime.miuix.data.model.OvertimeType
@@ -13,9 +15,32 @@ object CalendarSyncManager {
     private const val ACCOUNT_NAME = "overtime@com.overtime.miuix"
     private const val ACCOUNT_TYPE = "LOCAL"
 
+    /**
+     * 判断是否拥有日历读写权限。
+     * Android 11（API 30）及以上，拥有 [READ_CALENDAR] 即可写入自身拥有的日历；
+     * Android 11 以下还需显式授予 [WRITE_CALENDAR]。
+     */
     fun hasCalendarPermission(context: Context): Boolean {
-        return android.content.pm.PackageManager.PERMISSION_GRANTED ==
-            context.checkSelfPermission(android.Manifest.permission.READ_CALENDAR)
+        val readGranted = context.checkSelfPermission(android.Manifest.permission.READ_CALENDAR) ==
+            PackageManager.PERMISSION_GRANTED
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return readGranted
+        }
+        val writeGranted = context.checkSelfPermission(android.Manifest.permission.WRITE_CALENDAR) ==
+            PackageManager.PERMISSION_GRANTED
+        return readGranted && writeGranted
+    }
+
+    /** 同步所需的全部日历权限（用于运行时申请）。 */
+    fun calendarPermissions(): Array<String> {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            arrayOf(android.Manifest.permission.READ_CALENDAR)
+        } else {
+            arrayOf(
+                android.Manifest.permission.READ_CALENDAR,
+                android.Manifest.permission.WRITE_CALENDAR
+            )
+        }
     }
 
     fun getOrCreateCalendarId(context: Context): Long? {
