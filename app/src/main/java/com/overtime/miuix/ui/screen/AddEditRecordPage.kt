@@ -2,12 +2,6 @@ package com.overtime.miuix.ui.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TimePickerDialog
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,15 +56,23 @@ fun AddEditRecordPage(
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
 
-    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDate.time)
-    val startPickerState = rememberTimePickerState(
-        initialHour = startTimeStr.take(2).toIntOrNull() ?: 18,
-        initialMinute = startTimeStr.takeLast(2).toIntOrNull() ?: 0
-    )
-    val endPickerState = rememberTimePickerState(
-        initialHour = endTimeStr.take(2).toIntOrNull() ?: 20,
-        initialMinute = endTimeStr.takeLast(2).toIntOrNull() ?: 0
-    )
+    // 日期选择器状态（年/月/日）
+    var pickYear by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
+    var pickMonth by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.MONTH) + 1) }
+    var pickDay by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.DAY_OF_MONTH)) }
+
+    // 时间选择器状态（小时/分钟）
+    var startHour by remember { mutableIntStateOf(startTimeStr.take(2).toIntOrNull() ?: 18) }
+    var startMinute by remember { mutableIntStateOf(startTimeStr.takeLast(2).toIntOrNull() ?: 0) }
+    var endHour by remember { mutableIntStateOf(endTimeStr.take(2).toIntOrNull() ?: 20) }
+    var endMinute by remember { mutableIntStateOf(endTimeStr.takeLast(2).toIntOrNull() ?: 0) }
+
+    // 获取某年某月的天数
+    fun daysInMonth(year: Int, month: Int): Int {
+        val cal = Calendar.getInstance()
+        cal.set(year, month - 1, 1)
+        return cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+    }
 
     val previewAmount = remember(selectedDate, selectedType, startTimeStr, endTimeStr, baseSalary, workdayRate, weekendRate, holidayRate, isLeave) {
         if (isLeave) {
@@ -101,7 +103,22 @@ fun AddEditRecordPage(
                 endTimeStr = timeSdf.format(Date(it.endTime))
                 note = it.note
                 isLeave = it.isLeave
+                // 同步选择器状态
+                val cal = Calendar.getInstance().apply { time = Date(it.date) }
+                pickYear = cal.get(Calendar.YEAR)
+                pickMonth = cal.get(Calendar.MONTH) + 1
+                pickDay = cal.get(Calendar.DAY_OF_MONTH)
+                startHour = startTimeStr.take(2).toIntOrNull() ?: 18
+                startMinute = startTimeStr.takeLast(2).toIntOrNull() ?: 0
+                endHour = endTimeStr.take(2).toIntOrNull() ?: 20
+                endMinute = endTimeStr.takeLast(2).toIntOrNull() ?: 0
             }
+        } else {
+            // 新建模式：初始化为当前日期
+            val cal = Calendar.getInstance()
+            pickYear = cal.get(Calendar.YEAR)
+            pickMonth = cal.get(Calendar.MONTH) + 1
+            pickDay = cal.get(Calendar.DAY_OF_MONTH)
         }
     }
 
@@ -263,62 +280,150 @@ fun AddEditRecordPage(
     }
 
     if (showDatePicker) {
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    text = "确定",
-                    onClick = {
-                        selectedDate = Date(datePickerState.selectedDateMillis ?: selectedDate.time)
-                        showDatePicker = false
-                    }
-                )
-            },
-            dismissButton = {
-                TextButton(text = "取消", onClick = { showDatePicker = false })
-            }
+        OverlayDialog(
+            show = showDatePicker,
+            title = "选择日期",
+            onDismissRequest = { showDatePicker = false }
         ) {
-            DatePicker(state = datePickerState)
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                val maxDay = daysInMonth(pickYear, pickMonth)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    NumberPicker(
+                        value = pickYear,
+                        onValueChange = { pickYear = it },
+                        range = 2020..2035,
+                        modifier = Modifier.weight(1f)
+                    )
+                    NumberPicker(
+                        value = pickMonth.coerceAtMost(12),
+                        onValueChange = { pickMonth = it },
+                        range = 1..12,
+                        label = { "${it}月" },
+                        modifier = Modifier.weight(1f)
+                    )
+                    NumberPicker(
+                        value = pickDay.coerceAtMost(maxDay),
+                        onValueChange = { pickDay = it },
+                        range = 1..maxDay,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        val cal = Calendar.getInstance().apply {
+                            set(pickYear, pickMonth - 1, pickDay.coerceAtMost(daysInMonth(pickYear, pickMonth)), 12, 0, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        selectedDate = cal.time
+                        showDatePicker = false
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("确定")
+                }
+            }
         }
     }
 
     if (showStartPicker) {
-        TimePickerDialog(
-            onDismissRequest = { showStartPicker = false },
-            confirmButton = {
-                TextButton(
-                    text = "确定",
-                    onClick = {
-                        startTimeStr = String.format("%02d:%02d", startPickerState.hour, startPickerState.minute)
-                        showStartPicker = false
-                    }
-                )
-            },
-            dismissButton = {
-                TextButton(text = "取消", onClick = { showStartPicker = false })
-            }
+        OverlayDialog(
+            show = showStartPicker,
+            title = "开始时间",
+            onDismissRequest = { showStartPicker = false }
         ) {
-            TimePicker(state = startPickerState)
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    NumberPicker(
+                        value = startHour,
+                        onValueChange = { startHour = it },
+                        range = 0..23,
+                        label = { it.toString().padStart(2, '0') },
+                        wrapAround = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(text = ":", fontWeight = FontWeight.Bold)
+                    NumberPicker(
+                        value = startMinute,
+                        onValueChange = { startMinute = it },
+                        range = 0..59,
+                        label = { it.toString().padStart(2, '0') },
+                        wrapAround = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        startTimeStr = String.format("%02d:%02d", startHour, startMinute)
+                        showStartPicker = false
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("确定")
+                }
+            }
         }
     }
 
     if (showEndPicker) {
-        TimePickerDialog(
-            onDismissRequest = { showEndPicker = false },
-            confirmButton = {
-                TextButton(
-                    text = "确定",
-                    onClick = {
-                        endTimeStr = String.format("%02d:%02d", endPickerState.hour, endPickerState.minute)
-                        showEndPicker = false
-                    }
-                )
-            },
-            dismissButton = {
-                TextButton(text = "取消", onClick = { showEndPicker = false })
-            }
+        OverlayDialog(
+            show = showEndPicker,
+            title = "结束时间",
+            onDismissRequest = { showEndPicker = false }
         ) {
-            TimePicker(state = endPickerState)
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    NumberPicker(
+                        value = endHour,
+                        onValueChange = { endHour = it },
+                        range = 0..23,
+                        label = { it.toString().padStart(2, '0') },
+                        wrapAround = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(text = ":", fontWeight = FontWeight.Bold)
+                    NumberPicker(
+                        value = endMinute,
+                        onValueChange = { endMinute = it },
+                        range = 0..59,
+                        label = { it.toString().padStart(2, '0') },
+                        wrapAround = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        endTimeStr = String.format("%02d:%02d", endHour, endMinute)
+                        showEndPicker = false
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("确定")
+                }
+            }
         }
     }
 
