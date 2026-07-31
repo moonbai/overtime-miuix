@@ -11,7 +11,6 @@ import android.graphics.drawable.Drawable
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -20,9 +19,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -31,10 +27,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -45,64 +37,45 @@ fun AboutPage(navController: NavHostController) {
     val appIcon = remember { loadMipmapIcon(context) }
     val versionName = remember { getVersionName(context) }
 
-    val backdrop = rememberLayerBackdrop()
-    val blurSupported = isRuntimeShaderSupported()
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        // 底层渐变背景
-        Box(
+    Scaffold(
+        topBar = {
+            SmallTopAppBar(
+                title = "关于",
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .layerBackdrop(backdrop)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            MiuixTheme.colorScheme.primary,
-                            MiuixTheme.colorScheme.primaryContainer,
-                            MiuixTheme.colorScheme.background
-                        )
-                    )
-                )
-        )
+                .padding(paddingValues),
+            contentPadding = PaddingValues(16.dp)
+        ) {
+            item { Spacer(modifier = Modifier.height(12.dp)) }
 
-        Scaffold(
-            containerColor = Color.Transparent,
-            topBar = {
-                SmallTopAppBar(
-                    title = "关于",
-                    color = Color.Transparent,
-                    navigationIcon = {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
-                        }
-                    }
-                )
-            }
-        ) { paddingValues ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                item { Spacer(modifier = Modifier.height(24.dp)) }
-
-                // 应用图标（圆角卡片 + 毛玻璃边框）
-                item {
-                    Box(
-                        modifier = Modifier
-                            .size(120.dp)
-                            .clip(RoundedCornerShape(28.dp))
-                            .textureBlur(
-                                backdrop = backdrop,
-                                shape = RoundedCornerShape(28.dp),
-                                blurRadius = 20f,
-                                enabled = blurSupported
-                            )
-                            .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.3f)),
-                        contentAlignment = Alignment.Center
+            // Hero：应用图标 + 名称 + 版本 + 标语（标准 surface 卡片）
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 24.dp,
+                    insideMargin = PaddingValues(24.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // 图标置于 primaryContainer 圆角容器，克制强调色
+                        Box(
+                            modifier = Modifier
+                                .size(120.dp)
+                                .clip(RoundedCornerShape(28.dp))
+                                .background(MiuixTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
                             appIcon?.let { bitmap ->
                                 Image(
                                     bitmap = bitmap.asImageBitmap(),
@@ -116,259 +89,150 @@ fun AboutPage(navController: NavHostController) {
                                 tint = MiuixTheme.colorScheme.primary,
                                 modifier = Modifier.size(80.dp)
                             )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "加班记",
+                            style = MiuixTheme.textStyles.headline2,
+                            fontWeight = FontWeight.Bold,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "版本 $versionName",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "用心记录，每一份付出都值得被看见",
+                            style = MiuixTheme.textStyles.title3,
+                            color = MiuixTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
+            }
 
-                item { Spacer(modifier = Modifier.height(16.dp)) }
+            item { Spacer(modifier = Modifier.height(20.dp)) }
 
-                // 应用名称 — Foreground Blur 前景模糊
-                item {
+            // 关于应用（实底卡片，与全局组件一致）
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 20.dp,
+                    insideMargin = PaddingValues(20.dp)
+                ) {
                     Text(
-                        text = "加班记",
-                        modifier = Modifier
-                            .textureBlur(
-                                backdrop = backdrop,
-                                shape = RoundedCornerShape(0.dp),
-                                blurRadius = 120f,
-                                enabled = blurSupported,
-                                contentBlendMode = BlendMode.DstIn
-                            ),
-                        style = MiuixTheme.textStyles.headline2,
+                        text = "关于应用",
+                        style = MiuixTheme.textStyles.title3,
                         fontWeight = FontWeight.Bold,
                         color = MiuixTheme.colorScheme.onSurface
                     )
-                }
-
-                item {
+                    Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "版本 $versionName",
+                        text = "一款简洁实用的加班记录与薪资计算工具，帮你轻松记录每一次加班，精准计算应得报酬。",
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
                 }
-
-                item { Spacer(modifier = Modifier.height(8.dp)) }
-
-                item {
-                    Text(
-                        text = "用心记录，每一份付出都值得被看见",
-                        style = MiuixTheme.textStyles.title3,
-                        color = MiuixTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                item { Spacer(modifier = Modifier.height(24.dp)) }
-
-                // 关于应用卡片（TextureBlur + Card）
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .textureBlur(
-                                backdrop = backdrop,
-                                shape = RoundedCornerShape(20.dp),
-                                blurRadius = 30f,
-                                enabled = blurSupported
-                            )
-                    ) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            cornerRadius = 20.dp,
-                            insideMargin = PaddingValues(20.dp),
-                            colors = CardDefaults.defaultColors(
-                                color = MiuixTheme.colorScheme.surface.copy(alpha = 0.5f)
-                            )
-                        ) {
-                            Text(
-                                text = "关于应用",
-                                style = MiuixTheme.textStyles.title3,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = "一款简洁实用的加班记录与薪资计算工具，帮你轻松记录每一次加班，精准计算应得报酬。",
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            )
-                        }
-                    }
-                }
-
-                item { Spacer(modifier = Modifier.height(20.dp)) }
-
-                // 主要功能
-                item {
-                    Text(
-                        text = "主要功能",
-                        style = MiuixTheme.textStyles.title3,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
-
-                item {
-                    FeatureGrid(backdrop, blurSupported)
-                }
-
-                item { Spacer(modifier = Modifier.height(24.dp)) }
-
-                // 作者
-                item {
-                    FrostedCard(backdrop, blurSupported) {
-                        InfoRow("作者", "Mars")
-                    }
-                }
-
-                item { Spacer(modifier = Modifier.height(8.dp)) }
-
-                // 开源仓库 — 可点击跳转浏览器
-                item {
-                    val ctx = context
-                    FrostedCard(backdrop, blurSupported) {
-                        ClickableInfoRow(
-                            label = "开源仓库",
-                            value = "Github",
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/moonbai/overtime-miuix"))
-                                ctx.startActivity(intent)
-                            }
-                        )
-                    }
-                }
-
-                item { Spacer(modifier = Modifier.height(24.dp)) }
-
-                item {
-                    Text(
-                        text = "© 2026 Mars",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                    )
-                }
-                item {
-                    Text(
-                        text = "All rights reserved",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f)
-                    )
-                }
-
-                item { Spacer(modifier = Modifier.height(24.dp)) }
             }
+
+            item { Spacer(modifier = Modifier.height(20.dp)) }
+
+            // 主要功能
+            item {
+                SmallTitle(text = "主要功能")
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+            item { FeatureGrid() }
+
+            item { Spacer(modifier = Modifier.height(20.dp)) }
+
+            // 开发者信息（与设置页一致的 BasicComponent 列表）
+            item {
+                Column {
+                    SmallTitle(text = "开发者")
+                    BasicComponent(
+                        title = "作者",
+                        summary = "Mars",
+                        startAction = { Icon(MiuixIcons.Info, contentDescription = null) }
+                    )
+                    BasicComponent(
+                        title = "开源仓库",
+                        summary = "Github",
+                        startAction = { Icon(MiuixIcons.Link, contentDescription = null) },
+                        endActions = {
+                            Icon(
+                                imageVector = MiuixIcons.ChevronForward,
+                                contentDescription = "打开链接",
+                                tint = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        onClick = {
+                            val intent = Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse("https://github.com/moonbai/overtime-miuix")
+                            )
+                            context.startActivity(intent)
+                        }
+                    )
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(24.dp)) }
+
+            // 版权信息
+            item {
+                Text(
+                    text = "© 2026 Mars",
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+            }
+            item {
+                Text(
+                    text = "All rights reserved",
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            item { Spacer(modifier = Modifier.height(24.dp)) }
         }
     }
 }
 
 @Composable
-private fun FrostedCard(
-    backdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop,
-    blurSupported: Boolean,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .textureBlur(
-                backdrop = backdrop,
-                shape = RoundedCornerShape(16.dp),
-                blurRadius = 30f,
-                enabled = blurSupported
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.5f))
-                .padding(16.dp),
-            content = content
-        )
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            style = MiuixTheme.textStyles.body1,
-            fontWeight = FontWeight.Medium
-        )
-        Text(
-            text = value,
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-        )
-    }
-}
-
-@Composable
-private fun ClickableInfoRow(
-    label: String,
-    value: String,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            style = MiuixTheme.textStyles.body1,
-            fontWeight = FontWeight.Medium
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = value,
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Icon(
-                imageVector = MiuixIcons.ChevronForward,
-                contentDescription = "打开链接",
-                tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun FeatureGrid(
-    backdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop,
-    blurSupported: Boolean
-) {
+private fun FeatureGrid() {
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            FeatureCard("本地记录", MiuixIcons.Info, backdrop, blurSupported, Modifier.weight(1f))
-            FeatureCard("多渠道推送", MiuixIcons.Alarm, backdrop, blurSupported, Modifier.weight(1f))
+            FeatureCard("本地记录", MiuixIcons.Info, Modifier.weight(1f))
+            FeatureCard("多渠道推送", MiuixIcons.Alarm, Modifier.weight(1f))
         }
         Spacer(modifier = Modifier.height(12.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            FeatureCard("智能识别", MiuixIcons.AppRecording, backdrop, blurSupported, Modifier.weight(1f))
-            FeatureCard("云端备份", MiuixIcons.CloudFill, backdrop, blurSupported, Modifier.weight(1f))
+            FeatureCard("智能识别", MiuixIcons.AppRecording, Modifier.weight(1f))
+            FeatureCard("云端备份", MiuixIcons.CloudFill, Modifier.weight(1f))
         }
         Spacer(modifier = Modifier.height(12.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            FeatureCard("薪资计算", MiuixIcons.BankCards, backdrop, blurSupported, Modifier.weight(1f))
-            FeatureCard("日历同步", MiuixIcons.Months, backdrop, blurSupported, Modifier.weight(1f))
+            FeatureCard("薪资计算", MiuixIcons.BankCards, Modifier.weight(1f))
+            FeatureCard("日历同步", MiuixIcons.Months, Modifier.weight(1f))
         }
     }
 }
@@ -377,23 +241,15 @@ private fun FeatureGrid(
 private fun FeatureCard(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    backdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop,
-    blurSupported: Boolean,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier.textureBlur(
-            backdrop = backdrop,
-            shape = RoundedCornerShape(12.dp),
-            blurRadius = 20f,
-            enabled = blurSupported
-        )
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        cornerRadius = 16.dp,
+        insideMargin = PaddingValues(14.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.5f))
-                .padding(14.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
