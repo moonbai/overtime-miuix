@@ -103,19 +103,19 @@ fun AboutPage(navController: NavHostController) {
                             .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.3f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        appIcon?.let { bitmap ->
-                            Image(
-                                bitmap = bitmap.asImageBitmap(),
+                            appIcon?.let { bitmap ->
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = "应用图标",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.size(96.dp)
+                                )
+                            } ?: Icon(
+                                MiuixIcons.AppRecording,
                                 contentDescription = "应用图标",
-                                contentScale = ContentScale.Fit,
+                                tint = MiuixTheme.colorScheme.primary,
                                 modifier = Modifier.size(80.dp)
                             )
-                        } ?: Icon(
-                            MiuixIcons.AppRecording,
-                            contentDescription = "应用图标",
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(64.dp)
-                        )
                     }
                 }
 
