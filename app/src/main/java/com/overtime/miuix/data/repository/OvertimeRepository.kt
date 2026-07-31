@@ -4,6 +4,7 @@ import com.overtime.miuix.data.database.AppDatabase
 import com.overtime.miuix.data.database.OvertimeRecord
 import com.overtime.miuix.data.model.OvertimeType
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -55,17 +56,16 @@ class OvertimeRepository(private val database: AppDatabase) {
         var holidayHours = 0.0
         var recordCount = 0
         
-        dao.getRecordsByDateRange(startDate, endDate).collect { records ->
-            records.forEach { record ->
-                totalHours += record.durationHours
-                totalAmount += record.amount
-                when (record.type) {
-                    OvertimeType.WORKDAY -> workdayHours += record.durationHours
-                    OvertimeType.WEEKEND -> weekendHours += record.durationHours
-                    OvertimeType.HOLIDAY -> holidayHours += record.durationHours
-                }
-                recordCount++
+        val records = dao.getRecordsByDateRange(startDate, endDate).first()
+        records.forEach { record ->
+            totalHours += record.durationHours
+            totalAmount += record.amount
+            when (record.type) {
+                OvertimeType.WORKDAY -> workdayHours += record.durationHours
+                OvertimeType.WEEKEND -> weekendHours += record.durationHours
+                OvertimeType.HOLIDAY -> holidayHours += record.durationHours
             }
+            recordCount++
         }
         
         return MonthlyStats(totalHours, totalAmount, recordCount, workdayHours, weekendHours, holidayHours)
@@ -88,11 +88,10 @@ class OvertimeRepository(private val database: AppDatabase) {
         var totalHours = 0.0
         var totalAmount = 0.0
         
-        dao.getRecordsByDateRange(startDate, endDate).collect { records ->
-            records.forEach { record ->
-                totalHours += record.durationHours
-                totalAmount += record.amount
-            }
+        val records = dao.getRecordsByDateRange(startDate, endDate).first()
+        records.forEach { record ->
+            totalHours += record.durationHours
+            totalAmount += record.amount
         }
         
         return YearlyStats(totalHours, totalAmount)

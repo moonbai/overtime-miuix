@@ -17,76 +17,71 @@ fun SettingsPage(navController: NavHostController) {
         contentPadding = PaddingValues(vertical = 8.dp)
     ) {
         item {
-            PreferenceGroup(title = "功能设置") {
-                ListItem(
-                    title = "薪资设置",
-                    summary = "基础薪资、加班倍率",
-                    leftAction = { Icon(MiuixIcons.BankCards, contentDescription = null) },
-                    onClick = { navController.navigate("salary_settings") }
-                )
-                ListItem(
-                    title = "推送设置",
-                    summary = "配置推送渠道",
-                    leftAction = { Icon(MiuixIcons.Alarm, contentDescription = null) },
-                    onClick = { navController.navigate("push_settings") }
-                )
-                ListItem(
-                    title = "日历同步",
-                    summary = "同步到系统日历",
-                    leftAction = { Icon(MiuixIcons.Months, contentDescription = null) },
-                    onClick = { navController.navigate("calendar_settings") }
-                )
-            }
+            SmallTitle(text = "功能设置")
+            BasicComponent(
+                title = "薪资设置",
+                summary = "基础薪资、加班倍率",
+                startAction = { Icon(MiuixIcons.BankCards, contentDescription = null) },
+                onClick = { navController.navigate("salary_settings") }
+            )
+            BasicComponent(
+                title = "推送设置",
+                summary = "配置推送渠道",
+                startAction = { Icon(MiuixIcons.Alarm, contentDescription = null) },
+                onClick = { navController.navigate("push_settings") }
+            )
+            BasicComponent(
+                title = "日历同步",
+                summary = "同步到系统日历",
+                startAction = { Icon(MiuixIcons.Months, contentDescription = null) },
+                onClick = { navController.navigate("calendar_settings") }
+            )
         }
         
         item {
-            PreferenceGroup(title = "数据管理") {
-                ListItem(
-                    title = "备份与恢复",
-                    summary = "本地/云端备份",
-                    leftAction = { Icon(MiuixIcons.CloudFill, contentDescription = null) },
-                    onClick = { navController.navigate("backup_settings") }
-                )
-                ListItem(
-                    title = "节假日管理",
-                    summary = "更新节假日规则",
-                    leftAction = { Icon(MiuixIcons.Months, contentDescription = null) },
-                    onClick = { navController.navigate("holiday_settings") }
-                )
-            }
+            SmallTitle(text = "数据管理")
+            BasicComponent(
+                title = "备份与恢复",
+                summary = "本地/云端备份",
+                startAction = { Icon(MiuixIcons.CloudFill, contentDescription = null) },
+                onClick = { navController.navigate("backup_settings") }
+            )
+            BasicComponent(
+                title = "节假日管理",
+                summary = "更新节假日规则",
+                startAction = { Icon(MiuixIcons.Months, contentDescription = null) },
+                onClick = { navController.navigate("holiday_settings") }
+            )
         }
         
         item {
-            PreferenceGroup(title = "个性化") {
-                ListItem(
-                    title = "外观设置",
-                    summary = "主题、强调色、底栏样式",
-                    leftAction = { Icon(MiuixIcons.Background, contentDescription = null) },
-                    onClick = { navController.navigate("appearance_settings") }
-                )
-            }
+            SmallTitle(text = "个性化")
+            BasicComponent(
+                title = "外观设置",
+                summary = "主题、强调色、底栏样式",
+                startAction = { Icon(MiuixIcons.Background, contentDescription = null) },
+                onClick = { navController.navigate("appearance_settings") }
+            )
         }
         
         item {
-            PreferenceGroup(title = "MCP 服务") {
-                ListItem(
-                    title = "MCP 服务设置",
-                    summary = "配置 Model Context Protocol",
-                    leftAction = { Icon(MiuixIcons.CloudFill, contentDescription = null) },
-                    onClick = { navController.navigate("mcp_settings") }
-                )
-            }
+            SmallTitle(text = "MCP 服务")
+            BasicComponent(
+                title = "MCP 服务设置",
+                summary = "配置 Model Context Protocol",
+                startAction = { Icon(MiuixIcons.CloudFill, contentDescription = null) },
+                onClick = { navController.navigate("mcp_settings") }
+            )
         }
         
         item {
-            PreferenceGroup(title = "关于") {
-                ListItem(
-                    title = "关于应用",
-                    summary = "版本 1.0.0",
-                    leftAction = { Icon(MiuixIcons.Info, contentDescription = null) },
-                    onClick = { navController.navigate("about") }
-                )
-            }
+            SmallTitle(text = "关于")
+            BasicComponent(
+                title = "关于应用",
+                summary = "版本 1.0.0",
+                startAction = { Icon(MiuixIcons.Info, contentDescription = null) },
+                onClick = { navController.navigate("about") }
+            )
         }
     }
 }

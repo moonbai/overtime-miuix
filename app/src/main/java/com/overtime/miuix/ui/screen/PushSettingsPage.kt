@@ -22,7 +22,6 @@ fun PushSettingsPage(
     val pushChannel by settingsRepository.pushChannel.collectAsState(initial = "none")
     
     val channels = listOf(
-        "none" to "不启用",
         "dingtalk" to "钉钉",
         "feishu" to "飞书",
         "wxpusher" to "WxPusher",
@@ -50,23 +49,26 @@ fun PushSettingsPage(
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
             item {
-                SwitchItem(
+                BasicComponent(
                     title = "启用推送",
                     summary = "开启后可在设置时间推送加班统计",
-                    checked = pushEnabled,
-                    onCheckedChange = { scope.launch { settingsRepository.setPushEnabled(it) } }
+                    endActions = {
+                        Switch(
+                            checked = pushEnabled,
+                            onCheckedChange = { scope.launch { settingsRepository.setPushEnabled(it) } }
+                        )
+                    }
                 )
             }
             
             item {
-                PreferenceGroup(title = "推送渠道") {
-                    channels.forEach { (value, label) ->
-                        ListItem(
-                            title = label,
-                            onClick = { scope.launch { settingsRepository.setPushChannel(value) } },
-                            rightAction = { RadioButton(selected = pushChannel == value, onClick = null) }
-                        )
-                    }
+                SmallTitle(text = "推送渠道")
+                channels.forEach { (value, label) ->
+                    BasicComponent(
+                        title = label,
+                        onClick = { scope.launch { settingsRepository.setPushChannel(value) } },
+                        endActions = { RadioButton(selected = pushChannel == value, onClick = null) }
+                    )
                 }
             }
         }

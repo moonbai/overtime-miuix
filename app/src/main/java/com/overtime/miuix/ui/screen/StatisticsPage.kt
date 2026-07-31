@@ -34,18 +34,16 @@ fun StatisticsPage(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            ScrollableTabRow(
-                selectedTabIndex = yearMonths.indexOf(selectedMonth),
+            TabRow(
+                tabs = yearMonths,
+                selectedTabIndex = yearMonths.indexOf(selectedMonth).coerceAtLeast(0),
+                onTabSelected = { index ->
+                    if (index in yearMonths.indices) {
+                        selectedMonth = yearMonths[index]
+                    }
+                },
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                yearMonths.forEachIndexed { index, month ->
-                    Tab(
-                        selected = selectedMonth == month,
-                        onClick = { selectedMonth = month },
-                        text = { Text(month) }
-                    )
-                }
-            }
+            )
         }
         
         item {
@@ -97,8 +95,8 @@ private fun StatsCard(title: String, items: List<Pair<String, String>>) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = label,
-                                style = MiuixTheme.textStyles.caption,
-                                color = MiuixTheme.colorScheme.onSurfaceVariant
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                             )
                             Text(
                                 text = value,

@@ -18,7 +18,12 @@ fun MainScreen(
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val bottomBarStyle by settingsRepository.bottomBarStyle.collectAsState(initial = "ICON_TEXT")
-    val quickSubmit by settingsRepository.quickSubmit.collectAsState(initial = false)
+    
+    val navMode = when (bottomBarStyle) {
+        "ICON_ONLY" -> NavigationBarDisplayMode.IconOnly
+        "TEXT_ONLY" -> NavigationBarDisplayMode.IconWithSelectedLabel
+        else -> NavigationBarDisplayMode.IconAndText
+    }
     
     Scaffold(
         topBar = {
@@ -32,35 +37,24 @@ fun MainScreen(
             )
         },
         bottomBar = {
-            when (bottomBarStyle) {
-                "ICON_ONLY" -> NavigationBar(
-                    items = listOf(
-                        NavigationItem("首页", icon = MiuixIcons.All),
-                        NavigationItem("统计", icon = MiuixIcons.Months),
-                        NavigationItem("设置", icon = MiuixIcons.Settings)
-                    ),
-                    selected = selectedTab,
-                    onClick = { selectedTab = it },
-                    showLabel = false
+            NavigationBar(mode = navMode) {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = MiuixIcons.All,
+                    label = "首页"
                 )
-                "TEXT_ONLY" -> NavigationBar(
-                    items = listOf(
-                        NavigationItem("首页"),
-                        NavigationItem("统计"),
-                        NavigationItem("设置")
-                    ),
-                    selected = selectedTab,
-                    onClick = { selectedTab = it },
-                    showIcon = false
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = MiuixIcons.Months,
+                    label = "统计"
                 )
-                else -> NavigationBar(
-                    items = listOf(
-                        NavigationItem("首页", icon = MiuixIcons.All),
-                        NavigationItem("统计", icon = MiuixIcons.Months),
-                        NavigationItem("设置", icon = MiuixIcons.Settings)
-                    ),
-                    selected = selectedTab,
-                    onClick = { selectedTab = it }
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    icon = MiuixIcons.Settings,
+                    label = "设置"
                 )
             }
         },
@@ -68,9 +62,7 @@ fun MainScreen(
             if (selectedTab == 0) {
                 FloatingActionButton(
                     onClick = {
-                        if (quickSubmit) {
-                            navController.navigate("add_record")
-                        }
+                        navController.navigate("add_record")
                     }
                 ) {
                     Icon(MiuixIcons.Add, contentDescription = "添加记录")

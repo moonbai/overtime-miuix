@@ -45,13 +45,13 @@ fun AboutPage(navController: NavHostController) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = "加班记录",
-                    style = MiuixTheme.textStyles.headline3,
+                    style = MiuixTheme.textStyles.headline2,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "版本 1.0.0",
                     style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariant
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
                 Spacer(modifier = Modifier.height(32.dp))
             }
@@ -71,7 +71,7 @@ fun AboutPage(navController: NavHostController) {
                         Text(
                             text = "一款基于 MIUIX 框架开发的加班记录应用，支持工作日、周末、节假日加班分类统计，实时薪资预览，日历同步，智能推送，MCP 服务等功能。",
                             style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariant
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
                     }
                 }

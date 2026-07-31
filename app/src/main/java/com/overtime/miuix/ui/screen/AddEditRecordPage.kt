@@ -3,6 +3,7 @@ package com.overtime.miuix.ui.screen
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -16,6 +17,7 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.*
@@ -44,18 +46,22 @@ fun AddEditRecordPage(
     
     var showTypePicker by remember { mutableStateOf(false) }
     
-    val previewAmount = remember(selectedDate, selectedType, startTimeStr, endTimeStr, baseSalary) {
-        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(selectedDate)
-        val start = sdf.parse("$dateStr $startTimeStr")?.time ?: 0
-        val end = sdf.parse("$dateStr $endTimeStr")?.time ?: 0
-        val duration = if (end > start) SalaryCalculator.calculateDurationHours(start, end) else 0.0
-        val rate = when (selectedType) {
-            OvertimeType.WORKDAY -> workdayRate
-            OvertimeType.WEEKEND -> weekendRate
-            OvertimeType.HOLIDAY -> holidayRate
+    val previewAmount = remember(selectedDate, selectedType, startTimeStr, endTimeStr, baseSalary, workdayRate, weekendRate, holidayRate, isLeave) {
+        if (isLeave) {
+            0.0
+        } else {
+            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+            val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(selectedDate)
+            val start = sdf.parse("$dateStr $startTimeStr")?.time ?: 0
+            val end = sdf.parse("$dateStr $endTimeStr")?.time ?: 0
+            val duration = if (end > start) SalaryCalculator.calculateDurationHours(start, end) else 0.0
+            val rate = when (selectedType) {
+                OvertimeType.WORKDAY -> workdayRate
+                OvertimeType.WEEKEND -> weekendRate
+                OvertimeType.HOLIDAY -> holidayRate
+            }
+            SalaryCalculator.calculateOvertimeAmount(baseSalary, selectedType, rate, duration)
         }
-        SalaryCalculator.calculateOvertimeAmount(baseSalary, selectedType, rate, duration)
     }
     
     LaunchedEffect(recordId) {
@@ -126,12 +132,12 @@ fun AddEditRecordPage(
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             text = "预估薪资",
                             style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariant
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
                         Text(
                             text = SalaryCalculator.formatAmount(previewAmount),
@@ -144,7 +150,7 @@ fun AddEditRecordPage(
             }
             
             item {
-                ListItem(
+                BasicComponent(
                     title = "日期",
                     summary = SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault()).format(selectedDate),
                     onClick = { }
@@ -152,7 +158,7 @@ fun AddEditRecordPage(
             }
             
             item {
-                ListItem(
+                BasicComponent(
                     title = "加班类型",
                     summary = selectedType.label,
                     onClick = { showTypePicker = true }
@@ -160,7 +166,7 @@ fun AddEditRecordPage(
             }
             
             item {
-                ListItem(
+                BasicComponent(
                     title = "开始时间",
                     summary = startTimeStr,
                     onClick = { }
@@ -168,7 +174,7 @@ fun AddEditRecordPage(
             }
             
             item {
-                ListItem(
+                BasicComponent(
                     title = "结束时间",
                     summary = endTimeStr,
                     onClick = { }
@@ -185,34 +191,35 @@ fun AddEditRecordPage(
             }
             
             item {
-                SwitchItem(
+                BasicComponent(
                     title = "请假记录",
-                    checked = isLeave,
-                    onCheckedChange = { isLeave = it }
+                    endActions = {
+                        Switch(
+                            checked = isLeave,
+                            onCheckedChange = { isLeave = it }
+                        )
+                    }
                 )
             }
         }
     }
     
-    if (showTypePicker) {
-        AlertDialog(
-            onDismissRequest = { showTypePicker = false },
-            title = "选择类型",
-            text = {
-                Column {
-                    OvertimeType.entries.forEach { type ->
-                        ListItem(
-                            title = type.label,
-                            onClick = {
-                                selectedType = type
-                                showTypePicker = false
-                            }
-                        )
+    OverlayDialog(
+        show = showTypePicker,
+        title = "选择类型",
+        onDismissRequest = { showTypePicker = false }
+    ) {
+        Column {
+            OvertimeType.entries.forEach { type ->
+                BasicComponent(
+                    title = type.label,
+                    onClick = {
+                        selectedType = type
+                        showTypePicker = false
                     }
-                }
-            },
-            confirmButton = {}
-        )
+                )
+            }
+        }
     }
 }
 

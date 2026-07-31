@@ -1,7 +1,5 @@
 package com.overtime.miuix.ui.screen
 
-import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
@@ -52,24 +50,28 @@ fun McpSettingsPage(
                 Text(
                     text = "Model Context Protocol (MCP) 服务允许 AI 助手通过标准协议访问您的加班记录数据。",
                     style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariant
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
             
             item {
-                SwitchItem(
+                BasicComponent(
                     title = "启用 MCP 服务",
                     summary = "开启后可通过本地网络访问",
-                    checked = mcpEnabled,
-                    onCheckedChange = { enabled ->
-                        scope.launch {
-                            settingsRepository.setMcpEnabled(enabled)
-                            if (enabled) {
-                                McpHostService.start(context, mcpPort)
-                            } else {
-                                McpHostService.stop(context)
+                    endActions = {
+                        Switch(
+                            checked = mcpEnabled,
+                            onCheckedChange = { enabled ->
+                                scope.launch {
+                                    settingsRepository.setMcpEnabled(enabled)
+                                    if (enabled) {
+                                        McpHostService.start(context, mcpPort)
+                                    } else {
+                                        McpHostService.stop(context)
+                                    }
+                                }
                             }
-                        }
+                        )
                     }
                 )
             }
@@ -86,7 +88,6 @@ fun McpSettingsPage(
             
             item {
                 Button(
-                    text = "保存端口设置",
                     onClick = {
                         scope.launch {
                             val port = portText.toIntOrNull() ?: 8080
@@ -95,7 +96,9 @@ fun McpSettingsPage(
                     },
                     enabled = !mcpEnabled,
                     modifier = Modifier.fillMaxWidth()
-                )
+                ) {
+                    Text("保存端口设置")
+                }
             }
             
             item {
@@ -115,7 +118,7 @@ fun McpSettingsPage(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "访问地址: http://<设备IP>:$mcpPort/mcp",
-                            style = MiuixTheme.textStyles.caption,
+                            style = MiuixTheme.textStyles.footnote1,
                             color = MiuixTheme.colorScheme.primary
                         )
                     }

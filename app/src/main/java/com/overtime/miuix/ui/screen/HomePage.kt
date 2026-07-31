@@ -1,9 +1,11 @@
 package com.overtime.miuix.ui.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,6 +21,7 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.*
@@ -57,13 +60,12 @@ fun HomePage(
                     fontWeight = FontWeight.SemiBold
                 )
                 Button(
-                    text = "添加",
                     onClick = { navController.navigate("add_record") },
                     modifier = Modifier.height(32.dp)
                 ) {
                     Icon(MiuixIcons.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("添加", style = MiuixTheme.textStyles.labelMedium)
+                    Text("添加", style = MiuixTheme.textStyles.button)
                 }
             }
         }
@@ -79,7 +81,7 @@ fun HomePage(
                     Text(
                         text = "暂无加班记录\n点击添加按钮记录",
                         style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariant
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
                 }
             }
@@ -97,29 +99,33 @@ fun HomePage(
         }
     }
     
-    if (showDeleteDialog && selectedRecord != null) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = "确认删除",
-            text = "确定要删除这条记录吗？",
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            selectedRecord?.let { repository.delete(it) }
-                        }
-                        showDeleteDialog = false
+    OverlayDialog(
+        show = showDeleteDialog,
+        title = "确认删除",
+        summary = "确定要删除这条记录吗？",
+        onDismissRequest = { showDeleteDialog = false }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            TextButton(
+                text = "取消",
+                onClick = { showDeleteDialog = false },
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            TextButton(
+                text = "删除",
+                onClick = {
+                    scope.launch {
+                        selectedRecord?.let { repository.delete(it) }
                     }
-                ) {
-                    Text("删除", color = MiuixTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("取消")
-                }
-            }
-        )
+                    showDeleteDialog = false
+                },
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
@@ -169,8 +175,8 @@ private fun StatItem(label: String, value: String) {
         )
         Text(
             text = label,
-            style = MiuixTheme.textStyles.caption,
-            color = MiuixTheme.colorScheme.onSurfaceVariant
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
         )
     }
 }
@@ -186,7 +192,7 @@ private fun RecordCard(
     val typeColor = when (record.type) {
         OvertimeType.WORKDAY -> MiuixTheme.colorScheme.primary
         OvertimeType.WEEKEND -> MiuixTheme.colorScheme.secondary
-        OvertimeType.HOLIDAY -> MiuixTheme.colorScheme.tertiary
+        OvertimeType.HOLIDAY -> MiuixTheme.colorScheme.onTertiaryContainer
     }
     
     Card(
@@ -205,8 +211,10 @@ private fun RecordCard(
                 modifier = Modifier
                     .width(4.dp)
                     .height(40.dp)
-                    .padding(end = 12.dp)
-            ) {}
+                    .background(typeColor, RoundedCornerShape(2.dp))
+            )
+            
+            Spacer(modifier = Modifier.width(12.dp))
             
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -220,11 +228,11 @@ private fun RecordCard(
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
                             color = MiuixTheme.colorScheme.error.copy(alpha = 0.1f),
-                            shape = MiuixTheme.shapes.small
+                            shape = RoundedCornerShape(4.dp)
                         ) {
                             Text(
                                 text = "请假",
-                                style = MiuixTheme.textStyles.caption,
+                                style = MiuixTheme.textStyles.footnote1,
                                 color = MiuixTheme.colorScheme.error,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
@@ -233,14 +241,14 @@ private fun RecordCard(
                 }
                 Text(
                     text = dateStr,
-                    style = MiuixTheme.textStyles.caption,
-                    color = MiuixTheme.colorScheme.onSurfaceVariant
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
                 if (record.note.isNotBlank()) {
                     Text(
                         text = record.note,
-                        style = MiuixTheme.textStyles.caption,
-                        color = MiuixTheme.colorScheme.onSurfaceVariant,
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         maxLines = 1
                     )
                 }
@@ -255,8 +263,8 @@ private fun RecordCard(
                 )
                 Text(
                     text = SalaryCalculator.formatHours(record.durationHours),
-                    style = MiuixTheme.textStyles.caption,
-                    color = MiuixTheme.colorScheme.onSurfaceVariant
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
             

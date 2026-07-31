@@ -20,7 +20,6 @@ fun AppearanceSettingsPage(
 ) {
     val scope = rememberCoroutineScope()
     val themeMode by settingsRepository.themeMode.collectAsState(initial = "system")
-    val accentColor by settingsRepository.accentColor.collectAsState(initial = 0xFF3482FF.toInt())
     val bottomBarStyle by settingsRepository.bottomBarStyle.collectAsState(initial = "ICON_TEXT")
     val quickSubmit by settingsRepository.quickSubmit.collectAsState(initial = false)
     
@@ -43,46 +42,47 @@ fun AppearanceSettingsPage(
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
             item {
-                PreferenceGroup(title = "主题") {
-                    ListItem(
-                        title = "跟随系统",
-                        onClick = { scope.launch { settingsRepository.setThemeMode("system") } },
-                        rightAction = { RadioButton(selected = themeMode == "system", onClick = null) }
-                    )
-                    ListItem(
-                        title = "浅色模式",
-                        onClick = { scope.launch { settingsRepository.setThemeMode("light") } },
-                        rightAction = { RadioButton(selected = themeMode == "light", onClick = null) }
-                    )
-                    ListItem(
-                        title = "深色模式",
-                        onClick = { scope.launch { settingsRepository.setThemeMode("dark") } },
-                        rightAction = { RadioButton(selected = themeMode == "dark", onClick = null) }
+                SmallTitle(text = "主题")
+                BasicComponent(
+                    title = "跟随系统",
+                    onClick = { scope.launch { settingsRepository.setThemeMode("system") } },
+                    endActions = { RadioButton(selected = themeMode == "system", onClick = null) }
+                )
+                BasicComponent(
+                    title = "浅色模式",
+                    onClick = { scope.launch { settingsRepository.setThemeMode("light") } },
+                    endActions = { RadioButton(selected = themeMode == "light", onClick = null) }
+                )
+                BasicComponent(
+                    title = "深色模式",
+                    onClick = { scope.launch { settingsRepository.setThemeMode("dark") } },
+                    endActions = { RadioButton(selected = themeMode == "dark", onClick = null) }
+                )
+            }
+            
+            item {
+                SmallTitle(text = "底栏样式")
+                BottomBarStyle.entries.forEach { style ->
+                    BasicComponent(
+                        title = style.label,
+                        onClick = { scope.launch { settingsRepository.setBottomBarStyle(style.name) } },
+                        endActions = { RadioButton(selected = bottomBarStyle == style.name, onClick = null) }
                     )
                 }
             }
             
             item {
-                PreferenceGroup(title = "底栏样式") {
-                    BottomBarStyle.entries.forEach { style ->
-                        ListItem(
-                            title = style.label,
-                            onClick = { scope.launch { settingsRepository.setBottomBarStyle(style.name) } },
-                            rightAction = { RadioButton(selected = bottomBarStyle == style.name, onClick = null) }
+                SmallTitle(text = "快捷功能")
+                BasicComponent(
+                    title = "快速提报模式",
+                    summary = "首页显示快捷添加按钮",
+                    endActions = {
+                        Switch(
+                            checked = quickSubmit,
+                            onCheckedChange = { scope.launch { settingsRepository.setQuickSubmit(it) } }
                         )
                     }
-                }
-            }
-            
-            item {
-                PreferenceGroup(title = "快捷功能") {
-                    SwitchItem(
-                        title = "快速提报模式",
-                        summary = "首页显示快捷添加按钮",
-                        checked = quickSubmit,
-                        onCheckedChange = { scope.launch { settingsRepository.setQuickSubmit(it) } }
-                    )
-                }
+                )
             }
         }
     }

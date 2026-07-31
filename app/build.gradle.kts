@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
@@ -8,12 +7,12 @@ plugins {
 
 android {
     namespace = "com.overtime.miuix"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.overtime.miuix"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0.0"
     }

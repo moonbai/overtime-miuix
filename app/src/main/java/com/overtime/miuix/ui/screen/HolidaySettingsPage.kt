@@ -2,7 +2,7 @@ package com.overtime.miuix.ui.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -31,49 +31,22 @@ fun HolidaySettingsPage(navController: NavHostController) {
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
             item {
-                PreferenceGroup(title = "节假日数据") {
-                    ListItem(
-                        title = "更新节假日数据",
-                        summary = "从服务器获取最新节假日规则",
-                        leftAction = { Icon(MiuixIcons.Refresh, contentDescription = null) },
-                        onClick = { }
-                    )
-                }
+                SmallTitle(text = "数据管理")
+                BasicComponent(
+                    title = "更新节假日数据",
+                    summary = "从云端同步最新节假日",
+                    startAction = { Icon(MiuixIcons.Refresh, contentDescription = null) },
+                    onClick = { }
+                )
             }
-            
             item {
-                PreferenceGroup(title = "2026年节假日") {
-                    ListItem(
-                        title = "元旦",
-                        summary = "2026-01-01",
-                        onClick = { }
-                    )
-                    ListItem(
-                        title = "春节",
-                        summary = "2026-02-14 至 2026-02-21",
-                        onClick = { }
-                    )
-                    ListItem(
-                        title = "清明节",
-                        summary = "2026-04-04 至 2026-04-06",
-                        onClick = { }
-                    )
-                    ListItem(
-                        title = "劳动节",
-                        summary = "2026-05-01 至 2026-05-03",
-                        onClick = { }
-                    )
-                    ListItem(
-                        title = "端午节",
-                        summary = "2026-06-20 至 2026-06-22",
-                        onClick = { }
-                    )
-                    ListItem(
-                        title = "国庆节",
-                        summary = "2026-10-01 至 2026-10-08",
-                        onClick = { }
-                    )
-                }
+                SmallTitle(text = "2026年节假日")
+                BasicComponent(title = "元旦", summary = "1月1日", onClick = { })
+                BasicComponent(title = "春节", summary = "2月14日 - 2月21日", onClick = { })
+                BasicComponent(title = "清明节", summary = "4月4日 - 4月6日", onClick = { })
+                BasicComponent(title = "劳动节", summary = "5月1日 - 5月3日", onClick = { })
+                BasicComponent(title = "端午节", summary = "6月20日 - 6月22日", onClick = { })
+                BasicComponent(title = "国庆节", summary = "10月1日 - 10月8日", onClick = { })
             }
         }
     }

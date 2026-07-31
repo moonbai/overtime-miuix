@@ -12,6 +12,8 @@ import top.yukonga.miuix.kmp.icon.extended.*
 
 @Composable
 fun CalendarSettingsPage(navController: NavHostController) {
+    var syncEnabled by remember { mutableStateOf(false) }
+    
     Scaffold(
         topBar = {
             SmallTopAppBar(
@@ -31,22 +33,25 @@ fun CalendarSettingsPage(navController: NavHostController) {
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
             item {
-                SwitchItem(
-                    title = "同步到系统日历",
-                    summary = "将加班记录同步到系统日历",
-                    checked = false,
-                    onCheckedChange = { }
+                SmallTitle(text = "同步设置")
+                BasicComponent(
+                    title = "启用日历同步",
+                    summary = "自动同步加班记录到系统日历",
+                    endActions = {
+                        Switch(
+                            checked = syncEnabled,
+                            onCheckedChange = { syncEnabled = it }
+                        )
+                    }
                 )
             }
-            
             item {
-                PreferenceGroup(title = "同步设置") {
-                    ListItem(
-                        title = "同步账户",
-                        summary = "选择日历账户",
-                        onClick = { }
-                    )
-                }
+                SmallTitle(text = "日历选择")
+                BasicComponent(
+                    title = "选择日历账户",
+                    summary = "请选择要同步到的日历",
+                    onClick = { }
+                )
             }
         }
     }

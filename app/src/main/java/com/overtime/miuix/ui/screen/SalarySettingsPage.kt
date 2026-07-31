@@ -28,6 +28,12 @@ fun SalarySettingsPage(
     var weekendText by remember { mutableStateOf(weekendRate.toString()) }
     var holidayText by remember { mutableStateOf(holidayRate.toString()) }
     
+    // Sync local state when DataStore values change externally
+    LaunchedEffect(baseSalary) { salaryText = baseSalary.toString() }
+    LaunchedEffect(workdayRate) { workdayText = workdayRate.toString() }
+    LaunchedEffect(weekendRate) { weekendText = weekendRate.toString() }
+    LaunchedEffect(holidayRate) { holidayText = holidayRate.toString() }
+    
     Scaffold(
         topBar = {
             SmallTopAppBar(
@@ -81,7 +87,6 @@ fun SalarySettingsPage(
             }
             item {
                 Button(
-                    text = "保存设置",
                     onClick = {
                         scope.launch {
                             settingsRepository.setBaseSalary(salaryText.toDoubleOrNull() ?: 2200.0)
@@ -92,7 +97,9 @@ fun SalarySettingsPage(
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
-                )
+                ) {
+                    Text("保存设置")
+                }
             }
         }
     }
