@@ -11,6 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import java.net.Inet4Address
+import java.net.NetworkInterface
 import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.mcp.McpHostService
 import kotlinx.coroutines.launch
@@ -31,12 +33,14 @@ fun McpSettingsPage(
     val mcpPort by settingsRepository.mcpPort.collectAsState(initial = 8080)
     var portText by remember { mutableStateOf(mcpPort.toString()) }
 
-    val configJson = remember {
+    val deviceIp = remember { getLocalIpAddress() }
+
+    val configJson = remember(deviceIp, mcpPort) {
         """
 {
   "mcpServers": {
     "overtime-note": {
-      "url": "http://<设备IP>:$mcpPort/mcp"
+      "url": "http://$deviceIp:$mcpPort/mcp"
     }
   }
 }
@@ -133,7 +137,7 @@ fun McpSettingsPage(
                         Text("• get_monthly_stats - 获取月度统计")
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "访问地址: http://<设备IP>:$mcpPort/mcp",
+                            text = "访问地址: http://$deviceIp:$mcpPort/mcp",
                             style = MiuixTheme.textStyles.footnote1,
                             color = MiuixTheme.colorScheme.primary
                         )
@@ -180,5 +184,30 @@ fun McpSettingsPage(
                 }
             }
         }
+    }
+}
+
+/**
+ * 获取设备当前的内网 / 局域网 IPv4 地址。
+ * 优先返回私有网段（192.168.x / 10.x / 172.16~31.x），用于生成 MCP 配置中的可访问地址。
+ */
+private fun getLocalIpAddress(): String {
+    return try {
+        val interfaces = NetworkInterface.getNetworkInterfaces()
+        val fallback = mutableListOf<String>()
+        for (intf in interfaces) {
+            if (!intf.isUp || intf.isLoopback || intf.isVirtual) continue
+            for (addr in intf.inetAddresses) {
+                if (addr !is Inet4Address || addr.isLoopbackAddress) continue
+                val ip = addr.hostAddress ?: continue
+                if (ip.startsWith("192.168.") || ip.startsWith("10.") || ip.startsWith("172.")) {
+                    return ip
+                }
+                fallback.add(ip)
+            }
+        }
+        fallback.firstOrNull() ?: "127.0.0.1"
+    } catch (e: Exception) {
+        "127.0.0.1"
     }
 }

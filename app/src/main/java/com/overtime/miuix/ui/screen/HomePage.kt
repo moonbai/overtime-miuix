@@ -65,7 +65,7 @@ fun HomePage(
                 ) {
                     Icon(MiuixIcons.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("添加", style = MiuixTheme.textStyles.button)
+                    Text("添加", style = MiuixTheme.textStyles.button, color = MiuixTheme.colorScheme.onPrimary)
                 }
             }
         }
@@ -189,10 +189,15 @@ private fun RecordCard(
 ) {
     val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
     val dateStr = sdf.format(Date(record.date))
-    val typeColor = when (record.type) {
-        OvertimeType.WORKDAY -> MiuixTheme.colorScheme.primary
-        OvertimeType.WEEKEND -> MiuixTheme.colorScheme.secondary
-        OvertimeType.HOLIDAY -> MiuixTheme.colorScheme.onTertiaryContainer
+    val displayLabel = if (record.isLeave) "休息日加班" else record.type.label
+    val typeColor = if (record.isLeave) {
+        MiuixTheme.colorScheme.error
+    } else {
+        when (record.type) {
+            OvertimeType.WORKDAY -> MiuixTheme.colorScheme.primary
+            OvertimeType.WEEKEND -> MiuixTheme.colorScheme.secondary
+            OvertimeType.HOLIDAY -> MiuixTheme.colorScheme.onTertiaryContainer
+        }
     }
     
     Card(
@@ -219,7 +224,7 @@ private fun RecordCard(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = record.type.label,
+                        text = displayLabel,
                         style = MiuixTheme.textStyles.body1,
                         fontWeight = FontWeight.Medium,
                         color = typeColor

@@ -50,6 +50,8 @@ fun AddEditRecordPage(
     var endTimeStr by remember { mutableStateOf("20:00") }
     var note by remember { mutableStateOf("") }
     var isLeave by remember { mutableStateOf(false) }
+    // 请假时长：半天 = -4，全天 = -8（小时）
+    var leaveDuration by remember { mutableStateOf(-4) }
 
     var showTypePicker by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -103,6 +105,10 @@ fun AddEditRecordPage(
                 endTimeStr = timeSdf.format(Date(it.endTime))
                 note = it.note
                 isLeave = it.isLeave
+                // 请假时长按已存时长初始化（-4 半天 / -8 全天）
+                if (it.isLeave) {
+                    leaveDuration = if (it.durationHours <= -8) -8 else -4
+                }
                 // 同步选择器状态
                 val cal = Calendar.getInstance().apply { time = Date(it.date) }
                 pickYear = cal.get(Calendar.YEAR)
@@ -180,7 +186,8 @@ fun AddEditRecordPage(
                                         OvertimeType.HOLIDAY -> holidayRate
                                     },
                                     note,
-                                    isLeave
+                                    isLeave,
+                                    leaveDuration
                                 )
                                 saved?.let { triggerAfterSave(it) }
                                 navController.popBackStack()
@@ -200,26 +207,28 @@ fun AddEditRecordPage(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 16.dp
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+            if (!isLeave) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 16.dp
                     ) {
-                        Text(
-                            text = "预估薪资",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        )
-                        Text(
-                            text = SalaryCalculator.formatAmount(previewAmount),
-                            style = MiuixTheme.textStyles.headline1,
-                            color = MiuixTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "预估薪资",
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            )
+                            Text(
+                                text = SalaryCalculator.formatAmount(previewAmount),
+                                style = MiuixTheme.textStyles.headline1,
+                                color = MiuixTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -232,28 +241,56 @@ fun AddEditRecordPage(
                 )
             }
 
-            item {
-                BasicComponent(
-                    title = "加班类型",
-                    summary = selectedType.label,
-                    onClick = { showTypePicker = true }
-                )
-            }
+            if (!isLeave) {
+                item {
+                    BasicComponent(
+                        title = "加班类型",
+                        summary = selectedType.label,
+                        onClick = { showTypePicker = true }
+                    )
+                }
 
-            item {
-                BasicComponent(
-                    title = "开始时间",
-                    summary = startTimeStr,
-                    onClick = { showStartPicker = true }
-                )
-            }
+                item {
+                    BasicComponent(
+                        title = "开始时间",
+                        summary = startTimeStr,
+                        onClick = { showStartPicker = true }
+                    )
+                }
 
-            item {
-                BasicComponent(
-                    title = "结束时间",
-                    summary = endTimeStr,
-                    onClick = { showEndPicker = true }
-                )
+                item {
+                    BasicComponent(
+                        title = "结束时间",
+                        summary = endTimeStr,
+                        onClick = { showEndPicker = true }
+                    )
+                }
+            } else {
+                item {
+                    Column {
+                        SmallTitle(text = "请假类型")
+                        BasicComponent(
+                            title = "半天 (-4小时)",
+                            endActions = {
+                                RadioButton(
+                                    selected = leaveDuration == -4,
+                                    onClick = null
+                                )
+                            },
+                            onClick = { leaveDuration = -4 }
+                        )
+                        BasicComponent(
+                            title = "全天 (-8小时)",
+                            endActions = {
+                                RadioButton(
+                                    selected = leaveDuration == -8,
+                                    onClick = null
+                                )
+                            },
+                            onClick = { leaveDuration = -8 }
+                        )
+                    }
+                }
             }
 
             item {
@@ -268,6 +305,7 @@ fun AddEditRecordPage(
             item {
                 BasicComponent(
                     title = "请假记录",
+                    summary = if (isLeave) "本记录为请假" else "普通加班记录",
                     endActions = {
                         Switch(
                             checked = isLeave,
@@ -277,170 +315,171 @@ fun AddEditRecordPage(
                 )
             }
         }
-    }
 
-    if (showDatePicker) {
-        OverlayDialog(
-            show = showDatePicker,
-            title = "选择日期",
-            onDismissRequest = { showDatePicker = false }
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+        // 以下弹窗必须位于 Scaffold 内容体内，才能访问 Scaffold 提供的弹窗宿主并显示
+        if (showDatePicker) {
+            OverlayDialog(
+                show = showDatePicker,
+                title = "选择日期",
+                onDismissRequest = { showDatePicker = false }
             ) {
-                val maxDay = daysInMonth(pickYear, pickMonth)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    NumberPicker(
-                        value = pickYear,
-                        onValueChange = { pickYear = it },
-                        range = 2020..2035,
-                        modifier = Modifier.weight(1f)
-                    )
-                    NumberPicker(
-                        value = pickMonth.coerceAtMost(12),
-                        onValueChange = { pickMonth = it },
-                        range = 1..12,
-                        label = { "${it}月" },
-                        modifier = Modifier.weight(1f)
-                    )
-                    NumberPicker(
-                        value = pickDay.coerceAtMost(maxDay),
-                        onValueChange = { pickDay = it },
-                        range = 1..maxDay,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        val cal = Calendar.getInstance().apply {
-                            set(pickYear, pickMonth - 1, pickDay.coerceAtMost(daysInMonth(pickYear, pickMonth)), 12, 0, 0)
-                            set(Calendar.MILLISECOND, 0)
-                        }
-                        selectedDate = cal.time
-                        showDatePicker = false
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("确定")
-                }
-            }
-        }
-    }
-
-    if (showStartPicker) {
-        OverlayDialog(
-            show = showStartPicker,
-            title = "开始时间",
-            onDismissRequest = { showStartPicker = false }
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    NumberPicker(
-                        value = startHour,
-                        onValueChange = { startHour = it },
-                        range = 0..23,
-                        label = { it.toString().padStart(2, '0') },
-                        wrapAround = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(text = ":", fontWeight = FontWeight.Bold)
-                    NumberPicker(
-                        value = startMinute,
-                        onValueChange = { startMinute = it },
-                        range = 0..59,
-                        label = { it.toString().padStart(2, '0') },
-                        wrapAround = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        startTimeStr = String.format("%02d:%02d", startHour, startMinute)
-                        showStartPicker = false
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("确定")
-                }
-            }
-        }
-    }
-
-    if (showEndPicker) {
-        OverlayDialog(
-            show = showEndPicker,
-            title = "结束时间",
-            onDismissRequest = { showEndPicker = false }
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    NumberPicker(
-                        value = endHour,
-                        onValueChange = { endHour = it },
-                        range = 0..23,
-                        label = { it.toString().padStart(2, '0') },
-                        wrapAround = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(text = ":", fontWeight = FontWeight.Bold)
-                    NumberPicker(
-                        value = endMinute,
-                        onValueChange = { endMinute = it },
-                        range = 0..59,
-                        label = { it.toString().padStart(2, '0') },
-                        wrapAround = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        endTimeStr = String.format("%02d:%02d", endHour, endMinute)
-                        showEndPicker = false
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("确定")
-                }
-            }
-        }
-    }
-
-    OverlayDialog(
-        show = showTypePicker,
-        title = "选择类型",
-        onDismissRequest = { showTypePicker = false }
-    ) {
-        Column {
-            OvertimeType.entries.forEach { type ->
-                BasicComponent(
-                    title = type.label,
-                    onClick = {
-                        selectedType = type
-                        showTypePicker = false
+                    val maxDay = daysInMonth(pickYear, pickMonth)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        NumberPicker(
+                            value = pickYear,
+                            onValueChange = { pickYear = it },
+                            range = 2020..2035,
+                            modifier = Modifier.weight(1f)
+                        )
+                        NumberPicker(
+                            value = pickMonth.coerceAtMost(12),
+                            onValueChange = { pickMonth = it },
+                            range = 1..12,
+                            label = { "${it}月" },
+                            modifier = Modifier.weight(1f)
+                        )
+                        NumberPicker(
+                            value = pickDay.coerceAtMost(maxDay),
+                            onValueChange = { pickDay = it },
+                            range = 1..maxDay,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
-                )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            val cal = Calendar.getInstance().apply {
+                                set(pickYear, pickMonth - 1, pickDay.coerceAtMost(daysInMonth(pickYear, pickMonth)), 12, 0, 0)
+                                set(Calendar.MILLISECOND, 0)
+                            }
+                            selectedDate = cal.time
+                            showDatePicker = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("确定")
+                    }
+                }
+            }
+        }
+
+        if (showStartPicker) {
+            OverlayDialog(
+                show = showStartPicker,
+                title = "开始时间",
+                onDismissRequest = { showStartPicker = false }
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        NumberPicker(
+                            value = startHour,
+                            onValueChange = { startHour = it },
+                            range = 0..23,
+                            label = { it.toString().padStart(2, '0') },
+                            wrapAround = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(text = ":", fontWeight = FontWeight.Bold)
+                        NumberPicker(
+                            value = startMinute,
+                            onValueChange = { startMinute = it },
+                            range = 0..59,
+                            label = { it.toString().padStart(2, '0') },
+                            wrapAround = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            startTimeStr = String.format("%02d:%02d", startHour, startMinute)
+                            showStartPicker = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("确定")
+                    }
+                }
+            }
+        }
+
+        if (showEndPicker) {
+            OverlayDialog(
+                show = showEndPicker,
+                title = "结束时间",
+                onDismissRequest = { showEndPicker = false }
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        NumberPicker(
+                            value = endHour,
+                            onValueChange = { endHour = it },
+                            range = 0..23,
+                            label = { it.toString().padStart(2, '0') },
+                            wrapAround = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(text = ":", fontWeight = FontWeight.Bold)
+                        NumberPicker(
+                            value = endMinute,
+                            onValueChange = { endMinute = it },
+                            range = 0..59,
+                            label = { it.toString().padStart(2, '0') },
+                            wrapAround = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            endTimeStr = String.format("%02d:%02d", endHour, endMinute)
+                            showEndPicker = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("确定")
+                    }
+                }
+            }
+        }
+
+        OverlayDialog(
+            show = showTypePicker,
+            title = "选择类型",
+            onDismissRequest = { showTypePicker = false }
+        ) {
+            Column {
+                OvertimeType.entries.forEach { type ->
+                    BasicComponent(
+                        title = type.label,
+                        onClick = {
+                            selectedType = type
+                            showTypePicker = false
+                        }
+                    )
+                }
             }
         }
     }
@@ -456,21 +495,23 @@ private suspend fun saveRecord(
     baseSalary: Double,
     rate: Double,
     note: String,
-    isLeave: Boolean
+    isLeave: Boolean,
+    leaveDuration: Int
 ): OvertimeRecord? {
     val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date)
     val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
     val startTime = sdf.parse("$dateStr $startTimeStr")?.time ?: date.time
     val endTime = sdf.parse("$dateStr $endTimeStr")?.time ?: date.time
-    val duration = SalaryCalculator.calculateDurationHours(startTime, endTime)
+    // 请假记录：时长取 leaveDuration（半天 -4 / 全天 -8），薪资为 0
+    val duration = if (isLeave) leaveDuration.toDouble() else SalaryCalculator.calculateDurationHours(startTime, endTime)
     val amount = if (isLeave) 0.0 else SalaryCalculator.calculateOvertimeAmount(baseSalary, type, rate, duration)
 
     val record = OvertimeRecord(
         id = recordId ?: 0,
         date = date.time,
         type = type,
-        startTime = startTime,
-        endTime = endTime,
+        startTime = if (isLeave) date.time else startTime,
+        endTime = if (isLeave) date.time else endTime,
         durationHours = duration,
         baseSalary = baseSalary,
         rate = rate,

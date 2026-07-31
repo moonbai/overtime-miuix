@@ -17,6 +17,11 @@ class SettingsRepository(private val context: Context) {
     val bottomBarStyle: Flow<String> = context.dataStore.data.map { it[KEY_BOTTOM_BAR_STYLE] ?: "ICON_TEXT" }
     val quickSubmit: Flow<Boolean> = context.dataStore.data.map { it[KEY_QUICK_SUBMIT] ?: false }
 
+    // 加班类型配色（统计日历等使用）
+    val typeColorWorkday: Flow<Int> = context.dataStore.data.map { it[KEY_TYPE_COLOR_WORKDAY] ?: 0xFF3482FF.toInt() }
+    val typeColorWeekend: Flow<Int> = context.dataStore.data.map { it[KEY_TYPE_COLOR_WEEKEND] ?: 0xFF34C759.toInt() }
+    val typeColorHoliday: Flow<Int> = context.dataStore.data.map { it[KEY_TYPE_COLOR_HOLIDAY] ?: 0xFFFF7043.toInt() }
+
     // Salary settings
     val baseSalary: Flow<Double> = context.dataStore.data.map { it[KEY_BASE_SALARY] ?: 2200.0 }
     val workdayRate: Flow<Double> = context.dataStore.data.map { it[KEY_WORKDAY_RATE] ?: 1.5 }
@@ -69,6 +74,9 @@ class SettingsRepository(private val context: Context) {
     suspend fun setAccentColor(color: Int) { context.dataStore.edit { it[KEY_ACCENT_COLOR] = color } }
     suspend fun setBottomBarStyle(style: String) { context.dataStore.edit { it[KEY_BOTTOM_BAR_STYLE] = style } }
     suspend fun setQuickSubmit(enabled: Boolean) { context.dataStore.edit { it[KEY_QUICK_SUBMIT] = enabled } }
+    suspend fun setTypeColorWorkday(color: Int) { context.dataStore.edit { it[KEY_TYPE_COLOR_WORKDAY] = color } }
+    suspend fun setTypeColorWeekend(color: Int) { context.dataStore.edit { it[KEY_TYPE_COLOR_WEEKEND] = color } }
+    suspend fun setTypeColorHoliday(color: Int) { context.dataStore.edit { it[KEY_TYPE_COLOR_HOLIDAY] = color } }
 
     suspend fun setBaseSalary(salary: Double) { context.dataStore.edit { it[KEY_BASE_SALARY] = salary } }
     suspend fun setWorkdayRate(rate: Double) { context.dataStore.edit { it[KEY_WORKDAY_RATE] = rate } }
@@ -120,6 +128,9 @@ class SettingsRepository(private val context: Context) {
                 when (key) {
                     KEY_THEME_MODE.name -> prefs[KEY_THEME_MODE] = value
                     KEY_BOTTOM_BAR_STYLE.name -> prefs[KEY_BOTTOM_BAR_STYLE] = value
+                    KEY_TYPE_COLOR_WORKDAY.name -> prefs[KEY_TYPE_COLOR_WORKDAY] = value.toIntOrNull() ?: 0xFF3482FF.toInt()
+                    KEY_TYPE_COLOR_WEEKEND.name -> prefs[KEY_TYPE_COLOR_WEEKEND] = value.toIntOrNull() ?: 0xFF34C759.toInt()
+                    KEY_TYPE_COLOR_HOLIDAY.name -> prefs[KEY_TYPE_COLOR_HOLIDAY] = value.toIntOrNull() ?: 0xFFFF7043.toInt()
                     KEY_BASE_SALARY.name -> prefs[KEY_BASE_SALARY] = value.toDoubleOrNull() ?: 2200.0
                     KEY_WORKDAY_RATE.name -> prefs[KEY_WORKDAY_RATE] = value.toDoubleOrNull() ?: 1.5
                     KEY_WEEKEND_RATE.name -> prefs[KEY_WEEKEND_RATE] = value.toDoubleOrNull() ?: 2.0
@@ -159,6 +170,9 @@ class SettingsRepository(private val context: Context) {
         return mapOf(
             KEY_THEME_MODE.name to themeMode.first(),
             KEY_BOTTOM_BAR_STYLE.name to bottomBarStyle.first(),
+            KEY_TYPE_COLOR_WORKDAY.name to typeColorWorkday.first().toString(),
+            KEY_TYPE_COLOR_WEEKEND.name to typeColorWeekend.first().toString(),
+            KEY_TYPE_COLOR_HOLIDAY.name to typeColorHoliday.first().toString(),
             KEY_BASE_SALARY.name to baseSalary.first().toString(),
             KEY_WORKDAY_RATE.name to workdayRate.first().toString(),
             KEY_WEEKEND_RATE.name to weekendRate.first().toString(),
@@ -194,6 +208,10 @@ class SettingsRepository(private val context: Context) {
         private val KEY_ACCENT_COLOR = intPreferencesKey("accent_color")
         private val KEY_BOTTOM_BAR_STYLE = stringPreferencesKey("bottom_bar_style")
         private val KEY_QUICK_SUBMIT = booleanPreferencesKey("quick_submit")
+
+        private val KEY_TYPE_COLOR_WORKDAY = intPreferencesKey("type_color_workday")
+        private val KEY_TYPE_COLOR_WEEKEND = intPreferencesKey("type_color_weekend")
+        private val KEY_TYPE_COLOR_HOLIDAY = intPreferencesKey("type_color_holiday")
 
         private val KEY_BASE_SALARY = doublePreferencesKey("base_salary")
         private val KEY_WORKDAY_RATE = doublePreferencesKey("workday_rate")

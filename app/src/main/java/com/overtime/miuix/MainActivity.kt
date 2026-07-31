@@ -86,7 +86,8 @@ fun MainNavHost(
         composable("statistics") {
             StatisticsPage(
                 navController = navController,
-                repository = repository
+                repository = repository,
+                settingsRepository = settingsRepository
             )
         }
         composable("settings") {

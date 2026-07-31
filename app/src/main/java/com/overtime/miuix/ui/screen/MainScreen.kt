@@ -2,6 +2,7 @@ package com.overtime.miuix.ui.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.OvertimeRepository
@@ -16,7 +17,7 @@ fun MainScreen(
     repository: OvertimeRepository,
     settingsRepository: SettingsRepository
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
     val bottomBarStyle by settingsRepository.bottomBarStyle.collectAsState(initial = "ICON_TEXT")
     
     val navMode = when (bottomBarStyle) {
@@ -83,7 +84,8 @@ fun MainScreen(
                 )
                 1 -> StatisticsPage(
                     navController = navController,
-                    repository = repository
+                    repository = repository,
+                    settingsRepository = settingsRepository
                 )
                 2 -> SettingsPage(navController = navController)
             }

@@ -34,6 +34,22 @@ class OvertimeRepository(private val database: AppDatabase) {
     suspend fun update(record: OvertimeRecord) = dao.update(record)
     
     suspend fun delete(record: OvertimeRecord) = dao.delete(record)
+
+    /** 获取某个月（yyyy-MM）内的全部记录，供日历视图按日聚合。 */
+    suspend fun getMonthRecords(yearMonth: String): List<OvertimeRecord> {
+        val sdf = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+        val cal = Calendar.getInstance()
+        cal.time = sdf.parse(yearMonth) ?: Date()
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val startDate = cal.timeInMillis
+        cal.add(Calendar.MONTH, 1)
+        val endDate = cal.timeInMillis
+        return dao.getRecordsByDateRange(startDate, endDate).first()
+    }
     
     suspend fun getMonthlyStats(yearMonth: String): MonthlyStats {
         val sdf = SimpleDateFormat("yyyy-MM", Locale.getDefault())
