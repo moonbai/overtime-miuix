@@ -6,6 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.OvertimeRepository
@@ -72,7 +73,10 @@ fun StatisticsPage(
                     Text(
                         text = "${parts[0]}年${parts[1]}月",
                         style = MiuixTheme.textStyles.title3,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.weight(1f)
                     )
                     IconButton(onClick = { shiftMonth(1) }) {
                         Icon(MiuixIcons.ChevronForward, contentDescription = "下一月")

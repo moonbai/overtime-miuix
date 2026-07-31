@@ -151,19 +151,22 @@ fun PushSettingsPage(
             }
 
             item {
-                SmallTitle(text = "推送渠道")
-                channels.forEach { (value, label) ->
-                    BasicComponent(
-                        title = label,
-                        onClick = { scope.launch { settingsRepository.setPushChannel(value) } },
-                        endActions = { RadioButton(selected = pushChannel == value, onClick = null) }
-                    )
+                Column {
+                    SmallTitle(text = "推送渠道")
+                    channels.forEach { (value, label) ->
+                        BasicComponent(
+                            title = label,
+                            onClick = { scope.launch { settingsRepository.setPushChannel(value) } },
+                            endActions = { RadioButton(selected = pushChannel == value, onClick = null) }
+                        )
+                    }
                 }
             }
 
             item {
-                SmallTitle(text = "${channels.firstOrNull { it.first == pushChannel }?.second ?: "渠道"} 配置")
-                when (pushChannel) {
+                Column {
+                    SmallTitle(text = "${channels.firstOrNull { it.first == pushChannel }?.second ?: "渠道"} 配置")
+                    when (pushChannel) {
                     "dingtalk" -> PushConfigFields(
                         listOf(
                             TextFieldState("Webhook 地址", dingtalkText) { dingtalkText = it; scope.launch { settingsRepository.setPushDingTalk(it) } },
@@ -208,6 +211,7 @@ fun PushSettingsPage(
                     else -> Box(modifier = Modifier.padding(16.dp)) {
                         Text("请先选择一个推送渠道", color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                     }
+                }
                 }
             }
 

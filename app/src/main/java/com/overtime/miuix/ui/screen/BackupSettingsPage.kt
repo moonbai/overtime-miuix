@@ -141,65 +141,70 @@ fun BackupSettingsPage(
             }
 
             item {
-                SmallTitle(text = "本地备份")
-                BasicComponent(
-                    title = "导出数据",
-                    summary = "将记录与设置导出为 JSON 文件",
-                    startAction = { Icon(MiuixIcons.Download, contentDescription = null) },
-                    onClick = {
-                        val name = DataMigrationUtil.generateBackupFileName()
-                        exportLauncher.launch(name)
-                    }
-                )
-                BasicComponent(
-                    title = "导入数据",
-                    summary = "从 JSON 文件恢复记录与设置",
-                    startAction = { Icon(MiuixIcons.Import, contentDescription = null) },
-                    onClick = { importLauncher.launch(arrayOf("application/json")) }
-                )
-            }
-
-            item {
-                SmallTitle(text = "自动备份")
-                BasicComponent(
-                    title = "启用自动备份",
-                    summary = "新增记录时自动保存到本地或云端",
-                    endActions = {
-                        Switch(
-                            checked = autoBackupEnabled,
-                            onCheckedChange = { scope.launch { settingsRepository.setAutoBackupEnabled(it) } }
-                        )
-                    }
-                )
-                if (autoBackupEnabled) {
-                    SmallTitle(text = "备份位置")
+                Column {
+                    SmallTitle(text = "本地备份")
                     BasicComponent(
-                        title = "仅本地",
-                        onClick = { scope.launch { settingsRepository.setAutoBackupLocation("local") } },
-                        endActions = { RadioButton(selected = autoBackupLocation == "local", onClick = null) }
+                        title = "导出数据",
+                        summary = "将记录与设置导出为 JSON 文件",
+                        startAction = { Icon(MiuixIcons.Download, contentDescription = null) },
+                        onClick = {
+                            val name = DataMigrationUtil.generateBackupFileName()
+                            exportLauncher.launch(name)
+                        }
                     )
                     BasicComponent(
-                        title = "本地 + WebDAV 云端",
-                        onClick = { scope.launch { settingsRepository.setAutoBackupLocation("cloud") } },
-                        endActions = { RadioButton(selected = autoBackupLocation == "cloud", onClick = null) }
+                        title = "导入数据",
+                        summary = "从 JSON 文件恢复记录与设置",
+                        startAction = { Icon(MiuixIcons.Import, contentDescription = null) },
+                        onClick = { importLauncher.launch(arrayOf("application/json")) }
                     )
                 }
             }
 
             item {
-                SmallTitle(text = "WebDAV 云端同步")
-                BasicComponent(
-                    title = "启用 WebDAV",
-                    summary = "配置 WebDAV 服务器进行备份同步",
-                    endActions = {
-                        Switch(
-                            checked = webdavEnabled,
-                            onCheckedChange = { scope.launch { settingsRepository.setWebdavEnabled(it) } }
+                Column {
+                    SmallTitle(text = "自动备份")
+                    BasicComponent(
+                        title = "启用自动备份",
+                        summary = "新增记录时自动保存到本地或云端",
+                        endActions = {
+                            Switch(
+                                checked = autoBackupEnabled,
+                                onCheckedChange = { scope.launch { settingsRepository.setAutoBackupEnabled(it) } }
+                            )
+                        }
+                    )
+                    if (autoBackupEnabled) {
+                        SmallTitle(text = "备份位置")
+                        BasicComponent(
+                            title = "仅本地",
+                            onClick = { scope.launch { settingsRepository.setAutoBackupLocation("local") } },
+                            endActions = { RadioButton(selected = autoBackupLocation == "local", onClick = null) }
+                        )
+                        BasicComponent(
+                            title = "本地 + WebDAV 云端",
+                            onClick = { scope.launch { settingsRepository.setAutoBackupLocation("cloud") } },
+                            endActions = { RadioButton(selected = autoBackupLocation == "cloud", onClick = null) }
                         )
                     }
-                )
-                if (webdavEnabled) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                }
+            }
+
+            item {
+                Column {
+                    SmallTitle(text = "WebDAV 云端同步")
+                    BasicComponent(
+                        title = "启用 WebDAV",
+                        summary = "配置 WebDAV 服务器进行备份同步",
+                        endActions = {
+                            Switch(
+                                checked = webdavEnabled,
+                                onCheckedChange = { scope.launch { settingsRepository.setWebdavEnabled(it) } }
+                            )
+                        }
+                    )
+                    if (webdavEnabled) {
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                             TextField(
                                 value = webdavUrlText,
                                 onValueChange = { webdavUrlText = it; scope.launch { settingsRepository.setWebdavUrl(it) } },
@@ -261,6 +266,7 @@ fun BackupSettingsPage(
                                 ) { Text("立即上传") }
                             }
                         }
+                    }
                 }
             }
         }

@@ -58,6 +58,13 @@ class SettingsRepository(private val context: Context) {
     val autoBackupEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_AUTO_BACKUP_ENABLED] ?: false }
     val autoBackupLocation: Flow<String> = context.dataStore.data.map { it[KEY_AUTO_BACKUP_LOCATION] ?: "local" }
 
+    // Holiday settings
+    val holidayDataSource: Flow<String> = context.dataStore.data.map { it[KEY_HOLIDAY_DATA_SOURCE] ?: "TIMOR" }
+    val holidayCustomUrl: Flow<String> = context.dataStore.data.map { it[KEY_HOLIDAY_CUSTOM_URL] ?: "" }
+    val holidayMxnzpAppId: Flow<String> = context.dataStore.data.map { it[KEY_HOLIDAY_MXNZP_APP_ID] ?: "" }
+    val holidayMxnzpAppSecret: Flow<String> = context.dataStore.data.map { it[KEY_HOLIDAY_MXNZP_APP_SECRET] ?: "" }
+    val holidayIgnoreHoliday: Flow<Boolean> = context.dataStore.data.map { it[KEY_HOLIDAY_IGNORE_HOLIDAY] ?: false }
+
     suspend fun setThemeMode(mode: String) { context.dataStore.edit { it[KEY_THEME_MODE] = mode } }
     suspend fun setAccentColor(color: Int) { context.dataStore.edit { it[KEY_ACCENT_COLOR] = color } }
     suspend fun setBottomBarStyle(style: String) { context.dataStore.edit { it[KEY_BOTTOM_BAR_STYLE] = style } }
@@ -97,6 +104,12 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setAutoBackupEnabled(enabled: Boolean) { context.dataStore.edit { it[KEY_AUTO_BACKUP_ENABLED] = enabled } }
     suspend fun setAutoBackupLocation(location: String) { context.dataStore.edit { it[KEY_AUTO_BACKUP_LOCATION] = location } }
+
+    suspend fun setHolidayDataSource(source: String) { context.dataStore.edit { it[KEY_HOLIDAY_DATA_SOURCE] = source } }
+    suspend fun setHolidayCustomUrl(url: String) { context.dataStore.edit { it[KEY_HOLIDAY_CUSTOM_URL] = url } }
+    suspend fun setHolidayMxnzpAppId(id: String) { context.dataStore.edit { it[KEY_HOLIDAY_MXNZP_APP_ID] = id } }
+    suspend fun setHolidayMxnzpAppSecret(secret: String) { context.dataStore.edit { it[KEY_HOLIDAY_MXNZP_APP_SECRET] = secret } }
+    suspend fun setHolidayIgnoreHoliday(ignore: Boolean) { context.dataStore.edit { it[KEY_HOLIDAY_IGNORE_HOLIDAY] = ignore } }
 
     /**
      * 批量导入设置（用于备份恢复）。仅写入备份中存在的已知键。
@@ -216,5 +229,11 @@ class SettingsRepository(private val context: Context) {
 
         private val KEY_AUTO_BACKUP_ENABLED = booleanPreferencesKey("auto_backup_enabled")
         private val KEY_AUTO_BACKUP_LOCATION = stringPreferencesKey("auto_backup_location")
+
+        private val KEY_HOLIDAY_DATA_SOURCE = stringPreferencesKey("holiday_data_source")
+        private val KEY_HOLIDAY_CUSTOM_URL = stringPreferencesKey("holiday_custom_url")
+        private val KEY_HOLIDAY_MXNZP_APP_ID = stringPreferencesKey("holiday_mxnzp_app_id")
+        private val KEY_HOLIDAY_MXNZP_APP_SECRET = stringPreferencesKey("holiday_mxnzp_app_secret")
+        private val KEY_HOLIDAY_IGNORE_HOLIDAY = booleanPreferencesKey("holiday_ignore_holiday")
     }
 }

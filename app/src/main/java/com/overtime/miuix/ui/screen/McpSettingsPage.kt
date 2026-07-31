@@ -1,5 +1,9 @@
 package com.overtime.miuix.ui.screen
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
@@ -26,6 +30,18 @@ fun McpSettingsPage(
     val mcpEnabled by settingsRepository.mcpEnabled.collectAsState(initial = false)
     val mcpPort by settingsRepository.mcpPort.collectAsState(initial = 8080)
     var portText by remember { mutableStateOf(mcpPort.toString()) }
+
+    val configJson = remember {
+        """
+{
+  "mcpServers": {
+    "overtime-note": {
+      "url": "http://<设备IP>:$mcpPort/mcp"
+    }
+  }
+}
+        """.trimIndent()
+    }
     
     Scaffold(
         topBar = {
@@ -121,6 +137,45 @@ fun McpSettingsPage(
                             style = MiuixTheme.textStyles.footnote1,
                             color = MiuixTheme.colorScheme.primary
                         )
+                    }
+                }
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 12.dp
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "MCP 配置 JSON",
+                                style = MiuixTheme.textStyles.title3
+                            )
+                            TextButton(
+                                text = "复制",
+                                onClick = {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    val clip = ClipData.newPlainText("MCP Config", configJson)
+                                    clipboard.setPrimaryClip(clip)
+                                    Toast.makeText(context, "配置已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            cornerRadius = 8.dp
+                        ) {
+                            Text(
+                                text = configJson,
+                                style = MiuixTheme.textStyles.footnote1,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
                     }
                 }
             }

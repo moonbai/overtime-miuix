@@ -125,7 +125,10 @@ fun MainNavHost(
             )
         }
         composable("holiday_settings") {
-            HolidaySettingsPage(navController = navController)
+            HolidaySettingsPage(
+                navController = navController,
+                settingsRepository = settingsRepository
+            )
         }
         composable("mcp_settings") {
             McpSettingsPage(

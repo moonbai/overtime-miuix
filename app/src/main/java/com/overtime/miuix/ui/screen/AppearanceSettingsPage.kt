@@ -42,47 +42,53 @@ fun AppearanceSettingsPage(
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
             item {
-                SmallTitle(text = "主题")
-                BasicComponent(
-                    title = "跟随系统",
-                    onClick = { scope.launch { settingsRepository.setThemeMode("system") } },
-                    endActions = { RadioButton(selected = themeMode == "system", onClick = null) }
-                )
-                BasicComponent(
-                    title = "浅色模式",
-                    onClick = { scope.launch { settingsRepository.setThemeMode("light") } },
-                    endActions = { RadioButton(selected = themeMode == "light", onClick = null) }
-                )
-                BasicComponent(
-                    title = "深色模式",
-                    onClick = { scope.launch { settingsRepository.setThemeMode("dark") } },
-                    endActions = { RadioButton(selected = themeMode == "dark", onClick = null) }
-                )
-            }
-            
-            item {
-                SmallTitle(text = "底栏样式")
-                BottomBarStyle.entries.forEach { style ->
+                Column {
+                    SmallTitle(text = "主题")
                     BasicComponent(
-                        title = style.label,
-                        onClick = { scope.launch { settingsRepository.setBottomBarStyle(style.name) } },
-                        endActions = { RadioButton(selected = bottomBarStyle == style.name, onClick = null) }
+                        title = "跟随系统",
+                        onClick = { scope.launch { settingsRepository.setThemeMode("system") } },
+                        endActions = { RadioButton(selected = themeMode == "system", onClick = null) }
+                    )
+                    BasicComponent(
+                        title = "浅色模式",
+                        onClick = { scope.launch { settingsRepository.setThemeMode("light") } },
+                        endActions = { RadioButton(selected = themeMode == "light", onClick = null) }
+                    )
+                    BasicComponent(
+                        title = "深色模式",
+                        onClick = { scope.launch { settingsRepository.setThemeMode("dark") } },
+                        endActions = { RadioButton(selected = themeMode == "dark", onClick = null) }
                     )
                 }
             }
             
             item {
-                SmallTitle(text = "快捷功能")
-                BasicComponent(
-                    title = "快速提报模式",
-                    summary = "首页显示快捷添加按钮",
-                    endActions = {
-                        Switch(
-                            checked = quickSubmit,
-                            onCheckedChange = { scope.launch { settingsRepository.setQuickSubmit(it) } }
+                Column {
+                    SmallTitle(text = "底栏样式")
+                    BottomBarStyle.entries.forEach { style ->
+                        BasicComponent(
+                            title = style.label,
+                            onClick = { scope.launch { settingsRepository.setBottomBarStyle(style.name) } },
+                            endActions = { RadioButton(selected = bottomBarStyle == style.name, onClick = null) }
                         )
                     }
-                )
+                }
+            }
+            
+            item {
+                Column {
+                    SmallTitle(text = "快捷功能")
+                    BasicComponent(
+                        title = "快速提报模式",
+                        summary = "首页显示快捷添加按钮",
+                        endActions = {
+                            Switch(
+                                checked = quickSubmit,
+                                onCheckedChange = { scope.launch { settingsRepository.setQuickSubmit(it) } }
+                            )
+                        }
+                    )
+                }
             }
         }
     }

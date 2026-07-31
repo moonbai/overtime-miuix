@@ -71,50 +71,54 @@ fun CalendarSettingsPage(
             }
 
             item {
-                SmallTitle(text = "同步设置")
-                BasicComponent(
-                    title = "启用日历同步",
-                    summary = "保存记录时自动同步到系统日历",
-                    endActions = {
-                        Switch(
-                            checked = calendarSyncEnabled,
-                            onCheckedChange = {
-                                scope.launch { settingsRepository.setCalendarSyncEnabled(it) }
-                            }
-                        )
-                    }
-                )
+                Column {
+                    SmallTitle(text = "同步设置")
+                    BasicComponent(
+                        title = "启用日历同步",
+                        summary = "保存记录时自动同步到系统日历",
+                        endActions = {
+                            Switch(
+                                checked = calendarSyncEnabled,
+                                onCheckedChange = {
+                                    scope.launch { settingsRepository.setCalendarSyncEnabled(it) }
+                                }
+                            )
+                        }
+                    )
+                }
             }
 
             item {
-                SmallTitle(text = "日历账户")
-                BasicComponent(
-                    title = "授权日历权限",
-                    summary = if (CalendarSyncManager.hasCalendarPermission(context)) "已授权" else "点击授予日历读写权限",
-                    startAction = { Icon(MiuixIcons.Months, contentDescription = null) },
-                    onClick = {
-                        if (!CalendarSyncManager.hasCalendarPermission(context)) {
-                            permissionLauncher.launch(Manifest.permission.READ_CALENDAR)
-                        } else {
-                            status = "日历权限已授予"
-                        }
-                    }
-                )
-                BasicComponent(
-                    title = "立即同步全部记录",
-                    summary = "将现有 ${records.size} 条记录写入系统日历",
-                    onClick = {
-                        scope.launch {
+                Column {
+                    SmallTitle(text = "日历账户")
+                    BasicComponent(
+                        title = "授权日历权限",
+                        summary = if (CalendarSyncManager.hasCalendarPermission(context)) "已授权" else "点击授予日历读写权限",
+                        startAction = { Icon(MiuixIcons.Months, contentDescription = null) },
+                        onClick = {
                             if (!CalendarSyncManager.hasCalendarPermission(context)) {
                                 permissionLauncher.launch(Manifest.permission.READ_CALENDAR)
-                                return@launch
+                            } else {
+                                status = "日历权限已授予"
                             }
-                            val ok = CalendarSyncManager.syncAll(context, records)
-                            status = if (ok) "同步完成" else "同步失败"
-                            Toast.makeText(context, if (ok) "同步完成" else "同步失败", Toast.LENGTH_SHORT).show()
                         }
-                    }
-                )
+                    )
+                    BasicComponent(
+                        title = "立即同步全部记录",
+                        summary = "将现有 ${records.size} 条记录写入系统日历",
+                        onClick = {
+                            scope.launch {
+                                if (!CalendarSyncManager.hasCalendarPermission(context)) {
+                                    permissionLauncher.launch(Manifest.permission.READ_CALENDAR)
+                                    return@launch
+                                }
+                                val ok = CalendarSyncManager.syncAll(context, records)
+                                status = if (ok) "同步完成" else "同步失败"
+                                Toast.makeText(context, if (ok) "同步完成" else "同步失败", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+                }
             }
         }
     }
