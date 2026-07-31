@@ -17,6 +17,12 @@ class SettingsRepository(private val context: Context) {
     val bottomBarStyle: Flow<String> = context.dataStore.data.map { it[KEY_BOTTOM_BAR_STYLE] ?: "ICON_TEXT" }
     val quickSubmit: Flow<Boolean> = context.dataStore.data.map { it[KEY_QUICK_SUBMIT] ?: false }
 
+    // Monet 动态取色（使用系统壁纸动态配色）
+    val monetEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_MONET_ENABLED] ?: false }
+
+    // 悬浮底栏（FloatingNavigationBar）
+    val useFloatingNav: Flow<Boolean> = context.dataStore.data.map { it[KEY_FLOATING_NAV] ?: false }
+
     // 加班类型配色（统计日历等使用）
     val typeColorWorkday: Flow<Int> = context.dataStore.data.map { it[KEY_TYPE_COLOR_WORKDAY] ?: 0xFF3482FF.toInt() }
     val typeColorWeekend: Flow<Int> = context.dataStore.data.map { it[KEY_TYPE_COLOR_WEEKEND] ?: 0xFF34C759.toInt() }
@@ -74,6 +80,8 @@ class SettingsRepository(private val context: Context) {
     suspend fun setAccentColor(color: Int) { context.dataStore.edit { it[KEY_ACCENT_COLOR] = color } }
     suspend fun setBottomBarStyle(style: String) { context.dataStore.edit { it[KEY_BOTTOM_BAR_STYLE] = style } }
     suspend fun setQuickSubmit(enabled: Boolean) { context.dataStore.edit { it[KEY_QUICK_SUBMIT] = enabled } }
+    suspend fun setMonetEnabled(enabled: Boolean) { context.dataStore.edit { it[KEY_MONET_ENABLED] = enabled } }
+    suspend fun setUseFloatingNav(enabled: Boolean) { context.dataStore.edit { it[KEY_FLOATING_NAV] = enabled } }
     suspend fun setTypeColorWorkday(color: Int) { context.dataStore.edit { it[KEY_TYPE_COLOR_WORKDAY] = color } }
     suspend fun setTypeColorWeekend(color: Int) { context.dataStore.edit { it[KEY_TYPE_COLOR_WEEKEND] = color } }
     suspend fun setTypeColorHoliday(color: Int) { context.dataStore.edit { it[KEY_TYPE_COLOR_HOLIDAY] = color } }
@@ -128,6 +136,8 @@ class SettingsRepository(private val context: Context) {
                 when (key) {
                     KEY_THEME_MODE.name -> prefs[KEY_THEME_MODE] = value
                     KEY_BOTTOM_BAR_STYLE.name -> prefs[KEY_BOTTOM_BAR_STYLE] = value
+                    KEY_MONET_ENABLED.name -> prefs[KEY_MONET_ENABLED] = value.toBoolean()
+                    KEY_FLOATING_NAV.name -> prefs[KEY_FLOATING_NAV] = value.toBoolean()
                     KEY_TYPE_COLOR_WORKDAY.name -> prefs[KEY_TYPE_COLOR_WORKDAY] = value.toIntOrNull() ?: 0xFF3482FF.toInt()
                     KEY_TYPE_COLOR_WEEKEND.name -> prefs[KEY_TYPE_COLOR_WEEKEND] = value.toIntOrNull() ?: 0xFF34C759.toInt()
                     KEY_TYPE_COLOR_HOLIDAY.name -> prefs[KEY_TYPE_COLOR_HOLIDAY] = value.toIntOrNull() ?: 0xFFFF7043.toInt()
@@ -170,6 +180,8 @@ class SettingsRepository(private val context: Context) {
         return mapOf(
             KEY_THEME_MODE.name to themeMode.first(),
             KEY_BOTTOM_BAR_STYLE.name to bottomBarStyle.first(),
+            KEY_MONET_ENABLED.name to monetEnabled.first().toString(),
+            KEY_FLOATING_NAV.name to useFloatingNav.first().toString(),
             KEY_TYPE_COLOR_WORKDAY.name to typeColorWorkday.first().toString(),
             KEY_TYPE_COLOR_WEEKEND.name to typeColorWeekend.first().toString(),
             KEY_TYPE_COLOR_HOLIDAY.name to typeColorHoliday.first().toString(),
@@ -208,6 +220,8 @@ class SettingsRepository(private val context: Context) {
         private val KEY_ACCENT_COLOR = intPreferencesKey("accent_color")
         private val KEY_BOTTOM_BAR_STYLE = stringPreferencesKey("bottom_bar_style")
         private val KEY_QUICK_SUBMIT = booleanPreferencesKey("quick_submit")
+        private val KEY_MONET_ENABLED = booleanPreferencesKey("monet_enabled")
+        private val KEY_FLOATING_NAV = booleanPreferencesKey("floating_nav")
 
         private val KEY_TYPE_COLOR_WORKDAY = intPreferencesKey("type_color_workday")
         private val KEY_TYPE_COLOR_WEEKEND = intPreferencesKey("type_color_weekend")

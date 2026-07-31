@@ -31,6 +31,8 @@ fun AppearanceSettingsPage(
     val themeMode by settingsRepository.themeMode.collectAsState(initial = "system")
     val bottomBarStyle by settingsRepository.bottomBarStyle.collectAsState(initial = "ICON_TEXT")
     val quickSubmit by settingsRepository.quickSubmit.collectAsState(initial = false)
+    val monetEnabled by settingsRepository.monetEnabled.collectAsState(initial = false)
+    val useFloatingNav by settingsRepository.useFloatingNav.collectAsState(initial = false)
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
     val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
     val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
@@ -76,6 +78,23 @@ fun AppearanceSettingsPage(
             
             item {
                 Column {
+                    SmallTitle(text = "动态配色")
+                    BasicComponent(
+                        title = "Monet 动态取色",
+                        summary = "跟随系统壁纸生成整套配色（需 Android 12+）",
+                        onClick = { scope.launch { settingsRepository.setMonetEnabled(!monetEnabled) } },
+                        endActions = {
+                            Switch(
+                                checked = monetEnabled,
+                                onCheckedChange = { scope.launch { settingsRepository.setMonetEnabled(it) } }
+                            )
+                        }
+                    )
+                }
+            }
+
+            item {
+                Column {
                     SmallTitle(text = "底栏样式")
                     BottomBarStyle.entries.forEach { style ->
                         BasicComponent(
@@ -84,6 +103,17 @@ fun AppearanceSettingsPage(
                             endActions = { RadioButton(selected = bottomBarStyle == style.name, onClick = null) }
                         )
                     }
+                    BasicComponent(
+                        title = "悬浮底栏",
+                        summary = "使用 FloatingNavigationBar 悬浮样式",
+                        onClick = { scope.launch { settingsRepository.setUseFloatingNav(!useFloatingNav) } },
+                        endActions = {
+                            Switch(
+                                checked = useFloatingNav,
+                                onCheckedChange = { scope.launch { settingsRepository.setUseFloatingNav(it) } }
+                            )
+                        }
+                    )
                 }
             }
             

@@ -1,67 +1,110 @@
 package com.overtime.miuix.ui.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import top.yukonga.miuix.kmp.basic.*
+import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun AboutPage(navController: NavHostController) {
-    Scaffold(
-        topBar = {
-            SmallTopAppBar(
-                title = "关于应用",
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        LazyColumn(
+    // 模糊背景层：捕获底层渐变，供前景模糊与毛玻璃卡片采样
+    val backdrop = rememberLayerBackdrop()
+    val blurSupported = isRuntimeShaderSupported()
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 底层渐变（被 layerBackdrop 捕获，作为模糊源）
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            item {
-                Spacer(modifier = Modifier.height(32.dp))
-                Icon(
-                    MiuixIcons.AppRecording,
-                    contentDescription = null,
-                    modifier = Modifier.size(80.dp),
-                    tint = MiuixTheme.colorScheme.primary
+                .layerBackdrop(backdrop)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            MiuixTheme.colorScheme.primary,
+                            MiuixTheme.colorScheme.secondary,
+                            MiuixTheme.colorScheme.background
+                        )
+                    )
                 )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "加班记",
-                    style = MiuixTheme.textStyles.headline2,
-                    fontWeight = FontWeight.Bold
+        )
+
+        Scaffold(
+            // 透明容器，露出底层渐变
+            containerColor = Color.Transparent,
+            topBar = {
+                SmallTopAppBar(
+                    title = "关于应用",
+                    color = Color.Transparent,
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
+                        }
+                    }
                 )
-                Text(
-                    text = "版本 1.0.0",
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
-                Spacer(modifier = Modifier.height(32.dp))
             }
-            
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 16.dp
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+        ) { paddingValues ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentPadding = PaddingValues(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                item {
+                    Spacer(modifier = Modifier.height(32.dp))
+                    Icon(
+                        MiuixIcons.AppRecording,
+                        contentDescription = null,
+                        modifier = Modifier.size(80.dp),
+                        tint = MiuixTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    // Foreground Blur：文字字形作为遮罩，透出模糊后的渐变背景
+                    Text(
+                        text = "加班记",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .textureBlur(
+                                backdrop = backdrop,
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+                                blurRadius = 150f,
+                                enabled = blurSupported,
+                                contentBlendMode = BlendMode.DstIn
+                            )
+                            .padding(vertical = 4.dp),
+                        style = MiuixTheme.textStyles.headline2,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "版本 1.0.0",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                    Spacer(modifier = Modifier.height(32.dp))
+                }
+
+                item {
+                    // 毛玻璃卡片：Texture Blur 高斯模糊 + 半透明底色
+                    FrostedCard(backdrop, blurSupported) {
                         Text(
                             text = "应用介绍",
                             style = MiuixTheme.textStyles.title3,
@@ -75,15 +118,10 @@ fun AboutPage(navController: NavHostController) {
                         )
                     }
                 }
-            }
-            
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 16.dp
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    FrostedCard(backdrop, blurSupported) {
                         Text(
                             text = "技术栈",
                             style = MiuixTheme.textStyles.title3,
@@ -97,7 +135,39 @@ fun AboutPage(navController: NavHostController) {
                         Text("• MCP SDK - AI 服务集成")
                     }
                 }
+
+                item {
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
             }
         }
+    }
+}
+
+/**
+ * 毛玻璃卡片：在捕获的模糊背景之上叠加半透明表面，形成 Texture Blur 效果。
+ */
+@Composable
+private fun FrostedCard(
+    backdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop,
+    blurSupported: Boolean,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .textureBlur(
+                backdrop = backdrop,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                blurRadius = 30f,
+                enabled = blurSupported
+            )
+    ) {
+        Column(
+            modifier = Modifier
+                .background(MiuixTheme.colorScheme.surface.copy(alpha = 0.5f))
+                .padding(16.dp),
+            content = content
+        )
     }
 }

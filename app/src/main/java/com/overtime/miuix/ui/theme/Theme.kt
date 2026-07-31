@@ -12,12 +12,18 @@ import top.yukonga.miuix.kmp.theme.ThemeController
 fun OvertimeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     keyColor: Color = Color(0xFF3482FF),
+    monet: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val controller = remember(darkTheme, keyColor) {
+    val controller = remember(darkTheme, keyColor, monet) {
         ThemeController(
-            colorSchemeMode = if (darkTheme) ColorSchemeMode.Dark else ColorSchemeMode.Light,
-            keyColor = keyColor
+            colorSchemeMode = when {
+                monet -> ColorSchemeMode.MonetSystem
+                darkTheme -> ColorSchemeMode.Dark
+                else -> ColorSchemeMode.Light
+            },
+            // Monet 模式使用系统壁纸动态配色，keyColor 传 null 由框架回退到平台动态色
+            keyColor = if (monet) null else keyColor
         )
     }
 

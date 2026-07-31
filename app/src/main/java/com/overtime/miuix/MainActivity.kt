@@ -28,16 +28,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeMode by settingsRepository.themeMode.collectAsState(initial = "system")
             val accentColor by settingsRepository.accentColor.collectAsState(initial = 0xFF3482FF.toInt())
-            
+            val monetEnabled by settingsRepository.monetEnabled.collectAsState(initial = false)
+
             val darkTheme = when (themeMode) {
                 "dark" -> true
                 "light" -> false
                 else -> isSystemInDarkTheme()
             }
-            
+
             OvertimeTheme(
                 darkTheme = darkTheme,
-                keyColor = androidx.compose.ui.graphics.Color(accentColor)
+                keyColor = androidx.compose.ui.graphics.Color(accentColor),
+                monet = monetEnabled
             ) {
                 val navController = rememberNavController()
                 MainNavHost(

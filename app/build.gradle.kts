@@ -84,6 +84,7 @@ dependencies {
     // MIUIX
     implementation(libs.miuix.ui)
     implementation(libs.miuix.icons)
+    implementation(libs.miuix.blur)
 
     // 其他
     implementation(libs.okhttp)

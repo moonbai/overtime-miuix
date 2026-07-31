@@ -246,6 +246,7 @@ fun AddEditRecordPage(
                     BasicComponent(
                         title = "加班类型",
                         summary = selectedType.label,
+                        endActions = { DropdownArrowEndAction(MiuixTheme.colorScheme.primary) },
                         onClick = { showTypePicker = true }
                     )
                 }
@@ -471,11 +472,15 @@ fun AddEditRecordPage(
             onDismissRequest = { showTypePicker = false }
         ) {
             Column {
-                OvertimeType.entries.forEach { type ->
-                    BasicComponent(
-                        title = type.label,
-                        onClick = {
-                            selectedType = type
+                val typeEntries = OvertimeType.entries
+                typeEntries.forEachIndexed { index, type ->
+                    DropdownImpl(
+                        text = type.label,
+                        optionSize = typeEntries.size,
+                        isSelected = selectedType == type,
+                        index = index,
+                        onSelectedIndexChange = {
+                            selectedType = typeEntries[it]
                             showTypePicker = false
                         }
                     )
