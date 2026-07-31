@@ -21,7 +21,10 @@ import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.push.CalendarSyncManager
 import com.overtime.miuix.push.PushManager
+import com.overtime.miuix.util.BackupManager
 import com.overtime.miuix.util.SalaryCalculator
+import com.overtime.miuix.util.WebDavManager
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -115,6 +118,21 @@ fun AddEditRecordPage(
                 CalendarSyncManager.removeEvents(context, record)
                 CalendarSyncManager.addEvent(context, record)
             }
+
+            // 自动备份（performAutoBackup 内部会自行检查 auto_backup_enabled 开关）
+            val settingsMap = settings.exportSettingsMap()
+            val webdavEnabled = settingsMap["webdav_enabled"]?.toBoolean() ?: false
+            val location = settingsMap["auto_backup_location"] ?: "local"
+            val webdavConfig = if (webdavEnabled && location == "cloud") {
+                WebDavManager.WebDavConfig(
+                    baseUrl = settingsMap["webdav_url"] ?: "",
+                    username = settingsMap["webdav_username"] ?: "",
+                    password = settingsMap["webdav_password"] ?: "",
+                    remotePath = settingsMap["webdav_path"] ?: "/overtime_backup/"
+                )
+            } else null
+            val allRecords = repository.getAllRecords().first()
+            BackupManager.performAutoBackup(context, allRecords, settingsMap, webdavConfig)
         }
     }
 
