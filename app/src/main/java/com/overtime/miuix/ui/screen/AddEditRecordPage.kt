@@ -2,9 +2,16 @@ package com.overtime.miuix.ui.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimePickerDialog
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -12,6 +19,8 @@ import com.overtime.miuix.data.database.OvertimeRecord
 import com.overtime.miuix.data.model.OvertimeType
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
+import com.overtime.miuix.push.CalendarSyncManager
+import com.overtime.miuix.push.PushManager
 import com.overtime.miuix.util.SalaryCalculator
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
@@ -29,23 +38,37 @@ fun AddEditRecordPage(
     settingsRepository: SettingsRepository,
     recordId: Long? = null
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isEdit = recordId != null
-    
+
     val baseSalary by settingsRepository.baseSalary.collectAsState(initial = 2200.0)
     val workdayRate by settingsRepository.workdayRate.collectAsState(initial = 1.5)
     val weekendRate by settingsRepository.weekendRate.collectAsState(initial = 2.0)
     val holidayRate by settingsRepository.holidayRate.collectAsState(initial = 3.0)
-    
+
     var selectedDate by remember { mutableStateOf(Date()) }
     var selectedType by remember { mutableStateOf(OvertimeType.WORKDAY) }
     var startTimeStr by remember { mutableStateOf("18:00") }
     var endTimeStr by remember { mutableStateOf("20:00") }
     var note by remember { mutableStateOf("") }
     var isLeave by remember { mutableStateOf(false) }
-    
+
     var showTypePicker by remember { mutableStateOf(false) }
-    
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showStartPicker by remember { mutableStateOf(false) }
+    var showEndPicker by remember { mutableStateOf(false) }
+
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDate.time)
+    val startPickerState = rememberTimePickerState(
+        initialHour = startTimeStr.take(2).toIntOrNull() ?: 18,
+        initialMinute = startTimeStr.takeLast(2).toIntOrNull() ?: 0
+    )
+    val endPickerState = rememberTimePickerState(
+        initialHour = endTimeStr.take(2).toIntOrNull() ?: 20,
+        initialMinute = endTimeStr.takeLast(2).toIntOrNull() ?: 0
+    )
+
     val previewAmount = remember(selectedDate, selectedType, startTimeStr, endTimeStr, baseSalary, workdayRate, weekendRate, holidayRate, isLeave) {
         if (isLeave) {
             0.0
@@ -63,7 +86,7 @@ fun AddEditRecordPage(
             SalaryCalculator.calculateOvertimeAmount(baseSalary, selectedType, rate, duration)
         }
     }
-    
+
     LaunchedEffect(recordId) {
         if (recordId != null) {
             val record = repository.getRecordById(recordId)
@@ -78,7 +101,23 @@ fun AddEditRecordPage(
             }
         }
     }
-    
+
+    fun triggerAfterSave(record: OvertimeRecord) {
+        scope.launch {
+            val settings = settingsRepository
+            if (settings.pushEnabled.first()) {
+                val channel = settings.pushChannel.first()
+                if (channel != "none") {
+                    PushManager.sendToSelectedChannel(channel, settings.exportSettingsMap(), record)
+                }
+            }
+            if (settings.calendarSyncEnabled.first() && CalendarSyncManager.hasCalendarPermission(context)) {
+                CalendarSyncManager.removeEvents(context, record)
+                CalendarSyncManager.addEvent(context, record)
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             SmallTopAppBar(
@@ -92,7 +131,7 @@ fun AddEditRecordPage(
                     IconButton(
                         onClick = {
                             scope.launch {
-                                saveRecord(
+                                val saved = saveRecord(
                                     repository,
                                     recordId,
                                     selectedDate,
@@ -108,6 +147,7 @@ fun AddEditRecordPage(
                                     note,
                                     isLeave
                                 )
+                                saved?.let { triggerAfterSave(it) }
                                 navController.popBackStack()
                             }
                         }
@@ -148,15 +188,15 @@ fun AddEditRecordPage(
                     }
                 }
             }
-            
+
             item {
                 BasicComponent(
                     title = "日期",
                     summary = SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault()).format(selectedDate),
-                    onClick = { }
+                    onClick = { showDatePicker = true }
                 )
             }
-            
+
             item {
                 BasicComponent(
                     title = "加班类型",
@@ -164,23 +204,23 @@ fun AddEditRecordPage(
                     onClick = { showTypePicker = true }
                 )
             }
-            
+
             item {
                 BasicComponent(
                     title = "开始时间",
                     summary = startTimeStr,
-                    onClick = { }
+                    onClick = { showStartPicker = true }
                 )
             }
-            
+
             item {
                 BasicComponent(
                     title = "结束时间",
                     summary = endTimeStr,
-                    onClick = { }
+                    onClick = { showEndPicker = true }
                 )
             }
-            
+
             item {
                 TextField(
                     value = note,
@@ -189,7 +229,7 @@ fun AddEditRecordPage(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-            
+
             item {
                 BasicComponent(
                     title = "请假记录",
@@ -203,7 +243,67 @@ fun AddEditRecordPage(
             }
         }
     }
-    
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    text = "确定",
+                    onClick = {
+                        selectedDate = Date(datePickerState.selectedDateMillis ?: selectedDate.time)
+                        showDatePicker = false
+                    }
+                )
+            },
+            dismissButton = {
+                TextButton(text = "取消", onClick = { showDatePicker = false })
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showStartPicker) {
+        TimePickerDialog(
+            onDismissRequest = { showStartPicker = false },
+            confirmButton = {
+                TextButton(
+                    text = "确定",
+                    onClick = {
+                        startTimeStr = String.format("%02d:%02d", startPickerState.hour, startPickerState.minute)
+                        showStartPicker = false
+                    }
+                )
+            },
+            dismissButton = {
+                TextButton(text = "取消", onClick = { showStartPicker = false })
+            }
+        ) {
+            TimePicker(state = startPickerState)
+        }
+    }
+
+    if (showEndPicker) {
+        TimePickerDialog(
+            onDismissRequest = { showEndPicker = false },
+            confirmButton = {
+                TextButton(
+                    text = "确定",
+                    onClick = {
+                        endTimeStr = String.format("%02d:%02d", endPickerState.hour, endPickerState.minute)
+                        showEndPicker = false
+                    }
+                )
+            },
+            dismissButton = {
+                TextButton(text = "取消", onClick = { showEndPicker = false })
+            }
+        ) {
+            TimePicker(state = endPickerState)
+        }
+    }
+
     OverlayDialog(
         show = showTypePicker,
         title = "选择类型",
@@ -234,14 +334,14 @@ private suspend fun saveRecord(
     rate: Double,
     note: String,
     isLeave: Boolean
-) {
+): OvertimeRecord? {
     val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date)
     val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
     val startTime = sdf.parse("$dateStr $startTimeStr")?.time ?: date.time
     val endTime = sdf.parse("$dateStr $endTimeStr")?.time ?: date.time
     val duration = SalaryCalculator.calculateDurationHours(startTime, endTime)
     val amount = if (isLeave) 0.0 else SalaryCalculator.calculateOvertimeAmount(baseSalary, type, rate, duration)
-    
+
     val record = OvertimeRecord(
         id = recordId ?: 0,
         date = date.time,
@@ -255,10 +355,17 @@ private suspend fun saveRecord(
         note = note,
         isLeave = isLeave
     )
-    
-    if (recordId != null) {
-        repository.update(record)
-    } else {
-        repository.insert(record)
+
+    return try {
+        if (recordId != null) {
+            repository.update(record)
+            record
+        } else {
+            val id = repository.insert(record)
+            record.copy(id = id)
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
     }
 }

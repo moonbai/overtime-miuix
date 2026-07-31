@@ -101,6 +101,7 @@ fun MainNavHost(
         composable("backup_settings") {
             BackupSettingsPage(
                 navController = navController,
+                repository = repository,
                 settingsRepository = settingsRepository
             )
         }
@@ -117,7 +118,11 @@ fun MainNavHost(
             )
         }
         composable("calendar_settings") {
-            CalendarSettingsPage(navController = navController)
+            CalendarSettingsPage(
+                navController = navController,
+                repository = repository,
+                settingsRepository = settingsRepository
+            )
         }
         composable("holiday_settings") {
             HolidaySettingsPage(navController = navController)

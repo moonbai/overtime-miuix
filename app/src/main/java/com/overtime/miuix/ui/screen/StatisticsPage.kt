@@ -3,6 +3,7 @@ package com.overtime.miuix.ui.screen
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -10,6 +11,8 @@ import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.util.SalaryCalculator
 import top.yukonga.miuix.kmp.basic.*
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -21,31 +24,63 @@ fun StatisticsPage(
     var selectedMonth by remember { mutableStateOf(yearMonths.first()) }
     var stats by remember { mutableStateOf<com.overtime.miuix.data.repository.MonthlyStats?>(null) }
     var yearlyStats by remember { mutableStateOf<com.overtime.miuix.data.repository.YearlyStats?>(null) }
-    
+
     LaunchedEffect(selectedMonth) {
         stats = repository.getMonthlyStats(selectedMonth)
         val year = selectedMonth.split("-")[0]
         yearlyStats = repository.getYearlyStats(year)
     }
-    
+
+    fun shiftMonth(delta: Int) {
+        val parts = selectedMonth.split("-")
+        var y = parts[0].toInt()
+        var m = parts[1].toInt()
+        m += delta
+        if (m < 1) { m = 12; y -= 1 }
+        if (m > 12) { m = 1; y += 1 }
+        val next = String.format("%04d-%02d", y, m)
+        if (next in yearMonths) {
+            selectedMonth = next
+        } else if (delta < 0 && next > yearMonths.last()) {
+            selectedMonth = yearMonths.last()
+        } else if (delta > 0 && next < yearMonths.first()) {
+            selectedMonth = yearMonths.first()
+        }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            TabRow(
-                tabs = yearMonths,
-                selectedTabIndex = yearMonths.indexOf(selectedMonth).coerceAtLeast(0),
-                onTabSelected = { index ->
-                    if (index in yearMonths.indices) {
-                        selectedMonth = yearMonths[index]
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 16.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { shiftMonth(-1) }) {
+                        Icon(MiuixIcons.ChevronBackward, contentDescription = "上一月")
                     }
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
+                    val parts = selectedMonth.split("-")
+                    Text(
+                        text = "${parts[0]}年${parts[1]}月",
+                        style = MiuixTheme.textStyles.title3,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    IconButton(onClick = { shiftMonth(1) }) {
+                        Icon(MiuixIcons.ChevronForward, contentDescription = "下一月")
+                    }
+                }
+            }
         }
-        
+
         item {
             StatsCard(
                 title = "$selectedMonth 统计",
@@ -59,7 +94,7 @@ fun StatisticsPage(
                 )
             )
         }
-        
+
         item {
             val year = selectedMonth.split("-")[0]
             StatsCard(
