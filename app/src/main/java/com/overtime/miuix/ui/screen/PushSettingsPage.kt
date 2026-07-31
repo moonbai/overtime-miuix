@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.*
 
@@ -80,6 +81,9 @@ fun PushSettingsPage(
         "discord" to "Discord",
         "custom" to "自定义 WebHook"
     )
+
+    var showChannelPicker by remember { mutableStateOf(false) }
+    val currentChannelLabel = channels.firstOrNull { it.first == pushChannel }?.second ?: "未选择"
 
     fun buildConfigMap(): Map<String, String> = mapOf(
         "push_dingtalk" to dingtalkText,
@@ -153,13 +157,12 @@ fun PushSettingsPage(
             item {
                 Column {
                     SmallTitle(text = "推送渠道")
-                    channels.forEach { (value, label) ->
-                        BasicComponent(
-                            title = label,
-                            onClick = { scope.launch { settingsRepository.setPushChannel(value) } },
-                            endActions = { RadioButton(selected = pushChannel == value, onClick = null) }
-                        )
-                    }
+                    BasicComponent(
+                        title = "当前渠道",
+                        summary = currentChannelLabel,
+                        endActions = { DropdownArrowEndAction(MiuixTheme.colorScheme.primary) },
+                        onClick = { showChannelPicker = true }
+                    )
                 }
             }
 
@@ -231,6 +234,28 @@ fun PushSettingsPage(
                         .fillMaxWidth()
                         .padding(16.dp)
                 ) { Text("测试推送") }
+            }
+        }
+
+        // 渠道选择 Dropdown 弹窗
+        OverlayDialog(
+            show = showChannelPicker,
+            title = "选择推送渠道",
+            onDismissRequest = { showChannelPicker = false }
+        ) {
+            Column {
+                channels.forEachIndexed { index, (value, label) ->
+                    DropdownImpl(
+                        text = label,
+                        optionSize = channels.size,
+                        isSelected = pushChannel == value,
+                        index = index,
+                        onSelectedIndexChange = { selectedIndex ->
+                            scope.launch { settingsRepository.setPushChannel(channels[selectedIndex].first) }
+                            showChannelPicker = false
+                        }
+                    )
+                }
             }
         }
     }

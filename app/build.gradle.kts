@@ -17,10 +17,48 @@ android {
         versionName = "1.0.0"
     }
 
+    // 签名配置：优先从环境变量读取，其次从 gradle.properties
+    signingConfigs {
+        create("release") {
+            // KEYSTORE_BASE64 环境变量用于 CI/CD 流水线（GitHub Actions）
+            val keystoreBase64 = System.getenv("KEYSTORE_BASE64")
+            if (!keystoreBase64.isNullOrBlank()) {
+                val keystoreFile = file("$rootDir/app/release-keystore.jks")
+                if (!keystoreFile.exists()) {
+                    keystoreFile.parentFile?.mkdirs()
+                    // 通过 shell base64 命令解码（避免 Gradle Kotlin DSL 中 java.util 不可用的问题）
+                    val process = ProcessBuilder("base64", "-d")
+                        .directory(rootDir)
+                        .redirectOutput(keystoreFile)
+                        .start()
+                    process.outputStream.use { it.write(keystoreBase64.toByteArray()) }
+                    process.waitFor()
+                }
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("KEY_ALIAS") ?: ""
+                keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+            } else {
+                // 本地开发：检查 gradle.properties 或本地 keystore 文件
+                val localKeystore = file("release-keystore.jks")
+                if (localKeystore.exists()) {
+                    storeFile = localKeystore
+                    storePassword = project.findProperty("KEYSTORE_PASSWORD") as? String ?: ""
+                    keyAlias = project.findProperty("KEY_ALIAS") as? String ?: ""
+                    keyPassword = project.findProperty("KEY_PASSWORD") as? String ?: ""
+                }
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            val keystoreFile = file("release-keystore.jks")
+            if (keystoreFile.exists() || !System.getenv("KEYSTORE_BASE64").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {

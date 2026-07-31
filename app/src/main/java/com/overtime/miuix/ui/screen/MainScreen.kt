@@ -2,11 +2,13 @@ package com.overtime.miuix.ui.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
@@ -38,6 +40,8 @@ fun MainScreen(
 
     // 首页 FAB 的高斯模糊背景层：捕获底栏之上的页面内容作为模糊源
     val fabBackdrop = rememberLayerBackdrop()
+    // 悬浮底栏的高斯模糊背景层：捕获页面内容作为毛玻璃源
+    val navBackdrop = rememberLayerBackdrop()
 
     Scaffold(
         topBar = {
@@ -52,25 +56,42 @@ fun MainScreen(
         },
         bottomBar = {
             if (useFloatingNav) {
-                FloatingNavigationBar(mode = FloatingNavigationBarDisplayMode.IconAndText) {
-                    FloatingNavigationBarItem(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        icon = MiuixIcons.All,
-                        label = "首页"
-                    )
-                    FloatingNavigationBarItem(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        icon = MiuixIcons.Months,
-                        label = "统计"
-                    )
-                    FloatingNavigationBarItem(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        icon = MiuixIcons.Settings,
-                        label = "设置"
-                    )
+                // 悬浮底栏：IconOnly 模式（紧凑）+ 高斯模糊毛玻璃效果
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .textureBlur(
+                            backdrop = navBackdrop,
+                            shape = RoundedCornerShape(28.dp),
+                            blurRadius = 40f,
+                            enabled = blurSupported
+                        )
+                ) {
+                    FloatingNavigationBar(
+                        mode = FloatingNavigationBarDisplayMode.IconOnly,
+                        cornerRadius = 28.dp,
+                        horizontalOutSidePadding = 0.dp,
+                        shadowElevation = 0.dp
+                    ) {
+                        FloatingNavigationBarItem(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            icon = MiuixIcons.All,
+                            label = "首页"
+                        )
+                        FloatingNavigationBarItem(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            icon = MiuixIcons.Months,
+                            label = "统计"
+                        )
+                        FloatingNavigationBarItem(
+                            selected = selectedTab == 2,
+                            onClick = { selectedTab = 2 },
+                            icon = MiuixIcons.Settings,
+                            label = "设置"
+                        )
+                    }
                 }
             } else {
                 NavigationBar(mode = navMode) {
@@ -120,6 +141,7 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .layerBackdrop(fabBackdrop)
+                .layerBackdrop(navBackdrop)
                 .padding(paddingValues)
         ) {
             when (selectedTab) {
