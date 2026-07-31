@@ -58,6 +58,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.navigation.compose)
+    implementation("androidx.navigationevent:navigationevent-compose-android:1.0.2")
     implementation(libs.androidx.datastore.preferences)
 
     // Room (KSP 处理)
@@ -85,6 +86,10 @@ dependencies {
     implementation(libs.miuix.ui)
     implementation(libs.miuix.icons)
     implementation(libs.miuix.blur)
+
+    // NavigationEvent — Miuix OverlayDialog 使用 NavigationBackHandler 需要此依赖
+    implementation("androidx.navigationevent:navigationevent-android:1.0.2")
+    implementation("androidx.navigationevent:navigationevent-compose-android:1.0.2")
 
     // 其他
     implementation(libs.okhttp)

@@ -10,6 +10,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
+import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import com.overtime.miuix.data.database.AppDatabase
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
@@ -58,10 +60,15 @@ fun MainNavHost(
     repository: OvertimeRepository,
     settingsRepository: SettingsRepository
 ) {
-    NavHost(
-        navController = navController,
-        startDestination = "main"
-    ) {
+    // Miuix 的 OverlayDialog 内部使用 NavigationBackHandler，
+    // 需要 LocalNavigationEventDispatcherOwner（navigationevent-compose 1.0.2）。
+    // NavHost 自身不提供该值，此处用 rememberNavigationEventDispatcherOwner 创建。
+    val dispatcherOwner = rememberNavigationEventDispatcherOwner(enabled = true)
+    CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides dispatcherOwner) {
+        NavHost(
+            navController = navController,
+            startDestination = "main"
+        ) {
         composable("main") {
             MainScreen(
                 navController = navController,
@@ -141,6 +148,7 @@ fun MainNavHost(
         }
         composable("about") {
             AboutPage(navController = navController)
+        }
         }
     }
 }
