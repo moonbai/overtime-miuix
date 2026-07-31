@@ -16,7 +16,9 @@ import com.overtime.miuix.data.database.AppDatabase
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.ui.screen.*
+import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import com.overtime.miuix.ui.theme.OvertimeTheme
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,7 +69,10 @@ fun MainNavHost(
         enabled = true,
         parent = null
     )
-    CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides dispatcherOwner) {
+    CompositionLocalProvider(
+        LocalNavigationEventDispatcherOwner provides dispatcherOwner,
+        LocalSnackbarHostState provides remember { SnackbarHostState() }
+    ) {
         NavHost(
             navController = navController,
             startDestination = "main"

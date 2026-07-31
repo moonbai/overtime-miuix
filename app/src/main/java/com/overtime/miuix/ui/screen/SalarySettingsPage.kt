@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.SettingsRepository
+import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -18,6 +19,7 @@ fun SalarySettingsPage(
     settingsRepository: SettingsRepository
 ) {
     val scope = rememberCoroutineScope()
+    val snackbarHostState = LocalSnackbarHostState.current
     val baseSalary by settingsRepository.baseSalary.collectAsState(initial = 2200.0)
     val workdayRate by settingsRepository.workdayRate.collectAsState(initial = 1.5)
     val weekendRate by settingsRepository.weekendRate.collectAsState(initial = 2.0)
@@ -44,7 +46,8 @@ fun SalarySettingsPage(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier

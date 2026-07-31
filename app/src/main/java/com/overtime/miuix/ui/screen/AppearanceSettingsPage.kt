@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.model.BottomBarStyle
 import com.overtime.miuix.data.repository.SettingsRepository
+import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -28,6 +29,7 @@ fun AppearanceSettingsPage(
     settingsRepository: SettingsRepository
 ) {
     val scope = rememberCoroutineScope()
+    val snackbarHostState = LocalSnackbarHostState.current
     val themeMode by settingsRepository.themeMode.collectAsState(initial = "system")
     val bottomBarStyle by settingsRepository.bottomBarStyle.collectAsState(initial = "ICON_TEXT")
     val quickSubmit by settingsRepository.quickSubmit.collectAsState(initial = false)
@@ -47,7 +49,8 @@ fun AppearanceSettingsPage(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier

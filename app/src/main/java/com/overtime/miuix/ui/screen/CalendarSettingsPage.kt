@@ -1,7 +1,6 @@
 package com.overtime.miuix.ui.screen
 
 import android.Manifest
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -14,6 +13,7 @@ import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.push.CalendarSyncManager
+import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -28,6 +28,7 @@ fun CalendarSettingsPage(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbarHostState = LocalSnackbarHostState.current
     val calendarSyncEnabled by settingsRepository.calendarSyncEnabled.collectAsState(initial = false)
     val records by repository.getAllRecords().collectAsState(initial = emptyList())
 
@@ -40,7 +41,7 @@ fun CalendarSettingsPage(
             status = "日历权限已授予"
         } else {
             status = "未获得日历权限，无法同步"
-            Toast.makeText(context, "未获得日历权限", Toast.LENGTH_SHORT).show()
+            scope.launch { snackbarHostState.showCustomToast("未获得日历权限") }
         }
     }
 
@@ -54,7 +55,8 @@ fun CalendarSettingsPage(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -114,7 +116,7 @@ fun CalendarSettingsPage(
                                 }
                                 val ok = CalendarSyncManager.syncAll(context, records)
                                 status = if (ok) "同步完成" else "同步失败"
-                                Toast.makeText(context, if (ok) "同步完成" else "同步失败", Toast.LENGTH_SHORT).show()
+                                snackbarHostState.showCustomToast(if (ok) "同步完成" else "同步失败")
                             }
                         }
                     )

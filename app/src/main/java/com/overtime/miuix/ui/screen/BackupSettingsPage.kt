@@ -1,7 +1,6 @@
 package com.overtime.miuix.ui.screen
 
 import android.net.Uri
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -13,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
+import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import com.overtime.miuix.util.BackupManager
 import com.overtime.miuix.util.DataMigrationUtil
 import com.overtime.miuix.util.WebDavManager
@@ -30,6 +30,7 @@ fun BackupSettingsPage(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbarHostState = LocalSnackbarHostState.current
 
     val records by repository.getAllRecords().collectAsState(initial = emptyList())
 
@@ -53,9 +54,9 @@ fun BackupSettingsPage(
     LaunchedEffect(webdavPassword) { webdavPassText = webdavPassword }
     LaunchedEffect(webdavPath) { webdavPathText = webdavPath }
 
-    fun showToast(msg: String) {
+    suspend fun showToast(msg: String) {
         status = msg
-        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+        snackbarHostState.showCustomToast(msg)
     }
 
     fun buildWebDavConfig(): WebDavManager.WebDavConfig = WebDavManager.WebDavConfig(
@@ -120,7 +121,8 @@ fun BackupSettingsPage(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier

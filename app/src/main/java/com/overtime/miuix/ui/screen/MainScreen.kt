@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
+import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -42,8 +43,10 @@ fun MainScreen(
     val fabBackdrop = rememberLayerBackdrop()
     // 悬浮底栏的高斯模糊背景层：捕获页面内容作为毛玻璃源
     val navBackdrop = rememberLayerBackdrop()
+    val snackbarHostState = LocalSnackbarHostState.current
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = when (selectedTab) {

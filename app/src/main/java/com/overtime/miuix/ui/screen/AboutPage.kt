@@ -1,14 +1,17 @@
 package com.overtime.miuix.ui.screen
 
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -157,20 +160,38 @@ fun AboutPage(navController: NavHostController) {
 
                 item { Spacer(modifier = Modifier.height(24.dp)) }
 
-                // 关于应用卡片（毛玻璃）
+                // 关于应用卡片（TextureBlur + Card）
                 item {
-                    FrostedCard(backdrop, blurSupported) {
-                        Text(
-                            text = "关于应用",
-                            style = MiuixTheme.textStyles.title3,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = "一款简洁实用的加班记录与薪资计算工具，帮你轻松记录每一次加班，精准计算应得报酬。",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .textureBlur(
+                                backdrop = backdrop,
+                                shape = RoundedCornerShape(20.dp),
+                                blurRadius = 30f,
+                                enabled = blurSupported
+                            )
+                    ) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            cornerRadius = 20.dp,
+                            insideMargin = PaddingValues(20.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MiuixTheme.colorScheme.surface.copy(alpha = 0.5f)
+                            )
+                        ) {
+                            Text(
+                                text = "关于应用",
+                                style = MiuixTheme.textStyles.title3,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "一款简洁实用的加班记录与薪资计算工具，帮你轻松记录每一次加班，精准计算应得报酬。",
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            )
+                        }
                     }
                 }
 
@@ -202,9 +223,18 @@ fun AboutPage(navController: NavHostController) {
 
                 item { Spacer(modifier = Modifier.height(8.dp)) }
 
+                // 开源仓库 — 可点击跳转浏览器
                 item {
+                    val ctx = context
                     FrostedCard(backdrop, blurSupported) {
-                        InfoRow("开源仓库", "github.com/moonbai/overtime-miuix")
+                        ClickableInfoRow(
+                            label = "开源仓库",
+                            value = "github.com/moonbai/overtime-miuix",
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/moonbai/overtime-miuix"))
+                                ctx.startActivity(intent)
+                            }
+                        )
                     }
                 }
 
@@ -273,6 +303,41 @@ private fun InfoRow(label: String, value: String) {
             style = MiuixTheme.textStyles.body2,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
         )
+    }
+}
+
+@Composable
+private fun ClickableInfoRow(
+    label: String,
+    value: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MiuixTheme.textStyles.body1,
+            fontWeight = FontWeight.Medium
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = value,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = MiuixIcons.ChevronForward,
+                contentDescription = "打开链接",
+                tint = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp)
+            )
+        }
     }
 }
 

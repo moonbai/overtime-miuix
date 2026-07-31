@@ -1,6 +1,5 @@
 package com.overtime.miuix.ui.screen
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
@@ -9,6 +8,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.SettingsRepository
+import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import com.overtime.miuix.util.HolidayDataSource
 import com.overtime.miuix.util.HolidayManager
 import kotlinx.coroutines.launch
@@ -25,6 +25,7 @@ fun HolidaySettingsPage(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbarHostState = LocalSnackbarHostState.current
 
     val dataSource by settingsRepository.holidayDataSource.collectAsState(initial = "TIMOR")
     val customUrl by settingsRepository.holidayCustomUrl.collectAsState(initial = "")
@@ -69,7 +70,8 @@ fun HolidaySettingsPage(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -209,7 +211,7 @@ fun HolidaySettingsPage(
                                     "更新失败，请检查网络连接"
                                 }
                                 status = msg
-                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                scope.launch { snackbarHostState.showCustomToast(msg) }
                             }
                         }
                     )
@@ -221,7 +223,7 @@ fun HolidaySettingsPage(
                             HolidayManager.clearCache()
                             val msg = "节假日缓存已清除"
                             status = msg
-                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            scope.launch { snackbarHostState.showCustomToast(msg) }
                         }
                     )
                 }

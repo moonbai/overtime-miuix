@@ -3,7 +3,6 @@ package com.overtime.miuix.ui.screen
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
@@ -15,6 +14,7 @@ import java.net.Inet4Address
 import java.net.NetworkInterface
 import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.mcp.McpHostService
+import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -28,14 +28,15 @@ fun McpSettingsPage(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    
+    val snackbarHostState = LocalSnackbarHostState.current
+
     val mcpEnabled by settingsRepository.mcpEnabled.collectAsState(initial = false)
     val mcpPort by settingsRepository.mcpPort.collectAsState(initial = 8080)
     var portText by remember { mutableStateOf(mcpPort.toString()) }
 
     val deviceIp = remember { getLocalIpAddress() }
 
-    val configJson = remember(deviceIp, mcpPort) {
+    val lanConfigJson = remember(deviceIp, mcpPort) {
         """
 {
   "mcpServers": {
@@ -45,6 +46,25 @@ fun McpSettingsPage(
   }
 }
         """.trimIndent()
+    }
+
+    val localConfigJson = remember(mcpPort) {
+        """
+{
+  "mcpServers": {
+    "overtime-note": {
+      "url": "http://127.0.0.1:$mcpPort/mcp"
+    }
+  }
+}
+        """.trimIndent()
+    }
+
+    fun copyConfig(label: String, json: String) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("MCP Config", json)
+        clipboard.setPrimaryClip(clip)
+        scope.launch { snackbarHostState.showCustomToast("$label已复制到剪贴板") }
     }
     
     Scaffold(
@@ -57,7 +77,8 @@ fun McpSettingsPage(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -153,32 +174,46 @@ fun McpSettingsPage(
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                 text = "MCP 配置 JSON",
-                                style = MiuixTheme.textStyles.title3
+                                style = MiuixTheme.textStyles.title3,
+                                modifier = Modifier.weight(1f)
                             )
-                            TextButton(
-                                text = "复制",
-                                onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    val clip = ClipData.newPlainText("MCP Config", configJson)
-                                    clipboard.setPrimaryClip(clip)
-                                    Toast.makeText(context, "配置已复制到剪贴板", Toast.LENGTH_SHORT).show()
-                                }
-                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Button(
+                                onClick = { copyConfig("本机配置", localConfigJson) },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("复制本机配置") }
+                            Button(
+                                onClick = { copyConfig("局域网配置", lanConfigJson) },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("复制局域网配置") }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             cornerRadius = 8.dp
                         ) {
-                            Text(
-                                text = configJson,
-                                style = MiuixTheme.textStyles.footnote1,
-                                modifier = Modifier.padding(12.dp)
-                            )
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "本机配置：${localConfigJson.lines().find { it.contains("url") }?.trim() ?: ""}",
+                                    style = MiuixTheme.textStyles.footnote1,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "局域网配置：${lanConfigJson.lines().find { it.contains("url") }?.trim() ?: ""}",
+                                    style = MiuixTheme.textStyles.footnote1,
+                                    color = MiuixTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
                 }
