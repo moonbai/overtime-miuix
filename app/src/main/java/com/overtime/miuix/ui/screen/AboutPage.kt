@@ -176,8 +176,8 @@ fun AboutPage(navController: NavHostController) {
                             modifier = Modifier.fillMaxWidth(),
                             cornerRadius = 20.dp,
                             insideMargin = PaddingValues(20.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MiuixTheme.colorScheme.surface.copy(alpha = 0.5f)
+                            colors = CardDefaults.defaultColors(
+                                color = MiuixTheme.colorScheme.surface.copy(alpha = 0.5f)
                             )
                         ) {
                             Text(

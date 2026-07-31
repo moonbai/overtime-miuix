@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -15,6 +16,7 @@ import java.net.NetworkInterface
 import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.mcp.McpHostService
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
+import com.overtime.miuix.ui.snackbar.showCustomToast
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -64,7 +66,7 @@ fun McpSettingsPage(
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText("MCP Config", json)
         clipboard.setPrimaryClip(clip)
-        scope.launch { snackbarHostState.showCustomToast("$label已复制到剪贴板") }
+        scope.launch { snackbarHostState.showCustomToast("${label}已复制到剪贴板") }
     }
     
     Scaffold(
