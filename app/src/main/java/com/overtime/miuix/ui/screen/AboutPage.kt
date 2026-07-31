@@ -229,7 +229,7 @@ fun AboutPage(navController: NavHostController) {
                     FrostedCard(backdrop, blurSupported) {
                         ClickableInfoRow(
                             label = "开源仓库",
-                            value = "github.com/moonbai/overtime-miuix",
+                            value = "Github",
                             onClick = {
                                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/moonbai/overtime-miuix"))
                                 ctx.startActivity(intent)
