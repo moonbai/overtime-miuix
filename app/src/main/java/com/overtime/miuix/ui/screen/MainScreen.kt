@@ -8,8 +8,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.OvertimeRepository
@@ -66,6 +66,12 @@ fun MainScreen(
     val navBackdrop = rememberLayerBackdrop()
     val snackbarHostState = LocalSnackbarHostState.current
 
+    // 系统导航栏（手势条）底部安全间距，避免悬浮底栏被遮挡
+    val navBarInset = WindowInsets.navigationBars
+        .only(WindowInsetsSides.Bottom)
+        .asPaddingValues()
+        .calculateBottomPadding()
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -78,51 +84,9 @@ fun MainScreen(
                 }
             )
         },
+        // 普通底栏：放在 bottomBar 槽位（会预留底部空间）
         bottomBar = {
-            if (useFloatingNav) {
-                // 悬浮底栏：毛玻璃背景（隐藏原有底栏），两侧留出边距、内部按钮间距更舒适
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 10.dp)
-                        .textureBlur(
-                            backdrop = navBackdrop,
-                            shape = RoundedCornerShape(28.dp),
-                            blurRadius = 40f,
-                            enabled = blurSupported
-                        )
-                ) {
-                    FloatingNavigationBar(
-                        modifier = Modifier.background(Color.Transparent),
-                        mode = floatingNavMode,
-                        cornerRadius = 28.dp,
-                        horizontalOutSidePadding = 0.dp,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        FloatingNavigationBarItem(
-                            selected = selectedTab == 0,
-                            onClick = { selectedTab = 0 },
-                            icon = AppIcons.Home,
-                            label = "首页"
-                        )
-                        // 按钮之间留白，避免拥挤
-                        Spacer(modifier = Modifier.width(24.dp))
-                        FloatingNavigationBarItem(
-                            selected = selectedTab == 1,
-                            onClick = { selectedTab = 1 },
-                            icon = MiuixIcons.Months,
-                            label = "统计"
-                        )
-                        Spacer(modifier = Modifier.width(24.dp))
-                        FloatingNavigationBarItem(
-                            selected = selectedTab == 2,
-                            onClick = { selectedTab = 2 },
-                            icon = MiuixIcons.Settings,
-                            label = "设置"
-                        )
-                    }
-                }
-            } else {
+            if (!useFloatingNav) {
                 // 普通底栏：毛玻璃背景
                 Box(
                     modifier = Modifier
@@ -160,88 +124,117 @@ fun MainScreen(
                 }
             }
         },
+        // 普通模式下的 FAB（悬浮模式下改由内容层叠加渲染，避免与悬浮底栏重叠）
         floatingActionButton = {
-            if (selectedTab == 0) {
-                if (quickSubmit) {
-                    // 快速提报模式：底栏区直接提供「提报」按钮，点击弹出快速录入
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // 常规添加（进入完整表单）
-                        FloatingActionButton(
-                            onClick = { navController.navigate("add_record") },
-                            containerColor = MiuixTheme.colorScheme.secondaryContainer
-                        ) {
-                            Icon(
-                                MiuixIcons.Add,
-                                contentDescription = "添加记录",
-                                tint = MiuixTheme.colorScheme.onSecondaryContainer
-                            )
-                        }
-                        // 快速提报（一键记录今天）
-                        FloatingActionButton(
-                            onClick = { showQuickSubmit = true },
-                            containerColor = MiuixTheme.colorScheme.primary
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            ) {
-                                Icon(
-                                    MiuixIcons.Ok,
-                                    contentDescription = null,
-                                    tint = MiuixTheme.colorScheme.onPrimary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "快速提报",
-                                    color = MiuixTheme.colorScheme.onPrimary,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    // Texture Blur 高斯模糊：将 FAB 背景渲染为页面内容的毛玻璃
-                    Box(
-                        modifier = Modifier.textureBlur(
-                            backdrop = fabBackdrop,
-                            shape = CircleShape,
-                            blurRadius = 28f,
-                            enabled = blurSupported
-                        )
-                    ) {
-                        FloatingActionButton(
-                            onClick = { navController.navigate("add_record") },
-                            containerColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.6f)
-                        ) {
-                            Icon(MiuixIcons.Add, contentDescription = "添加记录")
-                        }
-                    }
-                }
+            if (!useFloatingNav && selectedTab == 0) {
+                HomeFab(
+                    quickSubmit = quickSubmit,
+                    fabBackdrop = fabBackdrop,
+                    blurSupported = blurSupported,
+                    onAddRecord = { navController.navigate("add_record") },
+                    onQuickSubmit = { showQuickSubmit = true }
+                )
             }
         }
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .layerBackdrop(fabBackdrop)
-                .layerBackdrop(navBackdrop)
-                .padding(paddingValues)
-        ) {
-            when (selectedTab) {
-                0 -> HomePage(
-                    navController = navController,
-                    repository = repository,
-                    settingsRepository = settingsRepository
-                )
-                1 -> StatisticsPage(
-                    navController = navController,
-                    repository = repository,
-                    settingsRepository = settingsRepository
-                )
-                2 -> SettingsPage(navController = navController)
+        // 悬浮模式下不预留底部空间，让页面内容铺满并可滚动到悬浮底栏之下
+        val contentPadding = PaddingValues(
+            top = paddingValues.calculateTopPadding(),
+            start = paddingValues.calculateStartPadding(LocalLayoutDirection.current),
+            end = paddingValues.calculateEndPadding(LocalLayoutDirection.current),
+            bottom = if (useFloatingNav) 0.dp else paddingValues.calculateBottomPadding()
+        )
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            // 页面内容层（捕获到 fabBackdrop / navBackdrop 供毛玻璃使用）
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .layerBackdrop(fabBackdrop)
+                    .layerBackdrop(navBackdrop)
+                    .padding(contentPadding)
+            ) {
+                when (selectedTab) {
+                    0 -> HomePage(
+                        navController = navController,
+                        repository = repository,
+                        settingsRepository = settingsRepository
+                    )
+                    1 -> StatisticsPage(
+                        navController = navController,
+                        repository = repository,
+                        settingsRepository = settingsRepository
+                    )
+                    2 -> SettingsPage(navController = navController)
+                }
+            }
+
+            // 悬浮底栏：真正悬浮于内容之上（叠加层，不预留空间）
+            if (useFloatingNav) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(
+                            start = 20.dp,
+                            end = 20.dp,
+                            top = 10.dp,
+                            bottom = 10.dp + navBarInset
+                        )
+                        .textureBlur(
+                            backdrop = navBackdrop,
+                            shape = RoundedCornerShape(28.dp),
+                            blurRadius = 40f,
+                            enabled = blurSupported
+                        )
+                ) {
+                    FloatingNavigationBar(
+                        modifier = Modifier.background(Color.Transparent),
+                        mode = floatingNavMode,
+                        cornerRadius = 28.dp,
+                        horizontalOutSidePadding = 0.dp,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        FloatingNavigationBarItem(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            icon = AppIcons.Home,
+                            label = "首页"
+                        )
+                        // 按钮之间留白，避免拥挤
+                        Spacer(modifier = Modifier.width(24.dp))
+                        FloatingNavigationBarItem(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            icon = MiuixIcons.Months,
+                            label = "统计"
+                        )
+                        Spacer(modifier = Modifier.width(24.dp))
+                        FloatingNavigationBarItem(
+                            selected = selectedTab == 2,
+                            onClick = { selectedTab = 2 },
+                            icon = MiuixIcons.Settings,
+                            label = "设置"
+                        )
+                    }
+                }
+
+                // 悬浮模式下的首页 FAB：叠加在内容之上，并抬升到底栏上方避免遮挡
+                if (selectedTab == 0) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 20.dp, bottom = 10.dp + navBarInset + 72.dp)
+                    ) {
+                        HomeFab(
+                            quickSubmit = quickSubmit,
+                            fabBackdrop = fabBackdrop,
+                            blurSupported = blurSupported,
+                            onAddRecord = { navController.navigate("add_record") },
+                            onQuickSubmit = { showQuickSubmit = true }
+                        )
+                    }
+                }
             }
         }
     }
@@ -259,4 +252,76 @@ fun MainScreen(
             }
         }
     )
+}
+
+/**
+ * 首页悬浮操作按钮：快速提报模式下提供「添加 / 快速提报」两个按钮，
+ * 否则为带有高斯模糊背景的单个添加按钮。
+ */
+@Composable
+private fun HomeFab(
+    quickSubmit: Boolean,
+    fabBackdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop,
+    blurSupported: Boolean,
+    onAddRecord: () -> Unit,
+    onQuickSubmit: () -> Unit
+) {
+    if (quickSubmit) {
+        // 快速提报模式：底栏区直接提供「提报」按钮，点击弹出快速录入
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 常规添加（进入完整表单）
+            FloatingActionButton(
+                onClick = onAddRecord,
+                containerColor = MiuixTheme.colorScheme.secondaryContainer
+            ) {
+                Icon(
+                    MiuixIcons.Add,
+                    contentDescription = "添加记录",
+                    tint = MiuixTheme.colorScheme.onSecondaryContainer
+                )
+            }
+            // 快速提报（一键记录今天）
+            FloatingActionButton(
+                onClick = onQuickSubmit,
+                containerColor = MiuixTheme.colorScheme.primary
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
+                    Icon(
+                        MiuixIcons.Ok,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.onPrimary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "快速提报",
+                        color = MiuixTheme.colorScheme.onPrimary,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                    )
+                }
+            }
+        }
+    } else {
+        // Texture Blur 高斯模糊：将 FAB 背景渲染为页面内容的毛玻璃
+        Box(
+            modifier = Modifier.textureBlur(
+                backdrop = fabBackdrop,
+                shape = CircleShape,
+                blurRadius = 28f,
+                enabled = blurSupported
+            )
+        ) {
+            FloatingActionButton(
+                onClick = onAddRecord,
+                containerColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.6f)
+            ) {
+                Icon(MiuixIcons.Add, contentDescription = "添加记录")
+            }
+        }
+    }
 }
