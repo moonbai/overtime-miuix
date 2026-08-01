@@ -87,7 +87,7 @@ android {
         onVariants(selector().withBuildType("release")) { variant ->
             variant.outputs.forEach { output ->
                 (output as? com.android.build.api.variant.impl.VariantOutputImpl)?.let { impl ->
-                    impl.outputFileName = "加班记-android-universal-${defaultConfig.versionName}.apk"
+                    impl.outputFileName = "Overtime-android-universal-${defaultConfig.versionName}.apk"
                 }
             }
         }
