@@ -6,6 +6,17 @@ plugins {
 }
 
 import java.util.Base64
+import java.util.Properties
+
+// 签名配置：统一从环境变量读取（CI 通过 GitHub Secrets 注入）
+// 本地开发回退到 local.properties（已 gitignore，勿把密码写入 gradle.properties）
+val localProperties = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+fun signProp(name: String): String? =
+    System.getenv(name) ?: localProperties.getProperty(name)
 
 android {
     namespace = "com.overtime.miuix"
@@ -19,39 +30,23 @@ android {
         versionName = "1.0.2"
     }
 
-    // 签名配置：CI 从 KEYSTORE_BASE64 环境变量解码生成 keystore 文件
-    // 本地开发时在 gradle.properties 中配置 KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD
+    // 签名配置：环境变量优先（CI），local.properties 回退（本地，已 gitignore）
     signingConfigs {
         create("release") {
-            // CI 环境：KEYSTORE_BASE64 → base64 解码 → 写入临时 keystore 文件
+            // CI：KEYSTORE_BASE64 环境变量解码为临时 keystore 文件
+            // 本地：使用 app/release-keystore.jks（已 gitignore）
             val keystoreBase64 = System.getenv("KEYSTORE_BASE64")
-            val keystoreFile = if (keystoreBase64 != null && keystoreBase64.isNotBlank()) {
-                val decodedBytes = try {
-                    // ProcessBuilder 方式执行 base64 -d，兼容 CI 环境
-                    val proc = ProcessBuilder("base64", "-d")
-                        .redirectInput(ProcessBuilder.Redirect.PIPE)
-                        .redirectOutput(ProcessBuilder.Redirect.PIPE)
-                        .start()
-                    proc.outputStream.use { it.write(keystoreBase64.toByteArray()) }
-                    proc.outputStream.close()
-                    proc.inputStream.readBytes()
-                } catch (e: Exception) {
-                    Base64.getDecoder().decode(keystoreBase64)
-                }
-                val tmpFile = file("${layout.buildDirectory.get().asFile.absolutePath}/tmp/ci-release-keystore.jks")
+            storeFile = if (!keystoreBase64.isNullOrEmpty()) {
+                val tmpFile = layout.buildDirectory.file("tmp/ci-release-keystore.jks").get().asFile
                 tmpFile.parentFile.mkdirs()
-                tmpFile.writeBytes(decodedBytes)
+                tmpFile.writeBytes(Base64.getDecoder().decode(keystoreBase64))
                 tmpFile
             } else {
                 file("release-keystore.jks")
             }
-            storeFile = keystoreFile
-            storePassword = System.getenv("KEYSTORE_PASSWORD")
-                ?: (project.findProperty("KEYSTORE_PASSWORD") as? String) ?: ""
-            keyAlias = System.getenv("KEY_ALIAS")
-                ?: (project.findProperty("KEY_ALIAS") as? String) ?: ""
-            keyPassword = System.getenv("KEY_PASSWORD")
-                ?: (project.findProperty("KEY_PASSWORD") as? String) ?: ""
+            storePassword = signProp("KEYSTORE_PASSWORD")
+            keyAlias = signProp("KEY_ALIAS")
+            keyPassword = signProp("KEY_PASSWORD")
         }
     }
 

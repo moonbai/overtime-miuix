@@ -32,10 +32,15 @@ jobs:
         gradle-version: '9.3.1'
 
     - name: Build with Gradle
-      run: ./gradlew assembleDebug --no-daemon
+      env:
+        KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      run: ./gradlew assembleRelease --no-daemon
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/*.apk
+        name: app-release
+        path: app/build/outputs/apk/release/*.apk
