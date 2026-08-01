@@ -39,7 +39,8 @@ fun QuickSubmitSheet(
     settingsRepository: SettingsRepository,
     context: Context,
     onDismiss: () -> Unit,
-    onSaved: () -> Unit
+    /** 保存完成回调；参数为需要展示的提示文案（日历同步失败时为具体原因）。 */
+    onSaved: (String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
 
@@ -248,11 +249,19 @@ fun QuickSubmitSheet(
                                     isLeave = false
                                 )
                                 val id = repository.insert(record)
-                                RecordSyncHelper.afterSave(
-                                    context, repository, settingsRepository, record.copy(id = id)
-                                )
+                                // 记录已入库，同步环节的失败不应影响提交结果，仅转为提示文案
+                                val calendarResult = try {
+                                    RecordSyncHelper.afterSave(
+                                        context, repository, settingsRepository, record.copy(id = id)
+                                    )
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                    null
+                                }
                                 saving = false
-                                onSaved()
+                                onSaved(
+                                    RecordSyncHelper.calendarHint(calendarResult) ?: "已提报今日加班"
+                                )
                                 onDismiss()
                             } catch (e: Exception) {
                                 e.printStackTrace()

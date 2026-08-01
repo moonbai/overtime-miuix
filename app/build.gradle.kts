@@ -26,8 +26,8 @@ android {
         applicationId = "com.overtime.miuix"
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.0.3"
     }
 
     // 签名配置：环境变量优先（CI），local.properties 回退（本地，已 gitignore）
@@ -97,6 +97,8 @@ dependencies {
     // AndroidX 基础
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    // LocalLifecycleOwner / 生命周期感知的 Compose 工具：日历权限状态实时校验依赖此库
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)

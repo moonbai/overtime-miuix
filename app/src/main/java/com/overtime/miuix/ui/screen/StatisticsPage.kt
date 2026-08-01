@@ -446,7 +446,6 @@ private fun CalendarCard(
                             } else {
                                 val agg = dayAgg[day]
                                 val isToday = isCurrentMonth && day == todayDay
-                                val hasRecords = agg != null && agg.maxAbs > 0
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier
@@ -456,7 +455,9 @@ private fun CalendarCard(
                                             else Color.Transparent,
                                             RoundedCornerShape(8.dp)
                                         )
-                                        .then(if (hasRecords || isToday) Modifier.clickable { onDayClick(day) } else Modifier)
+                                        // 每一天都可点击查看当日明细：无记录时弹窗展示空态，
+                                        // 避免用户误以为该日期无法查看
+                                        .clickable { onDayClick(day) }
                                         .padding(vertical = 4.dp)
                                 ) {
                                     Text(

@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -161,13 +162,6 @@ fun AddEditRecordPage(
         }
     }
 
-    fun triggerAfterSave(record: OvertimeRecord, oldRecord: OvertimeRecord? = null) {
-        scope.launch {
-            // 统一走 RecordSyncHelper：推送 / 日历同步 / 自动备份，与快速提报行为一致
-            RecordSyncHelper.afterSave(context, repository, settingsRepository, record, oldRecord)
-        }
-    }
-
     // 统一保存逻辑：顶栏与右下角悬浮按钮共用
     fun performSave() {
         scope.launch {
@@ -189,13 +183,22 @@ fun AddEditRecordPage(
                 leaveDuration
             )
             saved?.let {
-                triggerAfterSave(it, oldRecord)
+                // 同步动作在当前协程内串行执行并整体兜底：
+                // 记录本身已入库，后续推送/日历/备份的任何异常都不得影响保存结果与页面跳转。
+                val calendarResult = try {
+                    RecordSyncHelper.afterSave(context, repository, settingsRepository, it, oldRecord)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    null
+                }
                 // 先返回首页，再显示吐司，确保吐司在首页上可见
                 navController.navigate("main") {
                     popUpTo(0) { inclusive = true }
                 }
-                val msg = if (recordId != null) "已更新记录" else "已保存记录"
-                snackbarHostState.showCustomToast(msg)
+                val baseMsg = if (recordId != null) "已更新记录" else "已保存记录"
+                snackbarHostState.showCustomToast(
+                    RecordSyncHelper.calendarHint(calendarResult) ?: baseMsg
+                )
             }
         }
     }
@@ -417,15 +420,15 @@ fun AddEditRecordPage(
             title = "选择类型",
             onDismissRequest = { showTypePicker = false }
         ) {
-            Column {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 val typeEntries = OvertimeType.entries
                 typeEntries.forEachIndexed { index, type ->
-                    DropdownImpl(
+                    FullWidthDropdownItem(
                         text = type.label,
                         optionSize = typeEntries.size,
                         isSelected = selectedType == type,
                         index = index,
-                        onSelectedIndexChange = {
+                        onSelected = {
                             selectedType = typeEntries[it]
                             typeManuallyChanged = true
                             showTypePicker = false
@@ -440,19 +443,17 @@ fun AddEditRecordPage(
             title = "选择请假时长",
             onDismissRequest = { showLeaveDurationPicker = false }
         ) {
+            // 改用 Dropdown(O) 组件呈现请假时长选项：
+            // 此前使用 SpinnerItemImpl，与「加班类型」弹窗风格不一致且宽度未撑满
             Column(modifier = Modifier.fillMaxWidth()) {
                 val options = listOf(-4 to "半天 (-4小时)", -8 to "全天 (-8小时)")
-                val entries = options.map { SpinnerEntry(title = it.second) }
-                entries.forEachIndexed { index, entry ->
-                    val value = options[index].first
-                    SpinnerItemImpl(
-                        entry = entry,
-                        entryCount = entries.size,
-                        isSelected = leaveDuration == value,
+                options.forEachIndexed { index, option ->
+                    FullWidthDropdownItem(
+                        text = option.second,
+                        optionSize = options.size,
+                        isSelected = leaveDuration == option.first,
                         index = index,
-                        spinnerColors = SpinnerDefaults.dialogSpinnerColors(),
-                        dialogMode = true,
-                        onSelectedIndexChange = {
+                        onSelected = {
                             leaveDuration = options[it].first
                             showLeaveDurationPicker = false
                         }
@@ -460,6 +461,47 @@ fun AddEditRecordPage(
                 }
             }
         }
+    }
+}
+
+/**
+ * 撑满宽度的 Dropdown(O) 选项。
+ *
+ * 问题根因：miuix 0.9.0 的 [DropdownImpl] 内部 Row 未声明 fillMaxWidth，
+ * 其宽度完全由文本内容撑开，因此放进弹窗后整组选项会贴在左侧、
+ * 选中勾选标记紧挨文字，而不是右对齐到弹窗边缘。
+ *
+ * 解决方式：不改写官方组件，而是在测量阶段把 minWidth 抬到 maxWidth，
+ * 强制内部 Row 占满可用宽度，其 Arrangement.SpaceBetween 便会把
+ * 文本与勾选标记分别推向两端，得到标准下拉弹窗的排版。
+ */
+@Composable
+private fun FullWidthDropdownItem(
+    text: String,
+    optionSize: Int,
+    isSelected: Boolean,
+    index: Int,
+    onSelected: (Int) -> Unit
+) {
+    Layout(
+        content = {
+            DropdownImpl(
+                text = text,
+                optionSize = optionSize,
+                isSelected = isSelected,
+                index = index,
+                onSelectedIndexChange = onSelected
+            )
+        }
+    ) { measurables, constraints ->
+        // 宽度无界时保持原测量行为，避免出现无限宽约束
+        val childConstraints = if (constraints.hasBoundedWidth) {
+            constraints.copy(minWidth = constraints.maxWidth)
+        } else {
+            constraints
+        }
+        val placeable = measurables.first().measure(childConstraints)
+        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
     }
 }
 

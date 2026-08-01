@@ -24,6 +24,8 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
+import com.overtime.miuix.ui.icon.AppIcons
+import com.overtime.miuix.ui.icon.Home
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -99,7 +101,7 @@ fun MainScreen(
                         FloatingNavigationBarItem(
                             selected = selectedTab == 0,
                             onClick = { selectedTab = 0 },
-                            icon = MiuixIcons.Home,
+                            icon = AppIcons.Home,
                             label = "首页"
                         )
                         FloatingNavigationBarItem(
@@ -121,7 +123,7 @@ fun MainScreen(
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
-                        icon = MiuixIcons.Home,
+                        icon = AppIcons.Home,
                         label = "首页"
                     )
                     NavigationBarItem(
@@ -232,9 +234,9 @@ fun MainScreen(
         settingsRepository = settingsRepository,
         context = context,
         onDismiss = { showQuickSubmit = false },
-        onSaved = {
+        onSaved = { message ->
             quickScope.launch {
-                snackbarHostStateForQuick.showCustomToast("已提报今日加班")
+                snackbarHostStateForQuick.showCustomToast(message)
             }
         }
     )

@@ -9,11 +9,6 @@ object SalaryCalculator {
     private const val WORKING_DAYS_PER_MONTH = 21.75
     private const val HOURS_PER_DAY = 8.0
     
-    fun calculateDurationHours(startTime: Long, endTime: Long): Double {
-        val diff = endTime - startTime
-        return (diff / (1000.0 * 60 * 60)).coerceAtLeast(0.0)
-    }
-    
     fun calculateOvertimeAmount(
         baseSalary: Double,
         type: OvertimeType,
