@@ -213,10 +213,13 @@ fun AddEditRecordPage(
             )
             saved?.let {
                 triggerAfterSave(it, oldRecord)
+                // 先返回首页，再显示吐司，确保吐司在首页上可见
+                navController.navigate("main") {
+                    popUpTo(0) { inclusive = true }
+                }
                 val msg = if (recordId != null) "已更新记录" else "已保存记录"
                 snackbarHostState.showCustomToast(msg)
             }
-            navController.popBackStack()
         }
     }
 

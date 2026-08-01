@@ -20,7 +20,7 @@ object DataMigrationUtil {
 
     fun generateBackupFileName(): String {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        return "overtime_backup_$timestamp.json"
+        return "overtime_backup_$timestamp.zip"
     }
 
     fun getBackupFilePath(context: Context, fileName: String? = null): String {
@@ -31,7 +31,7 @@ object DataMigrationUtil {
     fun listBackupFiles(context: Context): List<File> {
         val dir = getBackupDir(context)
         return dir.listFiles { file ->
-            file.name.endsWith(".json") && file.name.startsWith("overtime_backup_")
+            (file.name.endsWith(".zip") || file.name.endsWith(".json")) && file.name.startsWith("overtime_backup_")
         }?.toList() ?: emptyList()
     }
 }

@@ -14,6 +14,7 @@ import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import com.overtime.miuix.ui.snackbar.showCustomToast
+import com.overtime.miuix.util.BackupData
 import com.overtime.miuix.util.BackupManager
 import com.overtime.miuix.util.DataMigrationUtil
 import com.overtime.miuix.util.WebDavManager
@@ -25,6 +26,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
+import java.io.FileOutputStream
 
 @Composable
 fun BackupSettingsPage(
@@ -75,16 +77,17 @@ fun BackupSettingsPage(
         remotePath = webdavPathText.ifBlank { "/overtime_backup/" }
     )
 
-    // 从云端下载指定备份文件并恢复记录与设置
+    // 从云端下载指定备份文件并恢复记录与设置（支持 ZIP 和旧版 JSON）
     suspend fun restoreFromCloud(fileName: String) {
         showToast("正在下载 $fileName ...")
-        val localPath = DataMigrationUtil.getBackupFilePath(context, "cloud_restore_tmp.json")
+        val isZip = fileName.endsWith(".zip", ignoreCase = true)
+        val localPath = DataMigrationUtil.getBackupFilePath(context, "cloud_restore_tmp" + if (isZip) ".zip" else ".json")
         val ok = WebDavManager.downloadFile(buildWebDavConfig(), fileName, localPath)
         if (!ok) {
             showToast("下载失败：$fileName")
             return
         }
-        val data = BackupManager.importData(localPath)
+        val data = if (isZip) BackupManager.importZip(localPath) else BackupManager.importData(localPath)
         if (data == null) {
             showToast("文件解析失败")
             return
@@ -97,19 +100,19 @@ fun BackupSettingsPage(
         showToast("云端恢复成功，共 ${data.records.size} 条记录")
     }
 
-    // 导出到用户选择的文件
+    // 导出到用户选择的文件（ZIP 格式，包含 records.json + settings.json）
     val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
+        ActivityResultContracts.CreateDocument("application/zip")
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             val settings = settingsRepository.exportSettingsMap()
-            val json = BackupManager.serialize(records, settings)
             try {
                 context.contentResolver.openOutputStream(uri)?.use { os ->
-                    os.write(json.toByteArray(Charsets.UTF_8))
+                    val ok = BackupManager.exportZip(records, settings, os)
+                    if (!ok) throw Exception("ZIP 打包失败")
                 }
-                showToast("导出成功")
+                showToast("导出成功（ZIP 包含记录与设置）")
             } catch (e: Exception) {
                 e.printStackTrace()
                 showToast("导出失败：${e.message}")
@@ -117,15 +120,31 @@ fun BackupSettingsPage(
         }
     }
 
-    // 从用户选择的文件导入
+    // 从用户选择的文件导入（支持 ZIP 和旧版 JSON）
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             try {
-                val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText()
-                val data = if (json != null) BackupManager.deserialize(json) else null
+                // 先判断文件扩展名，决定解析方式
+                val fileName = uri.lastPathSegment ?: ""
+                val data: BackupData? = if (fileName.endsWith(".zip", ignoreCase = true)) {
+                    // ZIP 格式：复制到临时文件再解析
+                    val tmpFile = File(context.cacheDir, "import_tmp.zip")
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        FileOutputStream(tmpFile).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    val result = BackupManager.importZip(tmpFile.absolutePath)
+                    tmpFile.delete()
+                    result
+                } else {
+                    // 旧版 JSON 格式（向后兼容）
+                    val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText()
+                    if (json != null) BackupManager.deserialize(json) else null
+                }
                 if (data == null) {
                     showToast("文件解析失败")
                     return@launch
@@ -177,7 +196,7 @@ fun BackupSettingsPage(
                 SettingsGroup(title = "本地备份") {
                     BasicComponent(
                         title = "导出数据",
-                        summary = "将记录与设置导出为 JSON 文件",
+                        summary = "将记录与设置导出为 ZIP 文件",
                         startAction = { Icon(MiuixIcons.Download, contentDescription = null) },
                         onClick = {
                             val name = DataMigrationUtil.generateBackupFileName()
@@ -186,9 +205,9 @@ fun BackupSettingsPage(
                     )
                     BasicComponent(
                         title = "导入数据",
-                        summary = "从 JSON 文件恢复记录与设置",
+                        summary = "从 ZIP / JSON 文件恢复记录与设置",
                         startAction = { Icon(MiuixIcons.Import, contentDescription = null) },
-                        onClick = { importLauncher.launch(arrayOf("application/json")) }
+                        onClick = { importLauncher.launch(arrayOf("application/zip", "application/json", "*/*")) }
                     )
                 }
             }
@@ -292,7 +311,7 @@ fun BackupSettingsPage(
                                             }
                                             val fileName = DataMigrationUtil.generateBackupFileName()
                                             val localPath = DataMigrationUtil.getBackupFilePath(context, fileName)
-                                            val okExport = BackupManager.exportData(records, settings, localPath)
+                                            val okExport = BackupManager.exportZip(records, settings, localPath)
                                             if (!okExport) {
                                                 showToast("生成本地备份失败")
                                                 return@launch

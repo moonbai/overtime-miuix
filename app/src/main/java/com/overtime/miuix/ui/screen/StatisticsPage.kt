@@ -1,6 +1,7 @@
 package com.overtime.miuix.ui.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,6 +36,8 @@ private data class DayAggregate(
     var maxAbs: Double = 0.0
 )
 
+private enum class StatsViewMode { MONTH, YEAR }
+
 @Composable
 fun StatisticsPage(
     navController: NavHostController,
@@ -43,6 +46,8 @@ fun StatisticsPage(
 ) {
     val yearMonths = remember { SalaryCalculator.getYearMonthList(12) }
     var selectedMonth by remember { mutableStateOf(yearMonths.first()) }
+    var selectedYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR).toString()) }
+    var viewMode by remember { mutableStateOf(StatsViewMode.MONTH) }
     var stats by remember { mutableStateOf<com.overtime.miuix.data.repository.MonthlyStats?>(null) }
     var yearlyStats by remember { mutableStateOf<com.overtime.miuix.data.repository.YearlyStats?>(null) }
     var monthRecords by remember { mutableStateOf<List<OvertimeRecord>>(emptyList()) }
@@ -51,11 +56,21 @@ fun StatisticsPage(
     val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
     val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
 
-    LaunchedEffect(selectedMonth) {
-        stats = repository.getMonthlyStats(selectedMonth)
-        val year = selectedMonth.split("-")[0]
-        yearlyStats = repository.getYearlyStats(year)
-        monthRecords = repository.getMonthRecords(selectedMonth)
+    // 月度视图：加载当月数据和年度统计
+    LaunchedEffect(selectedMonth, viewMode) {
+        if (viewMode == StatsViewMode.MONTH) {
+            stats = repository.getMonthlyStats(selectedMonth)
+            val year = selectedMonth.split("-")[0]
+            yearlyStats = repository.getYearlyStats(year)
+            monthRecords = repository.getMonthRecords(selectedMonth)
+        }
+    }
+
+    // 年度视图：加载全年统计
+    LaunchedEffect(selectedYear, viewMode) {
+        if (viewMode == StatsViewMode.YEAR) {
+            yearlyStats = repository.getYearlyStats(selectedYear)
+        }
     }
 
     fun shiftMonth(delta: Int) {
@@ -73,6 +88,12 @@ fun StatisticsPage(
         } else if (delta > 0 && next < yearMonths.first()) {
             selectedMonth = yearMonths.first()
         }
+    }
+
+    fun shiftYear(delta: Int) {
+        val y = selectedYear.toIntOrNull() ?: return
+        val next = (y + delta).toString()
+        selectedYear = next
     }
 
     // 按日聚合当月记录，用于日历显示
@@ -111,6 +132,7 @@ fun StatisticsPage(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // 顶部日期导航（点击切换月/年视图）
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -123,51 +145,81 @@ fun StatisticsPage(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { shiftMonth(-1) }) {
-                        Icon(MiuixIcons.ChevronBackward, contentDescription = "上一月")
+                    IconButton(onClick = {
+                        if (viewMode == StatsViewMode.MONTH) shiftMonth(-1) else shiftYear(-1)
+                    }) {
+                        Icon(MiuixIcons.ChevronBackward, contentDescription = "上${if (viewMode == StatsViewMode.MONTH) "一月" else "一年"}")
                     }
-                    val parts = selectedMonth.split("-")
-                    Text(
-                        text = "${parts[0]}年${parts[1]}月",
-                        style = MiuixTheme.textStyles.title3,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = { shiftMonth(1) }) {
-                        Icon(MiuixIcons.ChevronForward, contentDescription = "下一月")
+
+                    // 可点击的日期标题：切换月/年视图
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                viewMode = if (viewMode == StatsViewMode.MONTH) StatsViewMode.YEAR else StatsViewMode.MONTH
+                            }
+                    ) {
+                        Text(
+                            text = if (viewMode == StatsViewMode.MONTH) {
+                                val parts = selectedMonth.split("-")
+                                "${parts[0]}年${parts[1]}月"
+                            } else {
+                                "${selectedYear}年"
+                            },
+                            style = MiuixTheme.textStyles.title3,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = if (viewMode == StatsViewMode.MONTH) "点击切换年度视图" else "点击切换月度视图",
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                    }
+
+                    IconButton(onClick = {
+                        if (viewMode == StatsViewMode.MONTH) shiftMonth(1) else shiftYear(1)
+                    }) {
+                        Icon(MiuixIcons.ChevronForward, contentDescription = "下${if (viewMode == StatsViewMode.MONTH) "一月" else "一年"}")
                     }
                 }
             }
         }
 
-        item {
-            CalendarCard(
-                selectedMonth = selectedMonth,
-                dayAgg = dayAgg,
-                typeColor = typeColor
-            )
-        }
-
-        item {
-            StatsCard(
-                title = "$selectedMonth 统计",
-                items = listOf(
-                    "总时长" to (stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0小时"),
-                    "预估薪资" to (stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00"),
-                    "记录数" to "${stats?.recordCount ?: 0}条",
-                    "工作日加班" to (stats?.let { SalaryCalculator.formatHours(it.workdayHours) } ?: "0小时"),
-                    "周末加班" to (stats?.let { SalaryCalculator.formatHours(it.weekendHours) } ?: "0小时"),
-                    "节假日加班" to (stats?.let { SalaryCalculator.formatHours(it.holidayHours) } ?: "0小时")
+        // 月度视图专属：日历卡片
+        if (viewMode == StatsViewMode.MONTH) {
+            item {
+                CalendarCard(
+                    selectedMonth = selectedMonth,
+                    dayAgg = dayAgg,
+                    typeColor = typeColor
                 )
-            )
+            }
         }
 
+        // 月度统计
+        if (viewMode == StatsViewMode.MONTH) {
+            item {
+                StatsCard(
+                    title = "$selectedMonth 统计",
+                    items = listOf(
+                        "总时长" to (stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0小时"),
+                        "预估薪资" to (stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00"),
+                        "记录数" to "${stats?.recordCount ?: 0}条",
+                        "工作日加班" to (stats?.let { SalaryCalculator.formatHours(it.workdayHours) } ?: "0小时"),
+                        "周末加班" to (stats?.let { SalaryCalculator.formatHours(it.weekendHours) } ?: "0小时"),
+                        "节假日加班" to (stats?.let { SalaryCalculator.formatHours(it.holidayHours) } ?: "0小时")
+                    )
+                )
+            }
+        }
+
+        // 年度统计
         item {
-            val year = selectedMonth.split("-")[0]
             StatsCard(
-                title = "$year 年度统计",
+                title = if (viewMode == StatsViewMode.YEAR) "${selectedYear} 年度统计" else "${selectedMonth.split("-")[0]} 年度统计",
                 items = listOf(
                     "年度总时长" to (yearlyStats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0小时"),
                     "年度预估薪资" to (yearlyStats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
