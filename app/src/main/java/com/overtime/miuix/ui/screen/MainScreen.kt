@@ -26,6 +26,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import com.overtime.miuix.ui.icon.AppIcons
 import com.overtime.miuix.ui.icon.Home
+import top.yukonga.miuix.kmp.basic.TopAppBarDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -75,16 +76,18 @@ fun MainScreen(
                     1 -> "统计"
                     2 -> "设置"
                     else -> "加班记录"
-                }
+                },
+                modifier = Modifier.height(TopAppBarDefaults.CollapsedHeight),
+                defaultWindowInsetsPadding = false
             )
         },
         bottomBar = {
             if (useFloatingNav) {
-                // 悬浮底栏：透明容器 + 宽 padding + 毛玻璃背景
+                // 悬浮底栏：透明容器 + 毛玻璃背景（隐藏原有底栏，悬浮样式占满宽度）
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 6.dp)
+                        .padding(horizontal = 0.dp, vertical = 6.dp)
                         .textureBlur(
                             backdrop = navBackdrop,
                             shape = RoundedCornerShape(28.dp),
