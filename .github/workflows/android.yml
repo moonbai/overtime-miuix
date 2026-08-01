@@ -49,6 +49,10 @@ jobs:
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        # 注入更新检查用的长效 PAT（repo 级只读），供 BuildConfig.GITHUB_TOKEN 使用
+        # 注意：禁止使用默认 secrets.GITHUB_TOKEN（短时效，打包后即失效），
+        # 必须在仓库 Settings → Secrets 中配置名为 GH_PAT 的只读 PAT
+        GITHUB_TOKEN: ${{ secrets.GH_PAT }}
       run: ./gradlew assembleRelease --no-daemon
 
     - name: Upload APK
