@@ -83,14 +83,48 @@ fun MainScreen(
                     else -> "加班记录"
                 }
             )
-        },
-        // 普通底栏：放在 bottomBar 槽位（会预留底部空间）
-        bottomBar = {
+        }
+    ) { paddingValues ->
+        // 普通/悬浮底栏均作为叠加层浮于内容之上（不再占用 Scaffold 预留空间），
+        // 内容铺满屏幕并可滚动至底栏之下，毛玻璃背景捕获其后方的页面内容。
+        val contentPadding = PaddingValues(
+            top = paddingValues.calculateTopPadding(),
+            start = paddingValues.calculateStartPadding(LocalLayoutDirection.current),
+            end = paddingValues.calculateEndPadding(LocalLayoutDirection.current),
+            bottom = 0.dp
+        )
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            // 页面内容层（同时作为 FAB / 底栏毛玻璃的背景源）
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .layerBackdrop(fabBackdrop)
+                    .layerBackdrop(navBackdrop)
+                    .padding(contentPadding)
+            ) {
+                when (selectedTab) {
+                    0 -> HomePage(
+                        navController = navController,
+                        repository = repository,
+                        settingsRepository = settingsRepository
+                    )
+                    1 -> StatisticsPage(
+                        navController = navController,
+                        repository = repository,
+                        settingsRepository = settingsRepository
+                    )
+                    2 -> SettingsPage(navController = navController)
+                }
+            }
+
+            // 普通底栏（叠加层，高斯模糊背景）
             if (!useFloatingNav) {
-                // 普通底栏：毛玻璃背景
                 Box(
                     modifier = Modifier
+                        .align(Alignment.BottomCenter)
                         .fillMaxWidth()
+                        .padding(bottom = navBarInset)
                         .textureBlur(
                             backdrop = navBackdrop,
                             shape = RoundedCornerShape(0.dp),
@@ -123,64 +157,14 @@ fun MainScreen(
                     }
                 }
             }
-        },
-        // 普通模式下的 FAB（悬浮模式下改由内容层叠加渲染，避免与悬浮底栏重叠）
-        floatingActionButton = {
-            if (!useFloatingNav && selectedTab == 0) {
-                HomeFab(
-                    quickSubmit = quickSubmit,
-                    fabBackdrop = fabBackdrop,
-                    blurSupported = blurSupported,
-                    onAddRecord = { navController.navigate("add_record") },
-                    onQuickSubmit = { showQuickSubmit = true }
-                )
-            }
-        }
-    ) { paddingValues ->
-        // 悬浮模式下不预留底部空间，让页面内容铺满并可滚动到悬浮底栏之下
-        val contentPadding = PaddingValues(
-            top = paddingValues.calculateTopPadding(),
-            start = paddingValues.calculateStartPadding(LocalLayoutDirection.current),
-            end = paddingValues.calculateEndPadding(LocalLayoutDirection.current),
-            bottom = if (useFloatingNav) 0.dp else paddingValues.calculateBottomPadding()
-        )
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            // 页面内容层（捕获到 fabBackdrop / navBackdrop 供毛玻璃使用）
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .layerBackdrop(fabBackdrop)
-                    .layerBackdrop(navBackdrop)
-                    .padding(contentPadding)
-            ) {
-                when (selectedTab) {
-                    0 -> HomePage(
-                        navController = navController,
-                        repository = repository,
-                        settingsRepository = settingsRepository
-                    )
-                    1 -> StatisticsPage(
-                        navController = navController,
-                        repository = repository,
-                        settingsRepository = settingsRepository
-                    )
-                    2 -> SettingsPage(navController = navController)
-                }
-            }
-
-            // 悬浮底栏：真正悬浮于内容之上（叠加层，不预留空间）
+            // 悬浮底栏（叠加层，高斯模糊背景尺寸与三个按钮占位一致）
             if (useFloatingNav) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(
-                            start = 20.dp,
-                            end = 20.dp,
-                            top = 10.dp,
-                            bottom = 10.dp + navBarInset
-                        )
+                        .wrapContentWidth()
+                        .padding(bottom = 10.dp + navBarInset)
                         .textureBlur(
                             backdrop = navBackdrop,
                             shape = RoundedCornerShape(28.dp),
@@ -219,12 +203,12 @@ fun MainScreen(
                     }
                 }
 
-                // 悬浮模式下的首页 FAB：叠加在内容之上，并抬升到底栏上方避免遮挡
+                // 悬浮模式首页 FAB：叠加在内容之上，位于悬浮底栏上方（适当下移）
                 if (selectedTab == 0) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(end = 20.dp, bottom = 10.dp + navBarInset + 72.dp)
+                            .padding(end = 20.dp, bottom = navBarInset + 56.dp)
                     ) {
                         HomeFab(
                             quickSubmit = quickSubmit,
@@ -234,6 +218,23 @@ fun MainScreen(
                             onQuickSubmit = { showQuickSubmit = true }
                         )
                     }
+                }
+            }
+
+            // 普通模式首页 FAB：位于普通底栏上方
+            if (!useFloatingNav && selectedTab == 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 20.dp, bottom = navBarInset + 88.dp)
+                ) {
+                    HomeFab(
+                        quickSubmit = quickSubmit,
+                        fabBackdrop = fabBackdrop,
+                        blurSupported = blurSupported,
+                        onAddRecord = { navController.navigate("add_record") },
+                        onQuickSubmit = { showQuickSubmit = true }
+                    )
                 }
             }
         }

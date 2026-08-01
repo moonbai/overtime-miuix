@@ -210,7 +210,9 @@ fun AboutPage(navController: NavHostController) {
                                 val info = UpdateChecker.check(versionName)
                                 checking = false
                                 if (info == null) {
-                                    snackbarHostState.showCustomToast("检查失败，请检查网络连接")
+                                    snackbarHostState.showCustomToast(
+                                        UpdateChecker.lastError ?: "检查失败，请检查网络连接"
+                                    )
                                 } else if (UpdateChecker.hasUpdate(versionName, info)) {
                                     // 有新版：提示更新
                                     updateInfo = info
