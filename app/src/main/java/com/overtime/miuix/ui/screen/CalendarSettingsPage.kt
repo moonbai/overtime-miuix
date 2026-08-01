@@ -74,8 +74,7 @@ fun CalendarSettingsPage(
             }
 
             item {
-                Column {
-                    SmallTitle(text = "同步设置")
+                SettingsGroup(title = "同步设置") {
                     BasicComponent(
                         title = "启用日历同步",
                         summary = "保存记录时自动同步到系统日历",
@@ -92,8 +91,7 @@ fun CalendarSettingsPage(
             }
 
             item {
-                Column {
-                    SmallTitle(text = "日历账户")
+                SettingsGroup(title = "日历账户") {
                     BasicComponent(
                         title = "授权日历权限",
                         summary = if (CalendarSyncManager.hasCalendarPermission(context)) "已授权" else "点击授予日历读写权限",

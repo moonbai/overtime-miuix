@@ -93,8 +93,7 @@ fun HolidaySettingsPage(
             }
 
             item {
-                Column {
-                    SmallTitle(text = "数据源选择")
+                SettingsGroup(title = "数据源选择") {
                     HolidayDataSource.entries.forEach { source ->
                         BasicComponent(
                             title = source.label,
@@ -193,8 +192,7 @@ fun HolidaySettingsPage(
             }
 
             item {
-                Column {
-                    SmallTitle(text = "数据更新")
+                SettingsGroup(title = "数据更新") {
                     BasicComponent(
                         title = "手动更新 $currentYear 年节假日",
                         summary = "从所选数据源拉取最新节假日规则（当前缓存 ${HolidayManager.getCacheSize()} 条）",

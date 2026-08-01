@@ -173,8 +173,7 @@ fun BackupSettingsPage(
             }
 
             item {
-                Column {
-                    SmallTitle(text = "本地备份")
+                SettingsGroup(title = "本地备份") {
                     BasicComponent(
                         title = "导出数据",
                         summary = "将记录与设置导出为 JSON 文件",
@@ -194,8 +193,7 @@ fun BackupSettingsPage(
             }
 
             item {
-                Column {
-                    SmallTitle(text = "自动备份")
+                SettingsGroup(title = "自动备份") {
                     BasicComponent(
                         title = "启用自动备份",
                         summary = "新增记录时自动保存到本地或云端",
@@ -223,8 +221,7 @@ fun BackupSettingsPage(
             }
 
             item {
-                Column {
-                    SmallTitle(text = "WebDAV 云端同步")
+                SettingsGroup(title = "WebDAV 云端同步") {
                     BasicComponent(
                         title = "启用 WebDAV",
                         summary = "配置 WebDAV 服务器进行备份同步",

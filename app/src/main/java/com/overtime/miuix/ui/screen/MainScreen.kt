@@ -79,6 +79,7 @@ fun MainScreen(
                 // 悬浮底栏：IconOnly 模式（紧凑）+ 高斯模糊毛玻璃效果
                 Box(
                     modifier = Modifier
+                        .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                         .textureBlur(
                             backdrop = navBackdrop,

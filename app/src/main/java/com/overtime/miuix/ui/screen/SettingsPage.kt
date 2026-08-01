@@ -17,11 +17,10 @@ fun SettingsPage(navController: NavHostController) {
         contentPadding = PaddingValues(vertical = 8.dp)
     ) {
         item {
-            Column {
-                SmallTitle(text = "功能设置")
+            SettingsGroup(title = "功能设置") {
                 BasicComponent(
-                    title = "薪资设置",
-                    summary = "基础薪资、加班倍率",
+                    title = "基础设置",
+                    summary = "基础薪资、加班倍率、默认时间",
                     startAction = { Icon(MiuixIcons.BankCards, contentDescription = null) },
                     onClick = { navController.navigate("salary_settings") }
                 )
@@ -41,8 +40,7 @@ fun SettingsPage(navController: NavHostController) {
         }
 
         item {
-            Column {
-                SmallTitle(text = "数据管理")
+            SettingsGroup(title = "数据管理") {
                 BasicComponent(
                     title = "备份与恢复",
                     summary = "本地/云端备份",
@@ -59,8 +57,7 @@ fun SettingsPage(navController: NavHostController) {
         }
 
         item {
-            Column {
-                SmallTitle(text = "个性化")
+            SettingsGroup(title = "个性化") {
                 BasicComponent(
                     title = "外观设置",
                     summary = "主题、强调色、底栏样式",
@@ -71,8 +68,7 @@ fun SettingsPage(navController: NavHostController) {
         }
 
         item {
-            Column {
-                SmallTitle(text = "MCP 服务")
+            SettingsGroup(title = "MCP 服务") {
                 BasicComponent(
                     title = "MCP 服务设置",
                     summary = "配置 Model Context Protocol",
@@ -83,8 +79,7 @@ fun SettingsPage(navController: NavHostController) {
         }
 
         item {
-            Column {
-                SmallTitle(text = "关于")
+            SettingsGroup(title = "关于") {
                 BasicComponent(
                     title = "关于应用",
                     summary = "版本 1.0.0",

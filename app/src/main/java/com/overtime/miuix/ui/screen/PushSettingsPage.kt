@@ -149,8 +149,7 @@ fun PushSettingsPage(
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
             item {
-                Column {
-                    SmallTitle(text = "推送渠道")
+                SettingsGroup(title = "推送渠道") {
                     // 使用 SpinnerPref(O)：直接选择渠道，不选（关闭推送）默认关闭推送功能
                     OverlaySpinnerPreference(
                         items = channelItems,
@@ -170,8 +169,7 @@ fun PushSettingsPage(
 
             if (pushChannel != "none") {
                 item {
-                    Column {
-                        SmallTitle(text = "${channelOptions.first { it.first == pushChannel }.second} 配置")
+                    SettingsGroup(title = "${channelOptions.first { it.first == pushChannel }.second} 配置") {
                         when (pushChannel) {
                         "dingtalk" -> PushConfigFields(
                             listOf(

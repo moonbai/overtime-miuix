@@ -76,10 +76,13 @@ class OvertimeRepository(private val database: AppDatabase) {
         records.forEach { record ->
             totalHours += record.durationHours
             totalAmount += record.amount
-            when (record.type) {
-                OvertimeType.WORKDAY -> workdayHours += record.durationHours
-                OvertimeType.WEEKEND -> weekendHours += record.durationHours
-                OvertimeType.HOLIDAY -> holidayHours += record.durationHours
+            // 请假不计入加班时长分类（其负时长已通过 totalHours 抵扣，工资以负金额扣除）
+            if (!record.isLeave) {
+                when (record.type) {
+                    OvertimeType.WORKDAY -> workdayHours += record.durationHours
+                    OvertimeType.WEEKEND -> weekendHours += record.durationHours
+                    OvertimeType.HOLIDAY -> holidayHours += record.durationHours
+                }
             }
             recordCount++
         }

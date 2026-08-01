@@ -13,6 +13,8 @@ import com.overtime.miuix.data.database.OvertimeRecord
 import com.overtime.miuix.data.model.OvertimeType
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
+import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
+import com.overtime.miuix.ui.snackbar.showCustomToast
 import com.overtime.miuix.util.HolidayDataSource
 import com.overtime.miuix.util.HolidayManager
 import com.overtime.miuix.util.RecordSyncHelper
@@ -35,6 +37,7 @@ fun AddEditRecordPage(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbarHostState = LocalSnackbarHostState.current
     val isEdit = recordId != null
 
     val baseSalary by settingsRepository.baseSalary.collectAsState(initial = 2200.0)
@@ -54,6 +57,12 @@ fun AddEditRecordPage(
     var typeManuallyChanged by remember { mutableStateOf(false) }
     // 当前日期自动判定得到的类型标签（用于展示提示）
     var autoTypeHint by remember { mutableStateOf<String?>(null) }
+
+    // 加班默认时间配置（来自基础设置）
+    val defaultStartTime by settingsRepository.defaultStartTime.collectAsState(initial = "17:00")
+    val endTimeAlign by settingsRepository.endTimeAlign.collectAsState(initial = "HALF")
+    // 请假时长选择弹窗显隐
+    var showLeaveDurationPicker by remember { mutableStateOf(false) }
 
     // 节假日数据源配置
     val holidayDataSource by settingsRepository.holidayDataSource.collectAsState(initial = "TIMOR")
@@ -106,9 +115,10 @@ fun AddEditRecordPage(
         return cal.getActualMaximum(Calendar.DAY_OF_MONTH)
     }
 
-    val previewAmount = remember(selectedDate, selectedType, startTimeStr, endTimeStr, baseSalary, workdayRate, weekendRate, holidayRate, isLeave) {
+    val previewAmount = remember(selectedDate, selectedType, startTimeStr, endTimeStr, baseSalary, workdayRate, weekendRate, holidayRate, isLeave, leaveDuration) {
         if (isLeave) {
-            0.0
+            // 请假：预估为工资扣减（负值）
+            SalaryCalculator.calculateLeaveDeduction(baseSalary, leaveDuration.toDouble())
         } else {
             val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
             val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(selectedDate)
@@ -152,11 +162,24 @@ fun AddEditRecordPage(
                 endMinute = endTimeStr.takeLast(2).toIntOrNull() ?: 0
             }
         } else {
-            // 新建模式：初始化为当前日期
+            // 新建模式：初始化为当前日期，并按基础设置填充默认开始时间 / 结束时间
             val cal = Calendar.getInstance()
             pickYear = cal.get(Calendar.YEAR)
             pickMonth = cal.get(Calendar.MONTH) + 1
             pickDay = cal.get(Calendar.DAY_OF_MONTH)
+            // 开始时间取基础设置默认值（如 17:00）
+            startTimeStr = defaultStartTime
+            // 结束时间取“当前打开时间”并按对齐粒度取整：HALF=30分，HOUR=整点
+            val now = Calendar.getInstance()
+            val roundedMinute = if (endTimeAlign == "HOUR") 0 else (now.get(Calendar.MINUTE) / 30) * 30
+            now.set(Calendar.MINUTE, roundedMinute)
+            now.set(Calendar.SECOND, 0)
+            now.set(Calendar.MILLISECOND, 0)
+            endTimeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now.time)
+            startHour = defaultStartTime.take(2).toIntOrNull() ?: 17
+            startMinute = defaultStartTime.takeLast(2).toIntOrNull() ?: 0
+            endHour = now.get(Calendar.HOUR_OF_DAY)
+            endMinute = roundedMinute
         }
     }
 
@@ -188,7 +211,11 @@ fun AddEditRecordPage(
                 isLeave,
                 leaveDuration
             )
-            saved?.let { triggerAfterSave(it, oldRecord) }
+            saved?.let {
+                triggerAfterSave(it, oldRecord)
+                val msg = if (recordId != null) "已更新记录" else "已保存记录"
+                snackbarHostState.showCustomToast(msg)
+            }
             navController.popBackStack()
         }
     }
@@ -204,6 +231,7 @@ fun AddEditRecordPage(
                 }
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             // 提交按钮改到右下角悬浮，方便单手点击
             FloatingActionButton(
@@ -222,28 +250,26 @@ fun AddEditRecordPage(
             contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (!isLeave) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        cornerRadius = 16.dp
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 16.dp
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "预估薪资",
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            )
-                            Text(
-                                text = SalaryCalculator.formatAmount(previewAmount),
-                                style = MiuixTheme.textStyles.headline1,
-                                color = MiuixTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        Text(
+                            text = if (isLeave) "预计扣减" else "预估薪资",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                        Text(
+                            text = SalaryCalculator.formatAmount(previewAmount),
+                            style = MiuixTheme.textStyles.headline1,
+                            color = if (isLeave) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -285,32 +311,6 @@ fun AddEditRecordPage(
                         onClick = { showEndPicker = true }
                     )
                 }
-            } else {
-                item {
-                    Column {
-                        SmallTitle(text = "请假类型")
-                        BasicComponent(
-                            title = "半天 (-4小时)",
-                            endActions = {
-                                RadioButton(
-                                    selected = leaveDuration == -4,
-                                    onClick = null
-                                )
-                            },
-                            onClick = { leaveDuration = -4 }
-                        )
-                        BasicComponent(
-                            title = "全天 (-8小时)",
-                            endActions = {
-                                RadioButton(
-                                    selected = leaveDuration == -8,
-                                    onClick = null
-                                )
-                            },
-                            onClick = { leaveDuration = -8 }
-                        )
-                    }
-                }
             }
 
             item {
@@ -333,6 +333,18 @@ fun AddEditRecordPage(
                         )
                     }
                 )
+            }
+
+            // 请假时长选择（Dropdown (O)），仅在请假模式下显示，位于请假开关下方
+            if (isLeave) {
+                item {
+                    BasicComponent(
+                        title = "请假时长",
+                        summary = if (leaveDuration == -8) "全天 (-8小时)" else "半天 (-4小时)",
+                        endActions = { DropdownArrowEndAction(MiuixTheme.colorScheme.primary) },
+                        onClick = { showLeaveDurationPicker = true }
+                    )
+                }
             }
         }
 
@@ -507,6 +519,28 @@ fun AddEditRecordPage(
                 }
             }
         }
+
+        OverlayDialog(
+            show = showLeaveDurationPicker,
+            title = "选择请假时长",
+            onDismissRequest = { showLeaveDurationPicker = false }
+        ) {
+            Column {
+                val options = listOf(-4 to "半天 (-4小时)", -8 to "全天 (-8小时)")
+                options.forEachIndexed { index, (value, label) ->
+                    DropdownImpl(
+                        text = label,
+                        optionSize = options.size,
+                        isSelected = leaveDuration == value,
+                        index = index,
+                        onSelectedIndexChange = {
+                            leaveDuration = options[it].first
+                            showLeaveDurationPicker = false
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -527,9 +561,10 @@ private suspend fun saveRecord(
     val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
     val startTime = sdf.parse("$dateStr $startTimeStr")?.time ?: date.time
     val endTime = sdf.parse("$dateStr $endTimeStr")?.time ?: date.time
-    // 请假记录：时长取 leaveDuration（半天 -4 / 全天 -8），薪资为 0
+    // 请假记录：时长取 leaveDuration（半天 -4 / 全天 -8），工资按标准日薪比例扣减（负值）
     val duration = if (isLeave) leaveDuration.toDouble() else SalaryCalculator.calculateDurationHours(startTime, endTime)
-    val amount = if (isLeave) 0.0 else SalaryCalculator.calculateOvertimeAmount(baseSalary, type, rate, duration)
+    val amount = if (isLeave) SalaryCalculator.calculateLeaveDeduction(baseSalary, duration)
+    else SalaryCalculator.calculateOvertimeAmount(baseSalary, type, rate, duration)
 
     val record = OvertimeRecord(
         id = recordId ?: 0,

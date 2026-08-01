@@ -38,7 +38,7 @@ fun AppearanceSettingsPage(
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
     val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
     val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
-    
+
     Scaffold(
         topBar = {
             SmallTopAppBar(
@@ -59,8 +59,7 @@ fun AppearanceSettingsPage(
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
             item {
-                Column {
-                    SmallTitle(text = "主题")
+                SettingsGroup(title = "主题") {
                     BasicComponent(
                         title = "跟随系统",
                         onClick = { scope.launch { settingsRepository.setThemeMode("system") } },
@@ -78,10 +77,9 @@ fun AppearanceSettingsPage(
                     )
                 }
             }
-            
+
             item {
-                Column {
-                    SmallTitle(text = "动态配色")
+                SettingsGroup(title = "动态配色") {
                     BasicComponent(
                         title = "Monet 动态取色",
                         summary = "跟随系统壁纸生成整套配色（需 Android 12+）",
@@ -97,8 +95,7 @@ fun AppearanceSettingsPage(
             }
 
             item {
-                Column {
-                    SmallTitle(text = "底栏样式")
+                SettingsGroup(title = "底栏样式") {
                     BottomBarStyle.entries.forEach { style ->
                         BasicComponent(
                             title = style.label,
@@ -119,10 +116,9 @@ fun AppearanceSettingsPage(
                     )
                 }
             }
-            
+
             item {
-                Column {
-                    SmallTitle(text = "快捷功能")
+                SettingsGroup(title = "快捷功能") {
                     BasicComponent(
                         title = "快速提报模式",
                         summary = "首页显示快捷添加按钮",
@@ -137,8 +133,7 @@ fun AppearanceSettingsPage(
             }
 
             item {
-                Column {
-                    SmallTitle(text = "加班类型颜色")
+                SettingsGroup(title = "加班类型颜色") {
                     Text(
                         text = "用于统计日历按类型区分颜色",
                         style = MiuixTheme.textStyles.footnote1,

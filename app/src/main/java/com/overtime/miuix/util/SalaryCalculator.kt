@@ -27,6 +27,16 @@ object SalaryCalculator {
         
         return hourlySalary * rate * durationHours
     }
+
+    /**
+     * 请假工资扣减：按标准日薪比例计算（rate=1.0），以负值表示扣款。
+     * 例如请全天(8h)扣减一天工资 = baseSalary / 21.75。
+     */
+    fun calculateLeaveDeduction(baseSalary: Double, durationHours: Double): Double {
+        val absHours = kotlin.math.abs(durationHours)
+        if (absHours <= 0) return 0.0
+        return -calculateOvertimeAmount(baseSalary, OvertimeType.WORKDAY, 1.0, absHours)
+    }
     
     fun formatHours(hours: Double): String {
         val h = hours.toInt()
