@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.database.OvertimeRecord
@@ -44,7 +45,8 @@ private enum class StatsViewMode { MONTH, YEAR }
 fun StatisticsPage(
     navController: NavHostController,
     repository: OvertimeRepository,
-    settingsRepository: SettingsRepository
+    settingsRepository: SettingsRepository,
+    bottomReserve: Dp = 0.dp
 ) {
     val yearMonths = remember { SalaryCalculator.getYearMonthList(12) }
     var selectedMonth by remember { mutableStateOf(yearMonths.first()) }
@@ -142,7 +144,12 @@ fun StatisticsPage(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            top = 16.dp,
+            end = 16.dp,
+            bottom = 16.dp + bottomReserve
+        ),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // 顶部日期导航（点击切换月/年视图）

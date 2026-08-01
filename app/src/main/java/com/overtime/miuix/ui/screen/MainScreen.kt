@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.OvertimeRepository
@@ -76,6 +77,9 @@ fun MainScreen(
     // 采用保守偏大值，避免「关于」等内容被悬浮底栏遮挡。
     val floatingBarOffset = 10.dp
     val floatingBarHeight = 80.dp
+    // 悬浮底栏「彻底悬浮」时，各页面列表需补充的底部留白（离底间距 + 估算高度 + 余量），
+    // 保证末项（如「关于」）可滚动至悬浮底栏之上，不被遮挡。
+    val floatingBottomReserve = floatingBarOffset + floatingBarHeight + 8.dp
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -131,14 +135,16 @@ fun MainScreen(
         }
     ) { paddingValues ->
         // 内容底部留白：
-        // - 普通底栏：Scaffold 已为其预留空间（paddingValues 已含底栏高度），内容自然不被遮挡；
-        // - 悬浮底栏：叠加在内容之上，需额外留出「离底间距 + 实测高度 + 余量」，
-        //   保证首页/统计/设置三个界面都能滚动到悬浮栏之上，关于等内容不被遮挡。
+        // - 普通底栏：Scaffold 已为其预留空间（paddingValues 含底栏高度），内容自然不被遮挡；
+        // - 悬浮底栏（彻底悬浮）：内容层底部不预留空间，可滚动至底栏「背后」，
+        //   毛玻璃透出其后内容；末项防遮挡由各页面列表自身底部留白（bottomReserve）保证。
         val contentBottom = if (useFloatingNav) {
-            navBarInset + floatingBarOffset + floatingBarHeight + 8.dp
+            0.dp
         } else {
             paddingValues.calculateBottomPadding()
         }
+        // 仅悬浮模式给各页面列表补充底部留白（普通模式由 Scaffold 预留空间，无需额外留白）
+        val bottomReserve = if (useFloatingNav) floatingBottomReserve else 0.dp
         val contentPadding = PaddingValues(
             top = paddingValues.calculateTopPadding(),
             start = paddingValues.calculateStartPadding(LocalLayoutDirection.current),
@@ -159,14 +165,19 @@ fun MainScreen(
                     0 -> HomePage(
                         navController = navController,
                         repository = repository,
-                        settingsRepository = settingsRepository
+                        settingsRepository = settingsRepository,
+                        bottomReserve = bottomReserve
                     )
                     1 -> StatisticsPage(
                         navController = navController,
                         repository = repository,
-                        settingsRepository = settingsRepository
+                        settingsRepository = settingsRepository,
+                        bottomReserve = bottomReserve
                     )
-                    2 -> SettingsPage(navController = navController)
+                    2 -> SettingsPage(
+                        navController = navController,
+                        bottomReserve = bottomReserve
+                    )
                 }
             }
 

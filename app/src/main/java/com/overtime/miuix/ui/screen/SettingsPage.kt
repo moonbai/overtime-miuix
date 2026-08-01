@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import top.yukonga.miuix.kmp.basic.*
@@ -15,13 +16,13 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 
 @Composable
-fun SettingsPage(navController: NavHostController) {
+fun SettingsPage(navController: NavHostController, bottomReserve: Dp = 0.dp) {
     val context = LocalContext.current
     val versionName = remember { getVersionName(context) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 8.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp + bottomReserve)
     ) {
         item {
             SettingsGroup(title = "功能设置") {

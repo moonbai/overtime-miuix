@@ -17,14 +17,18 @@ import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
 /**
- * GitHub Release 更新检查器。
+ * GitHub / CNB 双源 Release 更新检查器。
  *
- * 仓库为【公开仓库】，因此更新检查【无需令牌】即可匿名访问 `/releases/latest`
- * （公开仓库匿名限额 60 次/小时/IP，对“手动检查更新”足够）。
+ * 仓库在 GitHub 为【公开仓库】，更新检查无需令牌即可匿名访问
+ * `GET /repos/{owner}/{repo}/releases/latest`（匿名限额 60 次/小时/IP，对“手动检查更新”足够）。
  * 若编译期注入了令牌（BuildConfig.GITHUB_TOKEN），则优先使用令牌以获得更高限额
  * （5000 次/小时）并兼容私有仓库场景。令牌仅作可选增强，缺失时不影响公开仓库检查。
  *
- * 请求顺序：令牌（若有） → 匿名直连 → 镜像兜底（匿名代理公开仓库）。
+ * 为防止【单边不可达】（如网络/区域限制导致 GitHub 无法连接），
+ * 在 GitHub（令牌 → 匿名 → 镜像兜底）全部失败后，追加 CNB（cnb.cool）作为兜底数据源。
+ * CNB 同样支持公开仓库匿名访问；若配置了 BuildConfig.CNB_TOKEN 则带令牌请求。
+ *
+ * 请求顺序：GitHub 令牌 → GitHub 匿名 → GitHub 镜像 → CNB（可选令牌）。
  */
 object UpdateChecker {
 
@@ -36,8 +40,16 @@ object UpdateChecker {
     // 公开仓库下可留空，更新检查仍能正常工作。
     private val GITHUB_TOKEN: String = BuildConfig.GITHUB_TOKEN
 
+    // 可选令牌：编译期经 BuildConfig.CNB_TOKEN 注入（源码无明文）。
+    // CNB 作为 GitHub 的兜底数据源；公开仓库可匿名访问，配置后支持更高限额/私有仓库。
+    private val CNB_TOKEN: String = BuildConfig.CNB_TOKEN
+
     private val RELEASES_URL =
         "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest"
+
+    // CNB（cnb.cool）兜底数据源：与 GitHub releases/latest 字段结构兼容（tag_name / body / assets）。
+    private val CNB_RELEASES_URL =
+        "https://api.cnb.build/$REPO_OWNER/$REPO_NAME/-/releases/latest"
 
     // 直连失败时的兜底镜像（仅供【公开仓库】匿名代理，不携带令牌）。
     private val MIRROR_URLS = listOf(
@@ -108,25 +120,24 @@ object UpdateChecker {
         compareVersion(currentVersion, info.latestVersion) > 0
 
     /**
-     * 检查更新。
+     * 检查更新（GitHub → CNB 双源兜底）。
      * @return 成功返回 [UpdateInfo]，失败（网络/鉴权/限流）返回 null，
      *         失败时可通过 [lastError] 获取更精确的原因。
      */
     suspend fun check(currentVersion: String): UpdateInfo? {
         lastError = null
         return withContext(Dispatchers.IO) {
-            // 1) 优先使用令牌（更高限额，且兼容私有仓库）
+            // 1) GitHub：优先令牌（更高限额 / 私有仓库），否则匿名；再尝试公开镜像兜底
             if (GITHUB_TOKEN.isNotBlank()) {
-                val withToken = tryFetch(RELEASES_URL, useToken = true)
-                if (withToken != null) return@withContext withToken
+                tryFetch(RELEASES_URL, GITHUB_TOKEN, "GitHub")?.let { return@withContext it }
             }
-            // 2) 公开仓库可匿名访问（无需令牌）
-            val anon = tryFetch(RELEASES_URL, useToken = false)
-            if (anon != null) return@withContext anon
-            // 3) 兜底镜像（匿名代理公开仓库）
+            tryFetch(RELEASES_URL, null, "GitHub")?.let { return@withContext it }
             for (mirror in MIRROR_URLS) {
-                val m = tryFetch(mirror, useToken = false)
-                if (m != null) return@withContext m
+                tryFetch(mirror, null, "GitHub 镜像")?.let { return@withContext it }
+            }
+            // 2) CNB 兜底：防止 GitHub 单边不可达（网络 / 区域限制等）
+            tryFetch(CNB_RELEASES_URL, CNB_TOKEN.takeIf { it.isNotBlank() }, "CNB")?.let {
+                return@withContext it
             }
             if (lastError == null) {
                 lastError = "更新检查失败，请检查网络连接或稍后重试"
@@ -146,13 +157,17 @@ object UpdateChecker {
         }
     }
 
-    private suspend fun tryFetch(url: String, useToken: Boolean): UpdateInfo? {
+    /**
+     * 通用请求：请求 [url]，[token] 非空时附带 Bearer 鉴权，[source] 仅用于错误提示标注来源。
+     * CNB 与 GitHub 的 releases/latest 响应字段结构兼容，复用同一解析逻辑。
+     */
+    private suspend fun tryFetch(url: String, token: String?, source: String): UpdateInfo? {
         return try {
             createClient().use { client ->
                 val response = client.get(url) {
                     headers.append(HttpHeaders.Accept, "application/vnd.github+json")
-                    if (useToken && GITHUB_TOKEN.isNotBlank()) {
-                        headers.append(HttpHeaders.Authorization, "Bearer $GITHUB_TOKEN")
+                    if (!token.isNullOrBlank()) {
+                        headers.append(HttpHeaders.Authorization, "Bearer $token")
                     }
                 }
                 val status = response.status.value
@@ -161,31 +176,31 @@ object UpdateChecker {
                 when (status) {
                     200 -> parseRelease(body)
                     401, 403 -> {
-                        lastError = if (useToken) {
-                            "令牌无效或无权限访问该仓库"
+                        lastError = if (!token.isNullOrBlank()) {
+                            "$source：令牌无效或无权限访问该仓库"
                         } else if (body.contains("rate limit", ignoreCase = true)) {
-                            "请求过于频繁，请稍后重试"
+                            "$source：请求过于频繁，请稍后重试"
                         } else {
-                            "仓库为私有，需配置更新令牌"
+                            "$source：访问受限（可能需要配置令牌）"
                         }
-                        Log.w(TAG, "API 返回 $status: $lastError")
+                        Log.w(TAG, "$source API 返回 $status: $lastError")
                         null
                     }
                     404 -> {
-                        lastError = "未找到发布版本（仓库或 Release 不存在）"
-                        Log.w(TAG, "API 返回 404")
+                        lastError = "$source：未找到发布版本（仓库或 Release 不存在）"
+                        Log.w(TAG, "$source API 返回 404")
                         null
                     }
                     else -> {
-                        lastError = "GitHub API 返回异常状态码 $status"
-                        Log.w(TAG, "API 返回 $status: ${body.take(200)}")
+                        lastError = "$source API 返回异常状态码 $status"
+                        Log.w(TAG, "$source API 返回 $status: ${body.take(200)}")
                         null
                     }
                 }
             }
         } catch (e: Exception) {
-            lastError = "请求异常：${e.javaClass.simpleName}"
-            Log.w(TAG, "请求异常: $url -> ${e.message}")
+            lastError = "$source 请求异常：${e.javaClass.simpleName}"
+            Log.w(TAG, "$source 请求异常: $url -> ${e.message}")
             null
         }
     }

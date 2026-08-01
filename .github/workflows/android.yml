@@ -53,6 +53,9 @@ jobs:
         # 注意：禁止使用默认 secrets.GITHUB_TOKEN（短时效，打包后即失效），
         # 必须在仓库 Settings → Secrets 中配置名为 GH_PAT 的只读 PAT
         GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        # 可选：CNB 兜底数据源令牌（cnb.cool），供 BuildConfig.CNB_TOKEN 使用。
+        # 未配置时为空，CNB 公开仓库仍可匿名访问。
+        CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
       run: ./gradlew assembleRelease --no-daemon
 
     - name: Upload APK

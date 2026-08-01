@@ -227,6 +227,12 @@ Config example:
 - Fixed the Settings "About" and other content being hidden behind the bar: all three screens (Home / Statistics / Settings) now reserve proper bottom padding and can scroll above the bar
 - The floating bottom bar's Gaussian-blur background now matches the floating bar exactly in both position and size (no more empty frosted-glass area around it)
 
+### v1.0.10
+
+- Floating bottom bar is now "truly floating": content scrolls behind the bar (the frosted-glass blur shows the content beneath), while each screen's list reserves bottom padding so the last item (e.g. "About") can still scroll above the bar and stays unobscured
+- Update check upgraded to GitHub / CNB dual-source: after GitHub (token → anonymous → mirror) fully fails, CNB (cnb.cool) is used as a fallback to guard against one side being unreachable (network / regional restrictions)
+- CI injects an optional CNB_TOKEN for the fallback data source (public repos can be accessed anonymously)
+
 ## License
 
 MIT License — see [LICENSE](LICENSE)

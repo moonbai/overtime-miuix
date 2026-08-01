@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.database.OvertimeRecord
@@ -31,7 +32,8 @@ import java.util.*
 fun HomePage(
     navController: NavHostController,
     repository: OvertimeRepository,
-    settingsRepository: SettingsRepository
+    settingsRepository: SettingsRepository,
+    bottomReserve: Dp = 0.dp
 ) {
     val records by repository.getAllRecords().collectAsState(initial = emptyList())
     val currentMonth = remember { SalaryCalculator.getCurrentYearMonth() }
@@ -47,7 +49,12 @@ fun HomePage(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(12.dp),
+        contentPadding = PaddingValues(
+            start = 12.dp,
+            top = 12.dp,
+            end = 12.dp,
+            bottom = 12.dp + bottomReserve
+        ),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
