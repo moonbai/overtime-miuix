@@ -234,11 +234,19 @@ object HolidayManager {
         }
     }
 
+    /**
+     * 依据 mxnzp 日期 API 的 detailsType 判定加班类型：
+     *   0 = 工作日      -> WORKDAY（工作日加班）
+     *   1 = 假日(周末)   -> WEEKEND（休息日加班）
+     *   2 = 普通节假日   -> WEEKEND（休息日加班，双倍档）
+     *   3 = 三倍工资节假日 -> HOLIDAY（节假日加班）
+     * 参考文档：https://www.mxnzp.com/doc/detail?id=1
+     */
     private fun infoToType(info: HolidayInfo): OvertimeType {
         return when (info.type) {
             0 -> OvertimeType.WORKDAY
-            1 -> OvertimeType.WEEKEND
-            2, 3 -> OvertimeType.HOLIDAY
+            1, 2 -> OvertimeType.WEEKEND
+            3 -> OvertimeType.HOLIDAY
             else -> if (info.isHoliday) OvertimeType.WEEKEND else OvertimeType.WORKDAY
         }
     }

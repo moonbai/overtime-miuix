@@ -13,12 +13,10 @@ import com.overtime.miuix.data.database.OvertimeRecord
 import com.overtime.miuix.data.model.OvertimeType
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
-import com.overtime.miuix.push.CalendarSyncManager
-import com.overtime.miuix.push.PushManager
-import com.overtime.miuix.util.BackupManager
+import com.overtime.miuix.util.HolidayDataSource
+import com.overtime.miuix.util.HolidayManager
+import com.overtime.miuix.util.RecordSyncHelper
 import com.overtime.miuix.util.SalaryCalculator
-import com.overtime.miuix.util.WebDavManager
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -52,6 +50,38 @@ fun AddEditRecordPage(
     var isLeave by remember { mutableStateOf(false) }
     // 请假时长：半天 = -4，全天 = -8（小时）
     var leaveDuration by remember { mutableStateOf(-4) }
+    // 用户是否手动改过加班类型：为 true 时不再按日期自动覆盖
+    var typeManuallyChanged by remember { mutableStateOf(false) }
+    // 当前日期自动判定得到的类型标签（用于展示提示）
+    var autoTypeHint by remember { mutableStateOf<String?>(null) }
+
+    // 节假日数据源配置
+    val holidayDataSource by settingsRepository.holidayDataSource.collectAsState(initial = "TIMOR")
+    val holidayCustomUrl by settingsRepository.holidayCustomUrl.collectAsState(initial = "")
+    val holidayMxnzpAppId by settingsRepository.holidayMxnzpAppId.collectAsState(initial = "")
+    val holidayMxnzpAppSecret by settingsRepository.holidayMxnzpAppSecret.collectAsState(initial = "")
+    val holidayIgnoreHoliday by settingsRepository.holidayIgnoreHoliday.collectAsState(initial = false)
+
+    // 同步配置到 HolidayManager，保证按日期判定时使用用户所选数据源
+    LaunchedEffect(holidayDataSource, holidayCustomUrl, holidayMxnzpAppId, holidayMxnzpAppSecret, holidayIgnoreHoliday) {
+        val source = try { HolidayDataSource.valueOf(holidayDataSource) } catch (_: Exception) { HolidayDataSource.TIMOR }
+        HolidayManager.configure(
+            dataSource = source,
+            customUrl = holidayCustomUrl,
+            mxnzpAppId = holidayMxnzpAppId,
+            mxnzpAppSecret = holidayMxnzpAppSecret,
+            ignoreHoliday = holidayIgnoreHoliday
+        )
+    }
+
+    // 依据所选日期自动判定加班类型（除非用户已手动更改、或为请假记录）
+    LaunchedEffect(selectedDate, isLeave, typeManuallyChanged) {
+        if (isLeave || typeManuallyChanged) return@LaunchedEffect
+        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(selectedDate)
+        val autoType = HolidayManager.getOvertimeType(dateStr)
+        selectedType = autoType
+        autoTypeHint = autoType.label
+    }
 
     var showTypePicker by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -98,6 +128,8 @@ fun AddEditRecordPage(
         if (recordId != null) {
             val record = repository.getRecordById(recordId)
             record?.let {
+                // 编辑已有记录：沿用其原类型，不再按日期自动覆盖
+                typeManuallyChanged = true
                 selectedDate = Date(it.date)
                 selectedType = it.type
                 val timeSdf = SimpleDateFormat("HH:mm", Locale.getDefault())
@@ -130,33 +162,34 @@ fun AddEditRecordPage(
 
     fun triggerAfterSave(record: OvertimeRecord, oldRecord: OvertimeRecord? = null) {
         scope.launch {
-            val settings = settingsRepository
-            if (settings.pushEnabled.first()) {
-                val channel = settings.pushChannel.first()
-                if (channel != "none") {
-                    PushManager.sendToSelectedChannel(channel, settings.exportSettingsMap(), record)
-                }
-            }
-            if (settings.calendarSyncEnabled.first() && CalendarSyncManager.hasCalendarPermission(context)) {
-                // 编辑场景下先移除旧事件（按旧时间/类型匹配），避免产生重复事件
-                oldRecord?.let { CalendarSyncManager.removeEvents(context, it) }
-                CalendarSyncManager.addEvent(context, record)
-            }
+            // 统一走 RecordSyncHelper：推送 / 日历同步 / 自动备份，与快速提报行为一致
+            RecordSyncHelper.afterSave(context, repository, settingsRepository, record, oldRecord)
+        }
+    }
 
-            // 自动备份（performAutoBackup 内部会自行检查 auto_backup_enabled 开关）
-            val settingsMap = settings.exportSettingsMap()
-            val webdavEnabled = settingsMap["webdav_enabled"]?.toBoolean() ?: false
-            val location = settingsMap["auto_backup_location"] ?: "local"
-            val webdavConfig = if (webdavEnabled && location == "cloud") {
-                WebDavManager.WebDavConfig(
-                    baseUrl = settingsMap["webdav_url"] ?: "",
-                    username = settingsMap["webdav_username"] ?: "",
-                    password = settingsMap["webdav_password"] ?: "",
-                    remotePath = settingsMap["webdav_path"] ?: "/overtime_backup/"
-                )
-            } else null
-            val allRecords = repository.getAllRecords().first()
-            BackupManager.performAutoBackup(context, allRecords, settingsMap, webdavConfig)
+    // 统一保存逻辑：顶栏与右下角悬浮按钮共用
+    fun performSave() {
+        scope.launch {
+            val oldRecord = if (recordId != null) repository.getRecordById(recordId) else null
+            val saved = saveRecord(
+                repository,
+                recordId,
+                selectedDate,
+                selectedType,
+                startTimeStr,
+                endTimeStr,
+                baseSalary,
+                when (selectedType) {
+                    OvertimeType.WORKDAY -> workdayRate
+                    OvertimeType.WEEKEND -> weekendRate
+                    OvertimeType.HOLIDAY -> holidayRate
+                },
+                note,
+                isLeave,
+                leaveDuration
+            )
+            saved?.let { triggerAfterSave(it, oldRecord) }
+            navController.popBackStack()
         }
     }
 
@@ -168,45 +201,25 @@ fun AddEditRecordPage(
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
                     }
-                },
-                actions = {
-                    IconButton(
-                    onClick = {
-                        scope.launch {
-                            val oldRecord = if (recordId != null) repository.getRecordById(recordId) else null
-                            val saved = saveRecord(
-                                repository,
-                                recordId,
-                                selectedDate,
-                                selectedType,
-                                startTimeStr,
-                                endTimeStr,
-                                baseSalary,
-                                when (selectedType) {
-                                    OvertimeType.WORKDAY -> workdayRate
-                                    OvertimeType.WEEKEND -> weekendRate
-                                    OvertimeType.HOLIDAY -> holidayRate
-                                },
-                                note,
-                                isLeave,
-                                leaveDuration
-                            )
-                            saved?.let { triggerAfterSave(it, oldRecord) }
-                            navController.popBackStack()
-                        }
-                    }
-                    ) {
-                        Icon(MiuixIcons.Ok, contentDescription = "保存")
-                    }
                 }
             )
+        },
+        floatingActionButton = {
+            // 提交按钮改到右下角悬浮，方便单手点击
+            FloatingActionButton(
+                onClick = { performSave() },
+                containerColor = MiuixTheme.colorScheme.primary
+            ) {
+                Icon(MiuixIcons.Ok, contentDescription = "保存", tint = MiuixTheme.colorScheme.onPrimary)
+            }
         }
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            contentPadding = PaddingValues(16.dp),
+            // 底部预留空间，避免最后一项被右下角悬浮保存按钮遮挡
+            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (!isLeave) {
@@ -247,7 +260,11 @@ fun AddEditRecordPage(
                 item {
                     BasicComponent(
                         title = "加班类型",
-                        summary = selectedType.label,
+                        summary = if (!typeManuallyChanged && autoTypeHint != null) {
+                            "${selectedType.label}（按日期自动判定）"
+                        } else {
+                            selectedType.label
+                        },
                         endActions = { DropdownArrowEndAction(MiuixTheme.colorScheme.primary) },
                         onClick = { showTypePicker = true }
                     )
@@ -483,6 +500,7 @@ fun AddEditRecordPage(
                         index = index,
                         onSelectedIndexChange = {
                             selectedType = typeEntries[it]
+                            typeManuallyChanged = true
                             showTypePicker = false
                         }
                     )

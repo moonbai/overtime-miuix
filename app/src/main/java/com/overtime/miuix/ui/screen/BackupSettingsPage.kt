@@ -21,7 +21,9 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import java.io.File
 
 @Composable
 fun BackupSettingsPage(
@@ -50,6 +52,11 @@ fun BackupSettingsPage(
 
     var status by remember { mutableStateOf<String?>(null) }
 
+    // 云端恢复：远端文件列表与选择弹窗
+    var showRestoreDialog by remember { mutableStateOf(false) }
+    var remoteFiles by remember { mutableStateOf<List<String>>(emptyList()) }
+    var loadingRemote by remember { mutableStateOf(false) }
+
     LaunchedEffect(webdavUrl) { webdavUrlText = webdavUrl }
     LaunchedEffect(webdavUsername) { webdavUserText = webdavUsername }
     LaunchedEffect(webdavPassword) { webdavPassText = webdavPassword }
@@ -66,6 +73,28 @@ fun BackupSettingsPage(
         password = webdavPassText,
         remotePath = webdavPathText.ifBlank { "/overtime_backup/" }
     )
+
+    // 从云端下载指定备份文件并恢复记录与设置
+    suspend fun restoreFromCloud(fileName: String) {
+        showToast("正在下载 $fileName ...")
+        val localPath = DataMigrationUtil.getBackupFilePath(context, "cloud_restore_tmp.json")
+        val ok = WebDavManager.downloadFile(buildWebDavConfig(), fileName, localPath)
+        if (!ok) {
+            showToast("下载失败：$fileName")
+            return
+        }
+        val data = BackupManager.importData(localPath)
+        if (data == null) {
+            showToast("文件解析失败")
+            return
+        }
+        data.records.forEach { repository.insert(it.copy(id = 0)) }
+        if (data.settings.isNotEmpty()) {
+            settingsRepository.importSettings(data.settings)
+        }
+        runCatching { File(localPath).delete() }
+        showToast("云端恢复成功，共 ${data.records.size} 条记录")
+    }
 
     // 导出到用户选择的文件
     val exportLauncher = rememberLauncherForActivityResult(
@@ -268,9 +297,58 @@ fun BackupSettingsPage(
                                     modifier = Modifier.weight(1f)
                                 ) { Text("立即上传") }
                             }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            // 云端下载/恢复：列出远端备份文件供选择
+                            BasicComponent(
+                                title = "从云端恢复",
+                                summary = "列出 WebDAV 上的备份文件并下载恢复",
+                                startAction = { Icon(MiuixIcons.Download, contentDescription = null) },
+                                onClick = {
+                                    if (loadingRemote) return@BasicComponent
+                                    loadingRemote = true
+                                    scope.launch {
+                                        showToast("正在获取云端备份列表 ...")
+                                        val files = WebDavManager.listFiles(buildWebDavConfig())
+                                        remoteFiles = files.sortedDescending()
+                                        loadingRemote = false
+                                        if (remoteFiles.isEmpty()) {
+                                            showToast("云端没有可用的备份文件")
+                                        } else {
+                                            showRestoreDialog = true
+                                        }
+                                    }
+                                }
+                            )
                         }
                     }
                 }
+            }
+        }
+
+        // 云端恢复：选择远端备份文件对话框
+        OverlayDialog(
+            show = showRestoreDialog,
+            title = "选择要恢复的备份",
+            summary = "点击文件名从云端下载并恢复",
+            onDismissRequest = { showRestoreDialog = false }
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                remoteFiles.take(30).forEach { fileName ->
+                    BasicComponent(
+                        title = fileName,
+                        startAction = { Icon(MiuixIcons.Download, contentDescription = null) },
+                        onClick = {
+                            showRestoreDialog = false
+                            scope.launch { restoreFromCloud(fileName) }
+                        }
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    text = "取消",
+                    onClick = { showRestoreDialog = false },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }

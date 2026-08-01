@@ -13,6 +13,8 @@ import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
+import com.overtime.miuix.ui.snackbar.showCustomToast
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -31,12 +33,27 @@ fun MainScreen(
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     val bottomBarStyle by settingsRepository.bottomBarStyle.collectAsState(initial = "ICON_TEXT")
     val useFloatingNav by settingsRepository.useFloatingNav.collectAsState(initial = false)
+    val quickSubmit by settingsRepository.quickSubmit.collectAsState(initial = false)
     val blurSupported = isRuntimeShaderSupported()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
+    // 快速提报对话框显隐
+    var showQuickSubmit by remember { mutableStateOf(false) }
+    val snackbarHostStateForQuick = LocalSnackbarHostState.current
+    val quickScope = rememberCoroutineScope()
+
+    // 普通底栏显示模式
     val navMode = when (bottomBarStyle) {
         "ICON_ONLY" -> NavigationBarDisplayMode.IconOnly
-        "TEXT_ONLY" -> NavigationBarDisplayMode.IconWithSelectedLabel
+        "TEXT_ONLY" -> NavigationBarDisplayMode.TextOnly
         else -> NavigationBarDisplayMode.IconAndText
+    }
+
+    // 悬浮底栏显示模式：与底栏样式设置保持一致
+    val floatingNavMode = when (bottomBarStyle) {
+        "ICON_ONLY" -> FloatingNavigationBarDisplayMode.IconOnly
+        "TEXT_ONLY" -> FloatingNavigationBarDisplayMode.TextOnly
+        else -> FloatingNavigationBarDisplayMode.IconAndText
     }
 
     // 首页 FAB 的高斯模糊背景层：捕获底栏之上的页面内容作为模糊源
@@ -71,7 +88,7 @@ fun MainScreen(
                         )
                 ) {
                     FloatingNavigationBar(
-                        mode = FloatingNavigationBarDisplayMode.IconOnly,
+                        mode = floatingNavMode,
                         cornerRadius = 28.dp,
                         horizontalOutSidePadding = 0.dp,
                         shadowElevation = 0.dp
@@ -121,20 +138,62 @@ fun MainScreen(
         },
         floatingActionButton = {
             if (selectedTab == 0) {
-                // Texture Blur 高斯模糊：将 FAB 背景渲染为页面内容的毛玻璃
-                Box(
-                    modifier = Modifier.textureBlur(
-                        backdrop = fabBackdrop,
-                        shape = CircleShape,
-                        blurRadius = 28f,
-                        enabled = blurSupported
-                    )
-                ) {
-                    FloatingActionButton(
-                        onClick = { navController.navigate("add_record") },
-                        containerColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.6f)
+                if (quickSubmit) {
+                    // 快速提报模式：底栏区直接提供「提报」按钮，点击弹出快速录入
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(MiuixIcons.Add, contentDescription = "添加记录")
+                        // 常规添加（进入完整表单）
+                        FloatingActionButton(
+                            onClick = { navController.navigate("add_record") },
+                            containerColor = MiuixTheme.colorScheme.secondaryContainer
+                        ) {
+                            Icon(
+                                MiuixIcons.Add,
+                                contentDescription = "添加记录",
+                                tint = MiuixTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                        // 快速提报（一键记录今天）
+                        FloatingActionButton(
+                            onClick = { showQuickSubmit = true },
+                            containerColor = MiuixTheme.colorScheme.primary
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            ) {
+                                Icon(
+                                    MiuixIcons.Ok,
+                                    contentDescription = null,
+                                    tint = MiuixTheme.colorScheme.onPrimary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "快速提报",
+                                    color = MiuixTheme.colorScheme.onPrimary,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Texture Blur 高斯模糊：将 FAB 背景渲染为页面内容的毛玻璃
+                    Box(
+                        modifier = Modifier.textureBlur(
+                            backdrop = fabBackdrop,
+                            shape = CircleShape,
+                            blurRadius = 28f,
+                            enabled = blurSupported
+                        )
+                    ) {
+                        FloatingActionButton(
+                            onClick = { navController.navigate("add_record") },
+                            containerColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.6f)
+                        ) {
+                            Icon(MiuixIcons.Add, contentDescription = "添加记录")
+                        }
                     }
                 }
             }
@@ -162,4 +221,18 @@ fun MainScreen(
             }
         }
     }
+
+    // 快速提报对话框
+    QuickSubmitSheet(
+        show = showQuickSubmit,
+        repository = repository,
+        settingsRepository = settingsRepository,
+        context = context,
+        onDismiss = { showQuickSubmit = false },
+        onSaved = {
+            quickScope.launch {
+                snackbarHostStateForQuick.showCustomToast("已提报今日加班")
+            }
+        }
+    )
 }

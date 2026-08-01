@@ -26,7 +26,10 @@ import java.util.*
 import kotlin.math.abs
 
 private data class DayAggregate(
-    var totalHours: Double = 0.0,
+    // 净时长：加班为正、请假为负，二者相抵（如 加班2 + 请假-4 = -2）
+    var netHours: Double = 0.0,
+    // 当天加班累计（仅正向加班，用于类型判定/展示）
+    var overtimeHours: Double = 0.0,
     var type: OvertimeType = OvertimeType.WORKDAY,
     var isLeave: Boolean = false,
     var maxAbs: Double = 0.0
@@ -79,7 +82,12 @@ fun StatisticsPage(
             val cal = Calendar.getInstance().apply { time = Date(r.date) }
             val day = cal.get(Calendar.DAY_OF_MONTH)
             val agg = map.getOrPut(day) { DayAggregate() }
-            agg.totalHours += abs(r.durationHours)
+            // 净时长按有符号累加：加班为正、请假为负，两者相抵（加班2 + 请假-4 = -2）
+            agg.netHours += r.durationHours
+            if (!r.isLeave && r.durationHours > 0) {
+                agg.overtimeHours += r.durationHours
+            }
+            // 类型/颜色以当天绝对值最大的记录为准
             val a = abs(r.durationHours)
             if (a >= agg.maxAbs) {
                 agg.maxAbs = a
@@ -245,12 +253,16 @@ private fun CalendarCard(
                                         color = if (isToday) MiuixTheme.colorScheme.primary
                                         else MiuixTheme.colorScheme.onSurface
                                     )
-                                    if (agg != null && agg.totalHours > 0) {
+                                    if (agg != null && agg.maxAbs > 0) {
+                                        // 展示当天净时长：加班为正、请假为负（如 -2h）
+                                        // 净时长为负时用错误色（请假占主导），否则用类型色
+                                        val net = agg.netHours
                                         Text(
-                                            text = compactHours(agg.totalHours),
+                                            text = compactHours(net),
                                             style = MiuixTheme.textStyles.footnote1,
                                             fontWeight = FontWeight.Medium,
-                                            color = typeColor(agg.type)
+                                            color = if (net < 0) MiuixTheme.colorScheme.error
+                                            else typeColor(agg.type)
                                         )
                                     } else {
                                         Spacer(modifier = Modifier.height(16.dp))
@@ -267,12 +279,14 @@ private fun CalendarCard(
 }
 
 private fun compactHours(hours: Double): String {
-    val h = hours.toInt()
-    val m = ((hours - h) * 60).toInt()
+    val sign = if (hours < 0) "-" else ""
+    val absH = abs(hours)
+    val h = absH.toInt()
+    val m = ((absH - h) * 60).toInt()
     return when {
-        m <= 0 -> "${h}h"
-        h <= 0 -> "${m}m"
-        else -> "${h}h${m}"
+        m <= 0 -> "$sign${h}h"
+        h <= 0 -> "$sign${m}m"
+        else -> "$sign${h}h${m}"
     }
 }
 
