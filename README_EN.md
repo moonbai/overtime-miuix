@@ -209,6 +209,13 @@ Config example:
 - **v1.0.5**: Fixed "check for updates" always failing — switched to PAT auth + OkHttp + segment-by-segment version comparison
 - **v1.0.6**: Floating bottom bar changed to a true overlay float (no longer occupies Scaffold reserved space, content can scroll under the bar); release APK naming prefix `加班记 → Overtime` (applies to future releases); completed CI injection of the update-check token and the `REQUEST_INSTALL_PACKAGES` permission
 
+### v1.0.7
+
+- Bottom bar interaction rework: both normal and floating bars are now overlays floating above content; the three screens can scroll under the bar
+- Normal bottom bar gains a Gaussian-blur background; the floating bar's blur background now fits exactly the three buttons' footprint (no longer full-width)
+- The floating action button (FAB) is moved down to avoid overlapping the floating bar
+- Update-check robustness: removed the dead mirror fallback (HTTP 000 and no private-repo auth forwarding), added request timeouts and clear error messages, plus empty-token detection
+
 ## License
 
 MIT License — see [LICENSE](LICENSE)
