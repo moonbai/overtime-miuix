@@ -20,7 +20,7 @@
 - **数据备份** — 本地 JSON 导出/导入，WebDAV 云端同步
 - **MCP 服务** — 内置 Model Context Protocol 服务，支持 AI 助手集成
 - **个性化设置** — 主题切换（亮/暗/跟随系统）、强调色定制、底栏样式可选
-- **更新检查** — 应用内检测 GitHub Release 新版本并引导下载（私有仓库 PAT 鉴权，源码无明文 Token）
+- **更新检查** — 应用内检测 GitHub Release 新版本并引导下载（公开仓库匿名可查，可选 PAT 提升限额，源码无明文 Token）
 
 ## 技术栈
 
@@ -101,7 +101,7 @@ git tag v1.0.7 && git push origin v1.0.7
 应用内更新检测由 `util/UpdateChecker.kt` 实现，入口在「设置 → 关于 → 检查更新」：
 
 1. **数据源**：`GET https://api.github.com/repos/moonbai/overtime-miuix/releases/latest`
-2. **私有仓库鉴权**：请求头携带 PAT，PAT 在**编译期**经 `BuildConfig.GITHUB_TOKEN` 注入（**源码不硬编码明文**，符合安全规范）
+2. **鉴权（可选）**：仓库为公开仓库，可**匿名**直接访问 `/releases/latest`（限额 60 次/小时/IP，手动检查足够）；若编译期经 `BuildConfig.GITHUB_TOKEN` 注入了 PAT，则优先使用令牌以获得更高限额（5000 次/小时）并兼容私有仓库（**源码不硬编码明文**，符合安全规范）
 3. **版本对比**：`compareVersion()` 逐段比较当前 `versionName` 与 Release tag，有新版本则弹窗提示
 4. **跳转下载**：弹窗按钮通过 `Intent.ACTION_VIEW` 打开 GitHub Release 页面，由用户完成下载 / 安装（支持 `ghproxy` 等镜像兜底）
 5. **一致性校验**：版本相同但本地与远端 SHA256 不一致时，提示「安装包校验不一致」并引导重新下载

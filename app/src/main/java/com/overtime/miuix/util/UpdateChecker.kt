@@ -18,14 +18,13 @@ import java.util.regex.Pattern
 
 /**
  * GitHub Release 更新检查器。
- * 使用 GitHub Token 认证以避免 API 限流（60 次/小时匿名 vs 5000 次/小时认证）。
  *
- * 说明 / 注意点：
- * - 仓库为私有仓库，访问 /releases/latest 必须携带具备私有仓库读权限的 Token
- *   （classic PAT 需 repo 作用域；fine-grained PAT 需对该仓库可读）。
- * - 公有镜像（ghproxy 等）不会把 Authorization 头转发给 GitHub，私有仓库经镜像必失败，
- *   故此处仅直连 api.github.com，并配合超时与明确错误提示。
- * - Token 经 BuildConfig.GITHUB_TOKEN 在编译期注入（源码无明文）。
+ * 仓库为【公开仓库】，因此更新检查【无需令牌】即可匿名访问 `/releases/latest`
+ * （公开仓库匿名限额 60 次/小时/IP，对“手动检查更新”足够）。
+ * 若编译期注入了令牌（BuildConfig.GITHUB_TOKEN），则优先使用令牌以获得更高限额
+ * （5000 次/小时）并兼容私有仓库场景。令牌仅作可选增强，缺失时不影响公开仓库检查。
+ *
+ * 请求顺序：令牌（若有） → 匿名直连 → 镜像兜底（匿名代理公开仓库）。
  */
 object UpdateChecker {
 
@@ -33,11 +32,18 @@ object UpdateChecker {
     private const val REPO_OWNER = "moonbai"
     private const val REPO_NAME = "overtime-miuix"
 
-    // GitHub Personal Access Token：从 BuildConfig 读取（Gradle 编译时从环境变量 / local.properties 注入）
+    // 可选令牌：编译期经 BuildConfig.GITHUB_TOKEN 注入（源码无明文）。
+    // 公开仓库下可留空，更新检查仍能正常工作。
     private val GITHUB_TOKEN: String = BuildConfig.GITHUB_TOKEN
 
     private val RELEASES_URL =
         "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest"
+
+    // 直连失败时的兜底镜像（仅供【公开仓库】匿名代理，不携带令牌）。
+    private val MIRROR_URLS = listOf(
+        "https://ghproxy.com/https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest",
+        "https://gh.api.99988866.xyz/https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest"
+    )
 
     private val SHA256_PATTERN = Pattern.compile(
         "sha256[:：]\\s*([0-9a-fA-F]{64})",
@@ -48,7 +54,7 @@ object UpdateChecker {
     var lastError: String? = null
         private set
 
-    /** 是否已配置更新令牌（私有仓库必须）。 */
+    /** 是否已配置更新令牌（仅用于更高限额 / 私有仓库，公开仓库可无）。 */
     fun isTokenConfigured(): Boolean = GITHUB_TOKEN.isNotBlank()
 
     data class UpdateInfo(
@@ -103,31 +109,30 @@ object UpdateChecker {
 
     /**
      * 检查更新。
-     * @return 成功返回 [UpdateInfo]，失败（网络/鉴权/无令牌）返回 null，
+     * @return 成功返回 [UpdateInfo]，失败（网络/鉴权/限流）返回 null，
      *         失败时可通过 [lastError] 获取更精确的原因。
      */
     suspend fun check(currentVersion: String): UpdateInfo? {
         lastError = null
         return withContext(Dispatchers.IO) {
-            if (GITHUB_TOKEN.isBlank()) {
-                lastError = "未配置更新令牌，无法检查私有仓库更新"
-                Log.w(TAG, lastError!!)
-                return@withContext null
+            // 1) 优先使用令牌（更高限额，且兼容私有仓库）
+            if (GITHUB_TOKEN.isNotBlank()) {
+                val withToken = tryFetch(RELEASES_URL, useToken = true)
+                if (withToken != null) return@withContext withToken
             }
-            val result = tryFetch(RELEASES_URL)
-            if (result == null) {
-                if (lastError == null) {
-                    lastError = "网络请求失败，请检查网络连接或稍后重试"
-                }
-                Log.e(TAG, "更新检查失败: $lastError")
-            } else {
-                Log.d(
-                    TAG,
-                    "检查成功: latest=${result.latestVersion}, current=$currentVersion, " +
-                        "hasUpdate=${hasUpdate(currentVersion, result)}"
-                )
+            // 2) 公开仓库可匿名访问（无需令牌）
+            val anon = tryFetch(RELEASES_URL, useToken = false)
+            if (anon != null) return@withContext anon
+            // 3) 兜底镜像（匿名代理公开仓库）
+            for (mirror in MIRROR_URLS) {
+                val m = tryFetch(mirror, useToken = false)
+                if (m != null) return@withContext m
             }
-            result
+            if (lastError == null) {
+                lastError = "更新检查失败，请检查网络连接或稍后重试"
+            }
+            Log.e(TAG, "更新检查失败: $lastError")
+            null
         }
     }
 
@@ -141,12 +146,14 @@ object UpdateChecker {
         }
     }
 
-    private suspend fun tryFetch(url: String): UpdateInfo? {
+    private suspend fun tryFetch(url: String, useToken: Boolean): UpdateInfo? {
         return try {
             createClient().use { client ->
                 val response = client.get(url) {
                     headers.append(HttpHeaders.Accept, "application/vnd.github+json")
-                    headers.append(HttpHeaders.Authorization, "Bearer $GITHUB_TOKEN")
+                    if (useToken && GITHUB_TOKEN.isNotBlank()) {
+                        headers.append(HttpHeaders.Authorization, "Bearer $GITHUB_TOKEN")
+                    }
                 }
                 val status = response.status.value
                 val body = response.bodyAsText()
@@ -154,12 +161,18 @@ object UpdateChecker {
                 when (status) {
                     200 -> parseRelease(body)
                     401, 403 -> {
-                        lastError = "令牌无效或无权限访问该私有仓库"
-                        Log.w(TAG, "API 返回 $status: 令牌问题")
+                        lastError = if (useToken) {
+                            "令牌无效或无权限访问该仓库"
+                        } else if (body.contains("rate limit", ignoreCase = true)) {
+                            "请求过于频繁，请稍后重试"
+                        } else {
+                            "仓库为私有，需配置更新令牌"
+                        }
+                        Log.w(TAG, "API 返回 $status: $lastError")
                         null
                     }
                     404 -> {
-                        lastError = "未找到发布版本（仓库不存在或令牌权限不足）"
+                        lastError = "未找到发布版本（仓库或 Release 不存在）"
                         Log.w(TAG, "API 返回 404")
                         null
                     }

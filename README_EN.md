@@ -22,7 +22,7 @@
 - **Data Backup** — Local JSON export/import, WebDAV cloud sync
 - **MCP Service** — Built-in Model Context Protocol server for AI assistant integration
 - **Customization** — Theme switching (light/dark/system), accent color, selectable bottom bar style
-- **Update Check** — In-app GitHub Release update detection with download guidance (private-repo PAT auth, no plaintext token in source)
+- **Update Check** — In-app GitHub Release update detection with download guidance (public repo works anonymously; optional PAT raises the rate limit; no plaintext token in source)
 
 ## Tech Stack
 
@@ -103,7 +103,7 @@ Configure the following in the repo's `Settings → Secrets and variables → Ac
 The in-app update detection is implemented in `util/UpdateChecker.kt`, triggered from **Settings → About → Check for Updates**:
 
 1. **Data Source**: `GET https://api.github.com/repos/moonbai/overtime-miuix/releases/latest`
-2. **Private Repo Auth**: The request header carries a PAT, which is injected at **compile time** via `BuildConfig.GITHUB_TOKEN` (**no plaintext token hardcoded in source**, complying with security rules)
+2. **Auth (optional)**: The repo is public, so `/releases/latest` can be accessed **anonymously** (limit 60 req/hour/IP — enough for manual checks). If a PAT is injected at **compile time** via `BuildConfig.GITHUB_TOKEN`, it is used first for a higher limit (5000 req/hour) and private-repo support (**no plaintext token hardcoded in source**, complying with security rules)
 3. **Version Compare**: `compareVersion()` compares the current `versionName` with the Release tag segment by segment; a dialog prompts when a newer version exists
 4. **Jump to Download**: The dialog button opens the GitHub Release page via `Intent.ACTION_VIEW`, letting the user complete the download/install (mirror fallback such as `ghproxy` is supported)
 5. **Consistency Check**: When versions match but the local and remote SHA256 differ, it warns "installation package verification mismatch" and guides a re-download
