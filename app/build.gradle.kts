@@ -33,20 +33,29 @@ android {
     // 签名配置：环境变量优先（CI），local.properties 回退（本地，已 gitignore）
     signingConfigs {
         create("release") {
-            // CI：KEYSTORE_BASE64 环境变量解码为临时 keystore 文件
-            // 本地：使用 app/release-keystore.jks（已 gitignore）
             val keystoreBase64 = System.getenv("KEYSTORE_BASE64")
-            storeFile = if (!keystoreBase64.isNullOrEmpty()) {
+            if (!keystoreBase64.isNullOrEmpty()) {
+                // 延迟写入：doFirst 确保每次构建都重新生成（clean 不会破坏引用）
                 val tmpFile = layout.buildDirectory.file("tmp/ci-release-keystore.jks").get().asFile
-                tmpFile.parentFile.mkdirs()
-                tmpFile.writeBytes(Base64.getDecoder().decode(keystoreBase64))
-                tmpFile
+                storeFile = tmpFile
+                storePassword = signProp("KEYSTORE_PASSWORD")
+                keyAlias = signProp("KEY_ALIAS")
+                keyPassword = signProp("KEY_PASSWORD")
+                // 每次签名前重新写入 keystore（解决 clean 后文件丢失问题）
+                tasks.whenTaskAdded {
+                    if (name.startsWith("validateSigning") || name.startsWith("package") || name == "mergeReleaseResources") {
+                        doFirst {
+                            tmpFile.parentFile.mkdirs()
+                            tmpFile.writeBytes(Base64.getDecoder().decode(keystoreBase64))
+                        }
+                    }
+                }
             } else {
-                file("release-keystore.jks")
+                storeFile = file("release-keystore.jks")
+                storePassword = signProp("KEYSTORE_PASSWORD")
+                keyAlias = signProp("KEY_ALIAS")
+                keyPassword = signProp("KEY_PASSWORD")
             }
-            storePassword = signProp("KEYSTORE_PASSWORD")
-            keyAlias = signProp("KEY_ALIAS")
-            keyPassword = signProp("KEY_PASSWORD")
         }
     }
 
