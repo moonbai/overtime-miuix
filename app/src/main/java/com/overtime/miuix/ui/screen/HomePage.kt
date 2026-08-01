@@ -224,8 +224,11 @@ private fun RecordCard(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
-    val dateStr = sdf.format(Date(record.date))
+    // 日期格式：同年显示 MM-dd HH:mm，跨年显示 yyyy-MM-dd HH:mm
+    val cal = Calendar.getInstance().apply { time = Date(record.date) }
+    val now = Calendar.getInstance()
+    val datePattern = if (cal.get(Calendar.YEAR) == now.get(Calendar.YEAR)) "MM-dd HH:mm" else "yyyy-MM-dd HH:mm"
+    val dateStr = SimpleDateFormat(datePattern, Locale.getDefault()).format(Date(record.date))
     val displayLabel = if (record.isLeave) "请假" else record.type.label
     val typeColor = if (record.isLeave) {
         MiuixTheme.colorScheme.error
@@ -261,9 +264,16 @@ private fun RecordCard(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = displayLabel,
+                        text = dateStr,
                         style = MiuixTheme.textStyles.body1,
                         fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = displayLabel,
+                        style = MiuixTheme.textStyles.footnote1,
                         color = typeColor
                     )
                     if (record.isLeave) {
@@ -281,11 +291,6 @@ private fun RecordCard(
                         }
                     }
                 }
-                Text(
-                    text = dateStr,
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
                 if (record.note.isNotBlank()) {
                     Text(
                         text = record.note,

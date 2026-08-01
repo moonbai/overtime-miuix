@@ -5,6 +5,8 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+import java.util.Base64
+
 android {
     namespace = "com.overtime.miuix"
     compileSdk = 37
@@ -13,16 +15,37 @@ android {
         applicationId = "com.overtime.miuix"
         minSdk = 26
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
     }
 
-    // 签名配置：优先从环境变量读取（CI），其次从 gradle.properties（本地）
+    // 签名配置：CI 从 KEYSTORE_BASE64 环境变量解码生成 keystore 文件
+    // 本地开发时在 gradle.properties 中配置 KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD
     signingConfigs {
         create("release") {
-            val keystoreFile = file("release-keystore.jks")
+            // CI 环境：KEYSTORE_BASE64 → base64 解码 → 写入临时 keystore 文件
+            val keystoreBase64 = System.getenv("KEYSTORE_BASE64")
+            val keystoreFile = if (keystoreBase64 != null && keystoreBase64.isNotBlank()) {
+                val decodedBytes = try {
+                    // ProcessBuilder 方式执行 base64 -d，兼容 CI 环境
+                    val proc = ProcessBuilder("base64", "-d")
+                        .redirectInput(ProcessBuilder.Redirect.PIPE)
+                        .redirectOutput(ProcessBuilder.Redirect.PIPE)
+                        .start()
+                    proc.outputStream.use { it.write(keystoreBase64.toByteArray()) }
+                    proc.outputStream.close()
+                    proc.inputStream.readBytes()
+                } catch (e: Exception) {
+                    Base64.getDecoder().decode(keystoreBase64)
+                }
+                val tmpFile = file("${layout.buildDirectory.get().asFile.absolutePath}/tmp/ci-release-keystore.jks")
+                tmpFile.parentFile.mkdirs()
+                tmpFile.writeBytes(decodedBytes)
+                tmpFile
+            } else {
+                file("release-keystore.jks")
+            }
             storeFile = keystoreFile
-            // 密码：环境变量优先（CI 安全注入），回退 gradle.properties（本地固化）
             storePassword = System.getenv("KEYSTORE_PASSWORD")
                 ?: (project.findProperty("KEYSTORE_PASSWORD") as? String) ?: ""
             keyAlias = System.getenv("KEY_ALIAS")

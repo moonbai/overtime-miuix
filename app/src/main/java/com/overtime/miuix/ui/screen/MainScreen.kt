@@ -78,7 +78,7 @@ fun MainScreen(
         },
         bottomBar = {
             if (useFloatingNav) {
-                // 悬浮底栏：透明容器 + 宽 padding（参考 Miuix 底栏样式）
+                // 悬浮底栏：透明容器 + 宽 padding + 毛玻璃背景
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -94,8 +94,7 @@ fun MainScreen(
                         modifier = Modifier.background(Color.Transparent),
                         mode = floatingNavMode,
                         cornerRadius = 28.dp,
-                        horizontalOutSidePadding = 0.dp,
-                        shadowElevation = 0.dp
+                        horizontalOutSidePadding = 0.dp
                     ) {
                         FloatingNavigationBarItem(
                             selected = selectedTab == 0,

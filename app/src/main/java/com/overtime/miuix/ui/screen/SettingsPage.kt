@@ -1,9 +1,13 @@
 package com.overtime.miuix.ui.screen
 
+import android.content.Context
+import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import top.yukonga.miuix.kmp.basic.*
@@ -12,6 +16,9 @@ import top.yukonga.miuix.kmp.icon.extended.*
 
 @Composable
 fun SettingsPage(navController: NavHostController) {
+    val context = LocalContext.current
+    val versionName = remember { getVersionName(context) }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 8.dp)
@@ -82,11 +89,17 @@ fun SettingsPage(navController: NavHostController) {
             SettingsGroup(title = "关于") {
                 BasicComponent(
                     title = "关于应用",
-                    summary = "版本 1.0.0",
+                    summary = "版本 $versionName",
                     startAction = { Icon(MiuixIcons.Info, contentDescription = null) },
                     onClick = { navController.navigate("about") }
                 )
             }
         }
     }
+}
+
+private fun getVersionName(context: Context): String {
+    return try {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0"
+    } catch (_: PackageManager.NameNotFoundException) { "1.0.0" }
 }
