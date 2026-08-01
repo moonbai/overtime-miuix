@@ -211,7 +211,7 @@ fun AboutPage(navController: NavHostController) {
                                 checking = false
                                 if (info == null) {
                                     snackbarHostState.showCustomToast("检查失败，请检查网络连接")
-                                } else if (info.latestVersion != versionName) {
+                                } else if (UpdateChecker.hasUpdate(versionName, info)) {
                                     // 有新版：提示更新
                                     updateInfo = info
                                     showUpdateDialog = true
