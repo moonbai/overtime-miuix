@@ -22,6 +22,7 @@ import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
 
@@ -205,16 +206,25 @@ fun BackupSettingsPage(
                         }
                     )
                     if (autoBackupEnabled) {
-                        SmallTitle(text = "备份位置")
-                        BasicComponent(
-                            title = "仅本地",
-                            onClick = { scope.launch { settingsRepository.setAutoBackupLocation("local") } },
-                            endActions = { RadioButton(selected = autoBackupLocation == "local", onClick = null) }
-                        )
-                        BasicComponent(
-                            title = "本地 + WebDAV 云端",
-                            onClick = { scope.launch { settingsRepository.setAutoBackupLocation("cloud") } },
-                            endActions = { RadioButton(selected = autoBackupLocation == "cloud", onClick = null) }
+                        val locationItems = remember {
+                            listOf(
+                                SpinnerEntry(title = "仅本地"),
+                                SpinnerEntry(title = "本地 + WebDAV 云端")
+                            )
+                        }
+                        val locationSelected = remember(autoBackupLocation) {
+                            if (autoBackupLocation == "cloud") 1 else 0
+                        }
+                        OverlaySpinnerPreference(
+                            items = locationItems,
+                            selectedIndex = locationSelected,
+                            title = "备份位置",
+                            summary = "选择备份存储位置",
+                            onSelectedIndexChange = { index ->
+                                scope.launch {
+                                    settingsRepository.setAutoBackupLocation(if (index == 1) "cloud" else "local")
+                                }
+                            }
                         )
                     }
                 }

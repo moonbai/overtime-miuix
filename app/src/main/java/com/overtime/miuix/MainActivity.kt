@@ -35,8 +35,8 @@ class MainActivity : ComponentActivity() {
             val monetEnabled by settingsRepository.monetEnabled.collectAsState(initial = false)
 
             val darkTheme = when (themeMode) {
-                "dark" -> true
-                "light" -> false
+                "dark", "monet_dark" -> true
+                "light", "monet_light" -> false
                 else -> isSystemInDarkTheme()
             }
 

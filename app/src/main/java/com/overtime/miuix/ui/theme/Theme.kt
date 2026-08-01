@@ -18,7 +18,8 @@ fun OvertimeTheme(
     val controller = remember(darkTheme, keyColor, monet) {
         ThemeController(
             colorSchemeMode = when {
-                monet -> ColorSchemeMode.MonetSystem
+                monet && darkTheme -> ColorSchemeMode.MonetDark
+                monet && !darkTheme -> ColorSchemeMode.MonetLight
                 darkTheme -> ColorSchemeMode.Dark
                 else -> ColorSchemeMode.Light
             },

@@ -21,7 +21,17 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+// 主题模式选项：value → label，其中 monet_* 映射到 ColorSchemeMode.MonetLight/MonetDark
+private val THEME_OPTIONS = listOf(
+    "system" to "跟随系统",
+    "light" to "浅色模式",
+    "dark" to "深色模式",
+    "monet_light" to "Monet 浅色",
+    "monet_dark" to "Monet 深色"
+)
 
 @Composable
 fun AppearanceSettingsPage(
@@ -33,11 +43,24 @@ fun AppearanceSettingsPage(
     val themeMode by settingsRepository.themeMode.collectAsState(initial = "system")
     val bottomBarStyle by settingsRepository.bottomBarStyle.collectAsState(initial = "ICON_TEXT")
     val quickSubmit by settingsRepository.quickSubmit.collectAsState(initial = false)
-    val monetEnabled by settingsRepository.monetEnabled.collectAsState(initial = false)
     val useFloatingNav by settingsRepository.useFloatingNav.collectAsState(initial = false)
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
     val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
     val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
+
+    // 主题 Dropdown
+    val themeItems = remember { THEME_OPTIONS.map { SpinnerEntry(title = it.second) } }
+    val themeSelected = remember(themeMode) {
+        THEME_OPTIONS.indexOfFirst { it.first == themeMode }.coerceAtLeast(0)
+    }
+
+    // 底栏样式 Dropdown
+    val bottomBarItems = remember {
+        BottomBarStyle.entries.map { SpinnerEntry(title = it.label) }
+    }
+    val bottomBarSelected = remember(bottomBarStyle) {
+        BottomBarStyle.entries.indexOfFirst { it.name == bottomBarStyle }.coerceAtLeast(0)
+    }
 
     Scaffold(
         topBar = {
@@ -60,35 +83,18 @@ fun AppearanceSettingsPage(
         ) {
             item {
                 SettingsGroup(title = "主题") {
-                    BasicComponent(
-                        title = "跟随系统",
-                        onClick = { scope.launch { settingsRepository.setThemeMode("system") } },
-                        endActions = { RadioButton(selected = themeMode == "system", onClick = null) }
-                    )
-                    BasicComponent(
-                        title = "浅色模式",
-                        onClick = { scope.launch { settingsRepository.setThemeMode("light") } },
-                        endActions = { RadioButton(selected = themeMode == "light", onClick = null) }
-                    )
-                    BasicComponent(
-                        title = "深色模式",
-                        onClick = { scope.launch { settingsRepository.setThemeMode("dark") } },
-                        endActions = { RadioButton(selected = themeMode == "dark", onClick = null) }
-                    )
-                }
-            }
-
-            item {
-                SettingsGroup(title = "动态配色") {
-                    BasicComponent(
-                        title = "Monet 动态取色",
-                        summary = "跟随系统壁纸生成整套配色（需 Android 12+）",
-                        onClick = { scope.launch { settingsRepository.setMonetEnabled(!monetEnabled) } },
-                        endActions = {
-                            Switch(
-                                checked = monetEnabled,
-                                onCheckedChange = { scope.launch { settingsRepository.setMonetEnabled(it) } }
-                            )
+                    OverlaySpinnerPreference(
+                        items = themeItems,
+                        selectedIndex = themeSelected,
+                        title = "主题模式",
+                        summary = "包含系统跟随、浅色、深色及 Monet 取色浅色/深色",
+                        onSelectedIndexChange = { index ->
+                            val value = THEME_OPTIONS[index].first
+                            scope.launch {
+                                settingsRepository.setThemeMode(value)
+                                // 同步 monet_enabled 用于备份兼容与主题逻辑
+                                settingsRepository.setMonetEnabled(value.startsWith("monet_"))
+                            }
                         }
                     )
                 }
@@ -96,17 +102,20 @@ fun AppearanceSettingsPage(
 
             item {
                 SettingsGroup(title = "底栏样式") {
-                    BottomBarStyle.entries.forEach { style ->
-                        BasicComponent(
-                            title = style.label,
-                            onClick = { scope.launch { settingsRepository.setBottomBarStyle(style.name) } },
-                            endActions = { RadioButton(selected = bottomBarStyle == style.name, onClick = null) }
-                        )
-                    }
+                    OverlaySpinnerPreference(
+                        items = bottomBarItems,
+                        selectedIndex = bottomBarSelected,
+                        title = "底栏样式",
+                        summary = "图标 + 文字 / 仅图标 / 仅文字",
+                        onSelectedIndexChange = { index ->
+                            scope.launch {
+                                settingsRepository.setBottomBarStyle(BottomBarStyle.entries[index].name)
+                            }
+                        }
+                    )
                     BasicComponent(
                         title = "悬浮底栏",
                         summary = "使用 FloatingNavigationBar 悬浮样式",
-                        onClick = { scope.launch { settingsRepository.setUseFloatingNav(!useFloatingNav) } },
                         endActions = {
                             Switch(
                                 checked = useFloatingNav,

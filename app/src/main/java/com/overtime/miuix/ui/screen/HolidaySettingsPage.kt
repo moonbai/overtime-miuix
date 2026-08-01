@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.Year
 
@@ -93,23 +94,28 @@ fun HolidaySettingsPage(
             }
 
             item {
+                val sourceItems = remember {
+                    HolidayDataSource.entries.map { SpinnerEntry(title = it.label) }
+                }
+                val sourceSelected = remember(dataSource) {
+                    HolidayDataSource.entries.indexOfFirst { it.name == dataSource }.coerceAtLeast(0)
+                }
                 SettingsGroup(title = "数据源选择") {
-                    HolidayDataSource.entries.forEach { source ->
-                        BasicComponent(
-                            title = source.label,
-                            summary = when (source) {
-                                HolidayDataSource.TIMOR -> "timor.tech 免费 API，无需配置"
-                                HolidayDataSource.MXNZP -> "MXNZP API，需配置 App ID 和 Secret"
-                                HolidayDataSource.CUSTOM -> "自定义 API 地址，支持 {year} 占位符"
-                            },
-                            onClick = {
-                                scope.launch { settingsRepository.setHolidayDataSource(source.name) }
-                            },
-                            endActions = {
-                                RadioButton(selected = selectedSource == source, onClick = null)
+                    OverlaySpinnerPreference(
+                        items = sourceItems,
+                        selectedIndex = sourceSelected,
+                        title = "数据源",
+                        summary = when (selectedSource) {
+                            HolidayDataSource.TIMOR -> "timor.tech 免费 API，无需配置"
+                            HolidayDataSource.MXNZP -> "MXNZP API，需配置 App ID 和 Secret"
+                            HolidayDataSource.CUSTOM -> "自定义 API 地址，支持 {year} 占位符"
+                        },
+                        onSelectedIndexChange = { index ->
+                            scope.launch {
+                                settingsRepository.setHolidayDataSource(HolidayDataSource.entries[index].name)
                             }
-                        )
-                    }
+                        }
+                    )
                 }
             }
 

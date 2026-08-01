@@ -26,16 +26,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
+import com.overtime.miuix.ui.snackbar.showCustomToast
+import com.overtime.miuix.util.UpdateChecker
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun AboutPage(navController: NavHostController) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = LocalSnackbarHostState.current
     val appIcon = remember { loadMipmapIcon(context) }
     val versionName = remember { getVersionName(context) }
+
+    var checking by remember { mutableStateOf(false) }
+    var updateInfo by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -47,7 +58,8 @@ fun AboutPage(navController: NavHostController) {
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -178,6 +190,35 @@ fun AboutPage(navController: NavHostController) {
                             context.startActivity(intent)
                         }
                     )
+                    BasicComponent(
+                        title = "检查更新",
+                        summary = "查询 GitHub 最新版本",
+                        startAction = { Icon(MiuixIcons.Update, contentDescription = null) },
+                        endActions = {
+                            Icon(
+                                imageVector = MiuixIcons.ChevronForward,
+                                contentDescription = "检查更新",
+                                tint = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        onClick = {
+                            if (checking) return@BasicComponent
+                            checking = true
+                            scope.launch {
+                                val info = UpdateChecker.check(versionName)
+                                checking = false
+                                if (info == null) {
+                                    snackbarHostState.showCustomToast("检查失败，请检查网络连接")
+                                } else if (info.latestVersion == versionName) {
+                                    snackbarHostState.showCustomToast("已是最新版本")
+                                } else {
+                                    updateInfo = info
+                                    showUpdateDialog = true
+                                }
+                            }
+                        }
+                    )
                 }
             }
 
@@ -204,6 +245,46 @@ fun AboutPage(navController: NavHostController) {
             }
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
+        }
+    }
+
+    // 更新对话框
+    if (showUpdateDialog && updateInfo != null) {
+        val info = updateInfo!!
+        OverlayDialog(
+            show = true,
+            title = "发现新版本",
+            summary = "当前版本：$versionName\n最新版本：${info.latestVersion}",
+            onDismissRequest = { showUpdateDialog = false }
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (info.releaseNotes.isNotBlank()) {
+                    Text(
+                        text = info.releaseNotes,
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                Button(
+                    onClick = {
+                        val intent = Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse(info.releaseUrl.ifBlank { "https://github.com/moonbai/overtime-miuix/releases/latest" })
+                        )
+                        context.startActivity(intent)
+                        showUpdateDialog = false
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("前往下载") }
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    text = "稍后再说",
+                    onClick = { showUpdateDialog = false },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }

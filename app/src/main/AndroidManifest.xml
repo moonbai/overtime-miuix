@@ -32,7 +32,8 @@
 
         <service
             android:name=".mcp.McpHostService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 
 </manifest>
