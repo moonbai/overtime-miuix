@@ -20,6 +20,7 @@
 - **数据备份** — 本地 JSON 导出/导入，WebDAV 云端同步
 - **MCP 服务** — 内置 Model Context Protocol 服务，支持 AI 助手集成
 - **个性化设置** — 主题切换（亮/暗/跟随系统）、强调色定制、底栏样式可选
+- **更新检查** — 应用内检测 GitHub Release 新版本并引导下载（私有仓库 PAT 鉴权，源码无明文 Token）
 
 ## 技术栈
 
@@ -49,15 +50,64 @@
 | JVM Target | 17 |
 | Source Compatibility | Java 17 |
 
-## 构建
+## 构建与发版
+
+### 本地构建
 
 ```bash
-# Debug 构建
+# Debug 包（调试签名，不能覆盖安装正式包）
 ./gradlew assembleDebug
+# 输出：app/build/outputs/apk/debug/app-debug.apk
 
-# 输出目录
-# app/build/outputs/apk/debug/app-debug.apk
+# Release 包（Mars 签名）
+./gradlew assembleRelease
+# 输出：app/build/outputs/apk/release/Overtime-android-universal-<versionName>.apk
 ```
+
+### 签名配置
+
+Release 签名通过环境变量注入（CI 走 GitHub Secrets，本地回退 `local.properties`，二者均已 gitignore）：
+
+| 变量 | 说明 |
+|------|------|
+| `KEYSTORE_BASE64` | Mars keystore 的 Base64 |
+| `KEYSTORE_PASSWORD` | keystore 密码 |
+| `KEY_ALIAS` | 别名（当前为 `Mars`） |
+| `KEY_PASSWORD` | 密钥密码 |
+
+> ⚠️ 签名文件与密码**禁止提交仓库**，仅通过环境变量 / 本地 `local.properties` 提供。
+
+### CI 自动发版（GitHub Actions）
+
+`.github/workflows/android.yml` 监听 `v*` 标签推送，自动完成「编译 → Mars 签名 → 发布 Release → 上传 APK」：
+
+```bash
+# 1. 修改 app/build.gradle.kts 的 versionCode / versionName
+# 2. 提交并打标签即触发自动发版
+git tag v1.0.7 && git push origin v1.0.7
+```
+
+需在仓库 `Settings → Secrets and variables → Actions` 配置：
+
+| Secret | 说明 |
+|--------|------|
+| `KEYSTORE_BASE64` / `KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD` | Mars 签名信息 |
+| `GH_PAT` | **长效只读 PAT**，注入 APK 内 `BuildConfig.GITHUB_TOKEN`，供更新检查访问私有仓库 |
+
+> 必须使用**长效只读 PAT**（`GH_PAT`），不要使用 Actions 默认 `secrets.GITHUB_TOKEN`——它仅在任务运行期间有效，打包后即失效，无法用于已安装 App 的运行时更新检查。
+
+## 应用内更新检查
+
+应用内更新检测由 `util/UpdateChecker.kt` 实现，入口在「设置 → 关于 → 检查更新」：
+
+1. **数据源**：`GET https://api.github.com/repos/moonbai/overtime-miuix/releases/latest`
+2. **私有仓库鉴权**：请求头携带 PAT，PAT 在**编译期**经 `BuildConfig.GITHUB_TOKEN` 注入（**源码不硬编码明文**，符合安全规范）
+3. **版本对比**：`compareVersion()` 逐段比较当前 `versionName` 与 Release tag，有新版本则弹窗提示
+4. **跳转下载**：弹窗按钮通过 `Intent.ACTION_VIEW` 打开 GitHub Release 页面，由用户完成下载 / 安装（支持 `ghproxy` 等镜像兜底）
+5. **一致性校验**：版本相同但本地与远端 SHA256 不一致时，提示「安装包校验不一致」并引导重新下载
+6. **健壮性**：API 失败静默跳过；预发布版本默认过滤
+
+> 更新检查为手动触发；若需「启动自动检测」，可在 `MainScreen` 等入口补充 `LaunchedEffect` 调用 `UpdateChecker.check()`。
 
 ## 项目结构
 
@@ -149,6 +199,13 @@ GET  /mcp/tools/get_monthly_stats?month=YYYY-MM - 获取月度统计
 - KSP 2.3.9 → 2.3.10
 - compileSdk / targetSdk 36 → 37
 - 移除 kotlin-android 插件（AGP 9.0+ 已内置）
+
+### v1.0.3 ~ v1.0.6
+
+- **v1.0.3**：改用 Mars 签名 keystore，修复 `INSTALL_FAILED_DUPLICATE_PERMISSION`（签名冲突）导致的安装失败
+- **v1.0.4**：UI 优化与健壮性增强（TopAppBar 重叠修复、普通底栏毛玻璃、悬浮底栏按钮间距/加宽、更新包 SHA256 一致性校验、MCP 服务崩溃防护）
+- **v1.0.5**：修复「检查更新」始终无效——改用 PAT 鉴权 + OkHttp + 版本号逐段比较
+- **v1.0.6**：悬浮底栏改为真正叠加层悬浮（不再占用 Scaffold 预留空间，内容可滚动至底栏之下）；发版 APK 命名前缀 `加班记 → Overtime`（后续发版生效）；补全 CI 注入更新检查 Token 与 `REQUEST_INSTALL_PACKAGES` 权限
 
 ## 开源协议
 
