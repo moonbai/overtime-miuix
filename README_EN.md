@@ -216,6 +216,17 @@ Config example:
 - The floating action button (FAB) is moved down to avoid overlapping the floating bar
 - Update-check robustness: removed the dead mirror fallback (HTTP 000 and no private-repo auth forwarding), added request timeouts and clear error messages, plus empty-token detection
 
+### v1.0.8
+
+- Update check now supports anonymous access for public repositories: no token required to check for updates (GitHub public repo `releases/latest` returns 200 anonymously); the token is now optional, used only to raise the rate limit and for private repos
+- Detection order: token (if configured) → anonymous request → public mirror fallback; clearly distinguishes 404 (repo inaccessible) / 403 (rate limited) / 401 (invalid token) errors
+
+### v1.0.9
+
+- Normal bottom bar restored to its original behavior (Scaffold reserved space) with a Gaussian-blur background added; content is no longer obscured by the bar
+- Fixed the Settings "About" and other content being hidden behind the bar: all three screens (Home / Statistics / Settings) now reserve proper bottom padding and can scroll above the bar
+- The floating bottom bar's Gaussian-blur background now matches the floating bar exactly in both position and size (no more empty frosted-glass area around it)
+
 ## License
 
 MIT License — see [LICENSE](LICENSE)

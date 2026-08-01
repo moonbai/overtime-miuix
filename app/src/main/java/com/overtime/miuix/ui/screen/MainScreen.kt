@@ -62,15 +62,20 @@ fun MainScreen(
 
     // 首页 FAB 的高斯模糊背景层：捕获底栏之上的页面内容作为模糊源
     val fabBackdrop = rememberLayerBackdrop()
-    // 悬浮底栏的高斯模糊背景层：捕获页面内容作为毛玻璃源
+    // 悬浮/普通底栏的高斯模糊背景层：捕获页面内容作为毛玻璃源
     val navBackdrop = rememberLayerBackdrop()
     val snackbarHostState = LocalSnackbarHostState.current
 
-    // 系统导航栏（手势条）底部安全间距，避免悬浮底栏被遮挡
+    // 系统导航栏（手势条）底部安全间距，避免底栏被遮挡
     val navBarInset = WindowInsets.navigationBars
         .only(WindowInsetsSides.Bottom)
         .asPaddingValues()
         .calculateBottomPadding()
+
+    // 悬浮底栏：离底部间距 + 估算高度（用于内容底部留白，确保不被遮挡）。
+    // 采用保守偏大值，避免「关于」等内容被悬浮底栏遮挡。
+    val floatingBarOffset = 10.dp
+    val floatingBarHeight = 80.dp
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -83,48 +88,14 @@ fun MainScreen(
                     else -> "加班记录"
                 }
             )
-        }
-    ) { paddingValues ->
-        // 普通/悬浮底栏均作为叠加层浮于内容之上（不再占用 Scaffold 预留空间），
-        // 内容铺满屏幕并可滚动至底栏之下，毛玻璃背景捕获其后方的页面内容。
-        val contentPadding = PaddingValues(
-            top = paddingValues.calculateTopPadding(),
-            start = paddingValues.calculateStartPadding(LocalLayoutDirection.current),
-            end = paddingValues.calculateEndPadding(LocalLayoutDirection.current),
-            bottom = 0.dp
-        )
-
-        Box(modifier = Modifier.fillMaxSize()) {
-            // 页面内容层（同时作为 FAB / 底栏毛玻璃的背景源）
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .layerBackdrop(fabBackdrop)
-                    .layerBackdrop(navBackdrop)
-                    .padding(contentPadding)
-            ) {
-                when (selectedTab) {
-                    0 -> HomePage(
-                        navController = navController,
-                        repository = repository,
-                        settingsRepository = settingsRepository
-                    )
-                    1 -> StatisticsPage(
-                        navController = navController,
-                        repository = repository,
-                        settingsRepository = settingsRepository
-                    )
-                    2 -> SettingsPage(navController = navController)
-                }
-            }
-
-            // 普通底栏（叠加层，高斯模糊背景）
+        },
+        // 普通底栏：恢复为 Scaffold 预留空间的底栏（原有行为），并叠加高斯模糊背景。
+        // 由 Scaffold 为其预留布局空间，内容自动上移，不会被底栏遮挡。
+        bottomBar = {
             if (!useFloatingNav) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .padding(bottom = navBarInset)
                         .textureBlur(
                             backdrop = navBackdrop,
                             shape = RoundedCornerShape(0.dp),
@@ -157,49 +128,96 @@ fun MainScreen(
                     }
                 }
             }
+        }
+    ) { paddingValues ->
+        // 内容底部留白：
+        // - 普通底栏：Scaffold 已为其预留空间（paddingValues 已含底栏高度），内容自然不被遮挡；
+        // - 悬浮底栏：叠加在内容之上，需额外留出「离底间距 + 实测高度 + 余量」，
+        //   保证首页/统计/设置三个界面都能滚动到悬浮栏之上，关于等内容不被遮挡。
+        val contentBottom = if (useFloatingNav) {
+            navBarInset + floatingBarOffset + floatingBarHeight + 8.dp
+        } else {
+            paddingValues.calculateBottomPadding()
+        }
+        val contentPadding = PaddingValues(
+            top = paddingValues.calculateTopPadding(),
+            start = paddingValues.calculateStartPadding(LocalLayoutDirection.current),
+            end = paddingValues.calculateEndPadding(LocalLayoutDirection.current),
+            bottom = contentBottom
+        )
 
-            // 悬浮底栏（叠加层，高斯模糊背景尺寸与三个按钮占位一致）
+        Box(modifier = Modifier.fillMaxSize()) {
+            // 页面内容层（同时作为 FAB / 底栏毛玻璃的背景源）
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .layerBackdrop(fabBackdrop)
+                    .layerBackdrop(navBackdrop)
+                    .padding(contentPadding)
+            ) {
+                when (selectedTab) {
+                    0 -> HomePage(
+                        navController = navController,
+                        repository = repository,
+                        settingsRepository = settingsRepository
+                    )
+                    1 -> StatisticsPage(
+                        navController = navController,
+                        repository = repository,
+                        settingsRepository = settingsRepository
+                    )
+                    2 -> SettingsPage(navController = navController)
+                }
+            }
+
+            // 悬浮底栏（叠加层）：外层 Box 仅负责「居中对齐 + 离底间距」，
+            // 内层 textureBlur Box 紧贴 FloatingNavigationBar（wrapContentWidth），
+            // 使高斯模糊背景的位置与尺寸与悬浮底栏完全一致。
             if (useFloatingNav) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .wrapContentWidth()
-                        .padding(bottom = 10.dp + navBarInset)
-                        .textureBlur(
-                            backdrop = navBackdrop,
-                            shape = RoundedCornerShape(28.dp),
-                            blurRadius = 40f,
-                            enabled = blurSupported
-                        )
+                        .padding(bottom = navBarInset + floatingBarOffset)
                 ) {
-                    FloatingNavigationBar(
-                        modifier = Modifier.background(Color.Transparent),
-                        mode = floatingNavMode,
-                        cornerRadius = 28.dp,
-                        horizontalOutSidePadding = 0.dp,
-                        horizontalAlignment = Alignment.CenterHorizontally
+                    Box(
+                        modifier = Modifier
+                            .wrapContentWidth()
+                            .textureBlur(
+                                backdrop = navBackdrop,
+                                shape = RoundedCornerShape(28.dp),
+                                blurRadius = 40f,
+                                enabled = blurSupported
+                            )
                     ) {
-                        FloatingNavigationBarItem(
-                            selected = selectedTab == 0,
-                            onClick = { selectedTab = 0 },
-                            icon = AppIcons.Home,
-                            label = "首页"
-                        )
-                        // 按钮之间留白，避免拥挤
-                        Spacer(modifier = Modifier.width(24.dp))
-                        FloatingNavigationBarItem(
-                            selected = selectedTab == 1,
-                            onClick = { selectedTab = 1 },
-                            icon = MiuixIcons.Months,
-                            label = "统计"
-                        )
-                        Spacer(modifier = Modifier.width(24.dp))
-                        FloatingNavigationBarItem(
-                            selected = selectedTab == 2,
-                            onClick = { selectedTab = 2 },
-                            icon = MiuixIcons.Settings,
-                            label = "设置"
-                        )
+                        FloatingNavigationBar(
+                            modifier = Modifier.background(Color.Transparent),
+                            mode = floatingNavMode,
+                            cornerRadius = 28.dp,
+                            horizontalOutSidePadding = 0.dp,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            FloatingNavigationBarItem(
+                                selected = selectedTab == 0,
+                                onClick = { selectedTab = 0 },
+                                icon = AppIcons.Home,
+                                label = "首页"
+                            )
+                            // 按钮之间留白，避免拥挤
+                            Spacer(modifier = Modifier.width(24.dp))
+                            FloatingNavigationBarItem(
+                                selected = selectedTab == 1,
+                                onClick = { selectedTab = 1 },
+                                icon = MiuixIcons.Months,
+                                label = "统计"
+                            )
+                            Spacer(modifier = Modifier.width(24.dp))
+                            FloatingNavigationBarItem(
+                                selected = selectedTab == 2,
+                                onClick = { selectedTab = 2 },
+                                icon = MiuixIcons.Settings,
+                                label = "设置"
+                            )
+                        }
                     }
                 }
 
