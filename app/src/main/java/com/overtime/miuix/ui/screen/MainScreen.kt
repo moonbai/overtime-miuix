@@ -26,7 +26,6 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import com.overtime.miuix.ui.icon.AppIcons
 import com.overtime.miuix.ui.icon.Home
-import top.yukonga.miuix.kmp.basic.TopAppBarDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -70,24 +69,22 @@ fun MainScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
+            SmallTopAppBar(
                 title = when (selectedTab) {
                     0 -> "加班记录"
                     1 -> "统计"
                     2 -> "设置"
                     else -> "加班记录"
-                },
-                modifier = Modifier.height(TopAppBarDefaults.CollapsedHeight),
-                defaultWindowInsetsPadding = false
+                }
             )
         },
         bottomBar = {
             if (useFloatingNav) {
-                // 悬浮底栏：透明容器 + 毛玻璃背景（隐藏原有底栏，悬浮样式占满宽度）
+                // 悬浮底栏：毛玻璃背景（隐藏原有底栏），两侧留出边距、内部按钮间距更舒适
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 0.dp, vertical = 6.dp)
+                        .padding(horizontal = 20.dp, vertical = 10.dp)
                         .textureBlur(
                             backdrop = navBackdrop,
                             shape = RoundedCornerShape(28.dp),
@@ -99,7 +96,8 @@ fun MainScreen(
                         modifier = Modifier.background(Color.Transparent),
                         mode = floatingNavMode,
                         cornerRadius = 28.dp,
-                        horizontalOutSidePadding = 0.dp
+                        horizontalOutSidePadding = 0.dp,
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         FloatingNavigationBarItem(
                             selected = selectedTab == 0,
@@ -107,12 +105,15 @@ fun MainScreen(
                             icon = AppIcons.Home,
                             label = "首页"
                         )
+                        // 按钮之间留白，避免拥挤
+                        Spacer(modifier = Modifier.width(24.dp))
                         FloatingNavigationBarItem(
                             selected = selectedTab == 1,
                             onClick = { selectedTab = 1 },
                             icon = MiuixIcons.Months,
                             label = "统计"
                         )
+                        Spacer(modifier = Modifier.width(24.dp))
                         FloatingNavigationBarItem(
                             selected = selectedTab == 2,
                             onClick = { selectedTab = 2 },
@@ -122,25 +123,40 @@ fun MainScreen(
                     }
                 }
             } else {
-                NavigationBar(mode = navMode) {
-                    NavigationBarItem(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        icon = AppIcons.Home,
-                        label = "首页"
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        icon = MiuixIcons.Months,
-                        label = "统计"
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        icon = MiuixIcons.Settings,
-                        label = "设置"
-                    )
+                // 普通底栏：毛玻璃背景
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .textureBlur(
+                            backdrop = navBackdrop,
+                            shape = RoundedCornerShape(0.dp),
+                            blurRadius = 40f,
+                            enabled = blurSupported
+                        )
+                ) {
+                    NavigationBar(
+                        modifier = Modifier.background(Color.Transparent),
+                        mode = navMode
+                    ) {
+                        NavigationBarItem(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            icon = AppIcons.Home,
+                            label = "首页"
+                        )
+                        NavigationBarItem(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            icon = MiuixIcons.Months,
+                            label = "统计"
+                        )
+                        NavigationBarItem(
+                            selected = selectedTab == 2,
+                            onClick = { selectedTab = 2 },
+                            icon = MiuixIcons.Settings,
+                            label = "设置"
+                        )
+                    }
                 }
             }
         },

@@ -47,6 +47,7 @@ fun AboutPage(navController: NavHostController) {
     var checking by remember { mutableStateOf(false) }
     var updateInfo by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
     var showUpdateDialog by remember { mutableStateOf(false) }
+    var showConsistencyDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -210,11 +211,21 @@ fun AboutPage(navController: NavHostController) {
                                 checking = false
                                 if (info == null) {
                                     snackbarHostState.showCustomToast("检查失败，请检查网络连接")
-                                } else if (info.latestVersion == versionName) {
-                                    snackbarHostState.showCustomToast("已是最新版本")
-                                } else {
+                                } else if (info.latestVersion != versionName) {
+                                    // 有新版：提示更新
                                     updateInfo = info
                                     showUpdateDialog = true
+                                } else {
+                                    // 版本一致：额外校验安装包与官方是否一致
+                                    val localSha = UpdateChecker.getInstalledApkSha256(context)
+                                    val consistent = UpdateChecker.isLocalConsistent(info, localSha)
+                                    if (consistent == false) {
+                                        // 与仓库官方安装包不一致（可能被篡改/替换），提示重装
+                                        updateInfo = info
+                                        showConsistencyDialog = true
+                                    } else {
+                                        snackbarHostState.showCustomToast("已是最新版本")
+                                    }
                                 }
                             }
                         }
@@ -282,6 +293,37 @@ fun AboutPage(navController: NavHostController) {
                 TextButton(
                     text = "稍后再说",
                     onClick = { showUpdateDialog = false },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+
+    // 校验一致性对话框：版本一致但与官方安装包校验值不符，提示重新安装
+    if (showConsistencyDialog && updateInfo != null) {
+        val info = updateInfo!!
+        OverlayDialog(
+            show = true,
+            title = "安装包校验不一致",
+            summary = "当前安装包与官方发布版本校验值不一致，可能存在被修改或替换的情况，建议重新下载安装。",
+            onDismissRequest = { showConsistencyDialog = false }
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = {
+                        val intent = Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse(info.releaseUrl.ifBlank { "https://github.com/moonbai/overtime-miuix/releases/latest" })
+                        )
+                        context.startActivity(intent)
+                        showConsistencyDialog = false
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("前往重新下载") }
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    text = "忽略",
+                    onClick = { showConsistencyDialog = false },
                     modifier = Modifier.fillMaxWidth()
                 )
             }

@@ -95,43 +95,52 @@ class McpHostService : Service() {
     // ----------------------------------------------------------------
 
     private suspend fun ApplicationCall.handleMcpPost(context: Context) {
-        val raw = runCatching { receiveText() }.getOrElse {
-            respondRpc(errorResponse(null, CODE_PARSE_ERROR, "Invalid request body"), null)
-            return
-        }
-        val parsed = runCatching { JsonParser.parseString(raw) }.getOrElse {
-            respondRpc(errorResponse(null, CODE_PARSE_ERROR, "Parse error"), null)
-            return
-        }
-        val headerSession = request.headers["Mcp-Session-Id"]
-
-        if (parsed.isJsonArray) {
-            val responses = JsonArray()
-            var newSessionId: String? = null
-            for (el in parsed.asJsonArray) {
-                val outcome = processMessage(el, headerSession, context)
-                outcome.sessionHeader?.let { newSessionId = it }
-                outcome.response?.let { responses.add(it) }
+        try {
+            val raw = runCatching { receiveText() }.getOrElse {
+                respondRpc(errorResponse(null, CODE_PARSE_ERROR, "Invalid request body"), null)
+                return
             }
-            if (responses.size() == 0) {
+            val parsed = runCatching { JsonParser.parseString(raw) }.getOrElse {
+                respondRpc(errorResponse(null, CODE_PARSE_ERROR, "Parse error"), null)
+                return
+            }
+            val headerSession = request.headers["Mcp-Session-Id"]
+
+            if (parsed.isJsonArray) {
+                val responses = JsonArray()
+                var newSessionId: String? = null
+                for (el in parsed.asJsonArray) {
+                    val outcome = processMessage(el, headerSession, context)
+                    outcome.sessionHeader?.let { newSessionId = it }
+                    outcome.response?.let { responses.add(it) }
+                }
+                if (responses.size() == 0) {
+                    respond(HttpStatusCode.Accepted)
+                } else {
+                    respondRpc(responses, newSessionId ?: headerSession)
+                }
+                return
+            }
+
+            if (!parsed.isJsonObject) {
+                respondRpc(errorResponse(null, CODE_INVALID_REQUEST, "Invalid Request"), null)
+                return
+            }
+
+            val outcome = processMessage(parsed, headerSession, context)
+            if (outcome.response == null) {
+                // 通知（无 id）无需响应
                 respond(HttpStatusCode.Accepted)
             } else {
-                respondRpc(responses, newSessionId ?: headerSession)
+                respondRpc(outcome.response, outcome.sessionHeader ?: headerSession)
             }
-            return
-        }
-
-        if (!parsed.isJsonObject) {
-            respondRpc(errorResponse(null, CODE_INVALID_REQUEST, "Invalid Request"), null)
-            return
-        }
-
-        val outcome = processMessage(parsed, headerSession, context)
-        if (outcome.response == null) {
-            // 通知（无 id）无需响应
-            respond(HttpStatusCode.Accepted)
-        } else {
-            respondRpc(outcome.response, outcome.sessionHeader ?: headerSession)
+        } catch (e: Exception) {
+            // 任何未预期异常都必须返回标准 JSON-RPC 错误响应，避免连接被异常中断
+            // （否则客户端会因收到不完整的响应而抛出 unexpected end of stream / EOFException）
+            Log.w(TAG, "MCP POST 处理异常，已降级为错误响应", e)
+            runCatching {
+                respondRpc(errorResponse(null, CODE_INTERNAL_ERROR, "Internal error: ${e.message}"), null)
+            }
         }
     }
 
@@ -160,6 +169,8 @@ class McpHostService : Service() {
     /** 依据客户端 Accept 选择 SSE 或 JSON 响应。 */
     private suspend fun ApplicationCall.respondRpc(payload: JsonElement, sessionId: String?) {
         sessionId?.let { response.headers.append("Mcp-Session-Id", it) }
+        // 复用连接，避免客户端在后续请求时遭遇连接已关闭（unexpected end of stream）
+        response.headers.append(HttpHeaders.Connection, "keep-alive")
         val accept = request.headers[HttpHeaders.Accept] ?: ""
         if (accept.contains("text/event-stream")) {
             val builder = StringBuilder()
