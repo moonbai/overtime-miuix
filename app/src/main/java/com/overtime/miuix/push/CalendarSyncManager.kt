@@ -17,31 +17,23 @@ object CalendarSyncManager {
 
     /**
      * 判断是否拥有日历读写权限。
-     * Android 11（API 30）及以上，拥有 [READ_CALENDAR] 即可写入自身拥有的日历；
-     * Android 11 以下还需显式授予 [WRITE_CALENDAR]。
+     * 始终要求 READ_CALENDAR 与 WRITE_CALENDAR 同时授予：
+     * 创建日历账户、写入事件在部分 ROM/系统上仍需 WRITE_CALENDAR，
+     * 仅 READ 会在 insert 时抛 SecurityException。
      */
     fun hasCalendarPermission(context: Context): Boolean {
         val readGranted = context.checkSelfPermission(android.Manifest.permission.READ_CALENDAR) ==
             PackageManager.PERMISSION_GRANTED
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            return readGranted
-        }
         val writeGranted = context.checkSelfPermission(android.Manifest.permission.WRITE_CALENDAR) ==
             PackageManager.PERMISSION_GRANTED
         return readGranted && writeGranted
     }
 
     /** 同步所需的全部日历权限（用于运行时申请）。 */
-    fun calendarPermissions(): Array<String> {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            arrayOf(android.Manifest.permission.READ_CALENDAR)
-        } else {
-            arrayOf(
-                android.Manifest.permission.READ_CALENDAR,
-                android.Manifest.permission.WRITE_CALENDAR
-            )
-        }
-    }
+    fun calendarPermissions(): Array<String> = arrayOf(
+        android.Manifest.permission.READ_CALENDAR,
+        android.Manifest.permission.WRITE_CALENDAR
+    )
 
     fun getOrCreateCalendarId(context: Context): Long? {
         if (!hasCalendarPermission(context)) return null
@@ -89,8 +81,16 @@ object CalendarSyncManager {
         val calendarId = getOrCreateCalendarId(context) ?: return false
 
         val typeLabel = typeStr(record.type)
-        val startTime = record.startTime
-        val endTime = record.endTime
+        // 以记录当天 18:00 作为日历事件起点，时长顺延 durationHours
+        val baseCal = Calendar.getInstance().apply {
+            timeInMillis = record.date
+            set(Calendar.HOUR_OF_DAY, 18)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val startTime = baseCal.timeInMillis
+        val endTime = startTime + (record.durationHours * 3600_000L).toLong()
 
         val values = ContentValues().apply {
             put(CalendarContract.Events.DTSTART, startTime)
@@ -114,7 +114,15 @@ object CalendarSyncManager {
         val calendarId = getOrCreateCalendarId(context) ?: return false
 
         val typeLabel = typeStr(record.type)
-        val startTime = record.startTime
+        // 与 addEvent 保持一致的起点计算，保证标题 + 起始时间可精确匹配
+        val baseCal = Calendar.getInstance().apply {
+            timeInMillis = record.date
+            set(Calendar.HOUR_OF_DAY, 18)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val startTime = baseCal.timeInMillis
         val title = "$typeLabel-${"%.2f".format(record.durationHours)}小时"
 
         val selection = "${CalendarContract.Events.CALENDAR_ID} = ? AND ${CalendarContract.Events.TITLE} = ? AND ${CalendarContract.Events.DTSTART} = ?"

@@ -99,7 +99,7 @@ fun MainScreen(
                         FloatingNavigationBarItem(
                             selected = selectedTab == 0,
                             onClick = { selectedTab = 0 },
-                            icon = MiuixIcons.All,
+                            icon = MiuixIcons.Home,
                             label = "首页"
                         )
                         FloatingNavigationBarItem(
@@ -121,7 +121,7 @@ fun MainScreen(
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
-                        icon = MiuixIcons.All,
+                        icon = MiuixIcons.Home,
                         label = "首页"
                     )
                     NavigationBarItem(

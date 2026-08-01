@@ -224,10 +224,10 @@ private fun RecordCard(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
-    // 日期格式：同年显示 MM-dd HH:mm，跨年显示 yyyy-MM-dd HH:mm
+    // 日期格式：同年显示 MM-dd，跨年显示 yyyy-MM-dd
     val cal = Calendar.getInstance().apply { time = Date(record.date) }
     val now = Calendar.getInstance()
-    val datePattern = if (cal.get(Calendar.YEAR) == now.get(Calendar.YEAR)) "MM-dd HH:mm" else "yyyy-MM-dd HH:mm"
+    val datePattern = if (cal.get(Calendar.YEAR) == now.get(Calendar.YEAR)) "MM-dd" else "yyyy-MM-dd"
     val dateStr = SimpleDateFormat(datePattern, Locale.getDefault()).format(Date(record.date))
     val displayLabel = if (record.isLeave) "请假" else record.type.label
     val typeColor = if (record.isLeave) {

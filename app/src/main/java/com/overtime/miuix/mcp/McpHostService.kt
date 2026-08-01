@@ -270,13 +270,12 @@ class McpHostService : Service() {
             add(toolSpec(
                 name = "add_overtime_record",
                 description = "添加一条加班记录。参数 date(YYYY-MM-DD)、type(WORKDAY/WEEKEND/HOLIDAY)、" +
-                    "startTime(HH:mm)、endTime(HH:mm)、note(可选)。",
+                    "durationHours(加班小时数，0.5为梯度)、note(可选)。",
                 required = listOf("date"),
                 properties = mapOf(
                     "date" to schema("string", "日期，格式 YYYY-MM-DD"),
                     "type" to schemaEnum(listOf("WORKDAY", "WEEKEND", "HOLIDAY"), "加班类型"),
-                    "startTime" to schema("string", "开始时间，格式 HH:mm，默认 18:00"),
-                    "endTime" to schema("string", "结束时间，格式 HH:mm，默认 20:00"),
+                    "durationHours" to schema("number", "加班小时数，0.5为梯度，默认 2.0"),
                     "note" to schema("string", "备注")
                 )
             ))
@@ -314,8 +313,13 @@ class McpHostService : Service() {
         val dateStr = args.get("date")?.takeIf { it.isJsonPrimitive }?.asString
             ?: throw RpcException(CODE_INVALID_PARAMS, "Missing required parameter: date")
         val typeStr = args.get("type")?.takeIf { it.isJsonPrimitive }?.asString ?: "WORKDAY"
-        val startTime = args.get("startTime")?.takeIf { it.isJsonPrimitive }?.asString ?: "18:00"
-        val endTime = args.get("endTime")?.takeIf { it.isJsonPrimitive }?.asString ?: "20:00"
+        val durationHoursRaw = args.get("durationHours")?.takeIf { it.isJsonPrimitive }?.asNumber
+        // durationHours: 0.5 梯度，默认 2.0，向下对齐到 0.5 整数倍，夹到 [0.5, 24]
+        val durationHours = run {
+            val raw = durationHoursRaw?.toDouble() ?: 2.0
+            val snapped = (kotlin.math.round(raw * 2) / 2.0)
+            snapped.coerceIn(0.5, 24.0)
+        }
         val note = args.get("note")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
 
         val type = try {
@@ -328,26 +332,22 @@ class McpHostService : Service() {
         val repository = OvertimeRepository(database)
         val settingsRepository = SettingsRepository(context)
 
-        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-        val start = sdf.parse("$dateStr $startTime")?.time
-            ?: throw RpcException(CODE_INVALID_PARAMS, "Invalid date/time format")
-        val end = sdf.parse("$dateStr $endTime")?.time ?: start
+        val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val dateMs = sdfDate.parse(dateStr)?.time
+            ?: throw RpcException(CODE_INVALID_PARAMS, "Invalid date format")
 
-        val duration = SalaryCalculator.calculateDurationHours(start, end)
         val baseSalary = settingsRepository.baseSalary.first()
         val rate = when (type) {
             OvertimeType.WORKDAY -> settingsRepository.workdayRate.first()
             OvertimeType.WEEKEND -> settingsRepository.weekendRate.first()
             OvertimeType.HOLIDAY -> settingsRepository.holidayRate.first()
         }
-        val amount = SalaryCalculator.calculateOvertimeAmount(baseSalary, type, rate, duration)
+        val amount = SalaryCalculator.calculateOvertimeAmount(baseSalary, type, rate, durationHours)
 
         val record = OvertimeRecord(
-            date = start,
+            date = dateMs,
             type = type,
-            startTime = start,
-            endTime = end,
-            durationHours = duration,
+            durationHours = durationHours,
             baseSalary = baseSalary,
             rate = rate,
             amount = amount,
@@ -355,12 +355,12 @@ class McpHostService : Service() {
         )
         repository.insert(record)
 
-        val text = "已添加加班记录：$dateStr $startTime-$endTime（${type.name}），时长 ${duration} 小时，预估 ¥$amount"
+        val text = "已添加加班记录：$dateStr（${type.name}），时长 ${durationHours} 小时，预估 ¥$amount"
         return toolResult(
             text = text,
             structuredContent = JsonObject().apply {
                 addProperty("success", true)
-                addProperty("durationHours", duration)
+                addProperty("durationHours", durationHours)
                 addProperty("amount", amount)
             }
         )

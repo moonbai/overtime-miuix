@@ -15,7 +15,7 @@ class Converters {
     fun toOvertimeType(value: String): OvertimeType = OvertimeType.valueOf(value)
 }
 
-@Database(entities = [OvertimeRecord::class], version = 1, exportSchema = false)
+@Database(entities = [OvertimeRecord::class], version = 2, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun overtimeDao(): OvertimeDao

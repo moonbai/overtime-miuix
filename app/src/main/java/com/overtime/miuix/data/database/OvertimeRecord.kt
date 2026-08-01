@@ -10,8 +10,6 @@ data class OvertimeRecord(
     val id: Long = 0,
     val date: Long,
     val type: OvertimeType,
-    val startTime: Long,
-    val endTime: Long,
     val durationHours: Double,
     val baseSalary: Double,
     val rate: Double,

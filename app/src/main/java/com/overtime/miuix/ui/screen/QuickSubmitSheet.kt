@@ -233,9 +233,6 @@ fun QuickSubmitSheet(
                         saving = true
                         scope.launch {
                             try {
-                                // 起止时间：以当前时刻往前推 durationHours，仅用于占位展示
-                                val endTime = System.currentTimeMillis()
-                                val startTime = endTime - (durationHours * 3600_000).toLong()
                                 val amount = SalaryCalculator.calculateOvertimeAmount(
                                     baseSalary, selectedType, rate, durationHours
                                 )
@@ -243,8 +240,6 @@ fun QuickSubmitSheet(
                                     id = 0,
                                     date = today.time,
                                     type = selectedType,
-                                    startTime = startTime,
-                                    endTime = endTime,
                                     durationHours = durationHours,
                                     baseSalary = baseSalary,
                                     rate = rate,

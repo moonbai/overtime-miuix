@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +22,7 @@ import com.overtime.miuix.util.SalaryCalculator
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.*
@@ -55,6 +57,17 @@ fun StatisticsPage(
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
     val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
     val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
+
+    // 日期详情弹窗：选中的日期及当天记录
+    var showDayDetail by remember { mutableStateOf(false) }
+    var detailDay by remember { mutableStateOf<Int?>(null) }
+    val detailRecords: List<OvertimeRecord> = remember(detailDay, monthRecords) {
+        val day = detailDay ?: return@remember emptyList()
+        monthRecords.filter { r ->
+            val cal = Calendar.getInstance().apply { timeInMillis = r.date }
+            cal.get(Calendar.DAY_OF_MONTH) == day
+        }
+    }
 
     // 月度视图：加载当月数据和年度统计
     LaunchedEffect(selectedMonth, viewMode) {
@@ -194,7 +207,11 @@ fun StatisticsPage(
                 CalendarCard(
                     selectedMonth = selectedMonth,
                     dayAgg = dayAgg,
-                    typeColor = typeColor
+                    typeColor = typeColor,
+                    onDayClick = { day ->
+                        detailDay = day
+                        showDayDetail = true
+                    }
                 )
             }
         }
@@ -227,13 +244,155 @@ fun StatisticsPage(
             )
         }
     }
+
+    // 某天具体记录弹窗
+    if (showDayDetail && detailDay != null) {
+        val day = detailDay!!
+        val dateLabel = run {
+            val parts = selectedMonth.split("-")
+            "${parts[0]}年${parts[1]}月${day}日"
+        }
+        OverlayDialog(
+            show = showDayDetail,
+            title = "$dateLabel 记录明细",
+            summary = if (detailRecords.isEmpty()) "当天暂无记录" else "共 ${detailRecords.size} 条",
+            onDismissRequest = { showDayDetail = false }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                if (detailRecords.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "当天无加班/请假记录",
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                    }
+                } else {
+                    // 汇总
+                    val dayNet = detailRecords.sumOf { it.durationHours }
+                    val dayAmount = detailRecords.sumOf { it.amount }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "合计净时长: ${SalaryCalculator.formatHours(dayNet)}",
+                            style = MiuixTheme.textStyles.body2,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (dayNet < 0) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = SalaryCalculator.formatAmount(dayAmount),
+                            style = MiuixTheme.textStyles.body2,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (dayAmount < 0) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    detailRecords.forEach { record ->
+                        val typeLabel = if (record.isLeave) "请假" else record.type.label
+                        val recColor = if (record.isLeave) {
+                            MiuixTheme.colorScheme.error
+                        } else {
+                            typeColor(record.type)
+                        }
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            cornerRadius = 12.dp
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(4.dp)
+                                        .height(40.dp)
+                                        .background(recColor, RoundedCornerShape(2.dp))
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = typeLabel,
+                                            style = MiuixTheme.textStyles.body1,
+                                            fontWeight = FontWeight.Medium,
+                                            color = recColor
+                                        )
+                                        if (record.isLeave) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                color = MiuixTheme.colorScheme.error.copy(alpha = 0.1f),
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "扣薪",
+                                                    style = MiuixTheme.textStyles.footnote1,
+                                                    color = MiuixTheme.colorScheme.error,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    if (record.note.isNotBlank()) {
+                                        Text(
+                                            text = record.note,
+                                            style = MiuixTheme.textStyles.footnote1,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                            maxLines = 2
+                                        )
+                                    }
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = SalaryCalculator.formatAmount(record.amount),
+                                        style = MiuixTheme.textStyles.body1,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (record.isLeave) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = SalaryCalculator.formatHours(record.durationHours),
+                                        style = MiuixTheme.textStyles.footnote1,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { showDayDetail = false },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("关闭")
+                }
+            }
+        }
+    }
 }
 
 @Composable
 private fun CalendarCard(
     selectedMonth: String,
     dayAgg: Map<Int, DayAggregate>,
-    typeColor: (OvertimeType) -> Color
+    typeColor: (OvertimeType) -> Color,
+    onDayClick: (Int) -> Unit = {}
 ) {
     val parts = selectedMonth.split("-")
     val year = parts[0].toInt()
@@ -287,6 +446,7 @@ private fun CalendarCard(
                             } else {
                                 val agg = dayAgg[day]
                                 val isToday = isCurrentMonth && day == todayDay
+                                val hasRecords = agg != null && agg.maxAbs > 0
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier
@@ -296,6 +456,7 @@ private fun CalendarCard(
                                             else Color.Transparent,
                                             RoundedCornerShape(8.dp)
                                         )
+                                        .then(if (hasRecords || isToday) Modifier.clickable { onDayClick(day) } else Modifier)
                                         .padding(vertical = 4.dp)
                                 ) {
                                     Text(

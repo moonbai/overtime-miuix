@@ -109,17 +109,10 @@ fun PushSettingsPage(
 
     fun sampleRecord(): OvertimeRecord {
         val now = System.currentTimeMillis()
-        val cal = Calendar.getInstance().apply { timeInMillis = now }
-        cal.set(Calendar.HOUR_OF_DAY, 18); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-        val start = cal.timeInMillis
-        cal.set(Calendar.HOUR_OF_DAY, 20)
-        val end = cal.timeInMillis
         return OvertimeRecord(
             id = 0,
             date = now,
             type = OvertimeType.WORKDAY,
-            startTime = start,
-            endTime = end,
             durationHours = 2.0,
             baseSalary = 2200.0,
             rate = 1.5,

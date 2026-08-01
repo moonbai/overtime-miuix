@@ -34,12 +34,9 @@ object PushManager {
     fun buildText(record: OvertimeRecord): String {
         val typeStr = typeLabel(record.type)
         val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(record.date))
-        val startStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(record.startTime))
-        val endStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(record.endTime))
         val reason = record.note.takeIf { it.isNotBlank() } ?: "无"
         return """日期: $dateStr
 类型: $typeStr
-时间: $startStr-$endStr
 时长: ${"%.2f".format(record.durationHours)}小时
 金额: ¥${"%.2f".format(record.amount)}
 事由: $reason""".trimIndent()

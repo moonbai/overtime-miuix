@@ -27,6 +27,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.roundToLong
 
 @Composable
 fun AddEditRecordPage(
@@ -47,8 +48,7 @@ fun AddEditRecordPage(
 
     var selectedDate by remember { mutableStateOf(Date()) }
     var selectedType by remember { mutableStateOf(OvertimeType.WORKDAY) }
-    var startTimeStr by remember { mutableStateOf("18:00") }
-    var endTimeStr by remember { mutableStateOf("20:00") }
+    var durationHours by remember { mutableStateOf(2.0) }
     var note by remember { mutableStateOf("") }
     var isLeave by remember { mutableStateOf(false) }
     // 请假时长：半天 = -4，全天 = -8（小时）
@@ -58,9 +58,6 @@ fun AddEditRecordPage(
     // 当前日期自动判定得到的类型标签（用于展示提示）
     var autoTypeHint by remember { mutableStateOf<String?>(null) }
 
-    // 加班默认时间配置（来自基础设置）
-    val defaultStartTime by settingsRepository.defaultStartTime.collectAsState(initial = "17:00")
-    val endTimeAlign by settingsRepository.endTimeAlign.collectAsState(initial = "HALF")
     // 请假时长选择弹窗显隐
     var showLeaveDurationPicker by remember { mutableStateOf(false) }
 
@@ -94,19 +91,21 @@ fun AddEditRecordPage(
 
     var showTypePicker by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
-    var showStartPicker by remember { mutableStateOf(false) }
-    var showEndPicker by remember { mutableStateOf(false) }
+    var showDurationPicker by remember { mutableStateOf(false) }
 
     // 日期选择器状态（年/月/日）
     var pickYear by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
     var pickMonth by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.MONTH) + 1) }
     var pickDay by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.DAY_OF_MONTH)) }
 
-    // 时间选择器状态（小时/分钟）
-    var startHour by remember { mutableIntStateOf(startTimeStr.take(2).toIntOrNull() ?: 18) }
-    var startMinute by remember { mutableIntStateOf(startTimeStr.takeLast(2).toIntOrNull() ?: 0) }
-    var endHour by remember { mutableIntStateOf(endTimeStr.take(2).toIntOrNull() ?: 20) }
-    var endMinute by remember { mutableIntStateOf(endTimeStr.takeLast(2).toIntOrNull() ?: 0) }
+    // 时长选择器：以 0.5 小时为梯度，范围 0.5~24
+    var pickDurationIndex by remember { mutableIntStateOf(3) }
+    val durationOptions = remember { (0 until 48).map { (it + 1) * 0.5 } } // 0.5, 1.0, ..., 24.0
+
+    fun indexOfDuration(hours: Double): Int {
+        val idx = ((hours / 0.5).roundToLong() - 1).toInt()
+        return idx.coerceIn(0, durationOptions.size - 1)
+    }
 
     // 获取某年某月的天数
     fun daysInMonth(year: Int, month: Int): Int {
@@ -115,22 +114,17 @@ fun AddEditRecordPage(
         return cal.getActualMaximum(Calendar.DAY_OF_MONTH)
     }
 
-    val previewAmount = remember(selectedDate, selectedType, startTimeStr, endTimeStr, baseSalary, workdayRate, weekendRate, holidayRate, isLeave, leaveDuration) {
+    val previewAmount = remember(selectedDate, selectedType, durationHours, baseSalary, workdayRate, weekendRate, holidayRate, isLeave, leaveDuration) {
         if (isLeave) {
             // 请假：预估为工资扣减（负值）
             SalaryCalculator.calculateLeaveDeduction(baseSalary, leaveDuration.toDouble())
         } else {
-            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-            val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(selectedDate)
-            val start = sdf.parse("$dateStr $startTimeStr")?.time ?: 0
-            val end = sdf.parse("$dateStr $endTimeStr")?.time ?: 0
-            val duration = if (end > start) SalaryCalculator.calculateDurationHours(start, end) else 0.0
             val rate = when (selectedType) {
                 OvertimeType.WORKDAY -> workdayRate
                 OvertimeType.WEEKEND -> weekendRate
                 OvertimeType.HOLIDAY -> holidayRate
             }
-            SalaryCalculator.calculateOvertimeAmount(baseSalary, selectedType, rate, duration)
+            SalaryCalculator.calculateOvertimeAmount(baseSalary, selectedType, rate, durationHours)
         }
     }
 
@@ -142,9 +136,8 @@ fun AddEditRecordPage(
                 typeManuallyChanged = true
                 selectedDate = Date(it.date)
                 selectedType = it.type
-                val timeSdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-                startTimeStr = timeSdf.format(Date(it.startTime))
-                endTimeStr = timeSdf.format(Date(it.endTime))
+                // 编辑模式下时长初始化
+                durationHours = if (it.isLeave) Math.abs(it.durationHours) else it.durationHours.coerceAtLeast(0.5)
                 note = it.note
                 isLeave = it.isLeave
                 // 请假时长按已存时长初始化（-4 半天 / -8 全天）
@@ -156,30 +149,15 @@ fun AddEditRecordPage(
                 pickYear = cal.get(Calendar.YEAR)
                 pickMonth = cal.get(Calendar.MONTH) + 1
                 pickDay = cal.get(Calendar.DAY_OF_MONTH)
-                startHour = startTimeStr.take(2).toIntOrNull() ?: 18
-                startMinute = startTimeStr.takeLast(2).toIntOrNull() ?: 0
-                endHour = endTimeStr.take(2).toIntOrNull() ?: 20
-                endMinute = endTimeStr.takeLast(2).toIntOrNull() ?: 0
+                pickDurationIndex = indexOfDuration(durationHours)
             }
         } else {
-            // 新建模式：初始化为当前日期，并按基础设置填充默认开始时间 / 结束时间
+            // 新建模式：初始化为当前日期，默认时长 2.0h
             val cal = Calendar.getInstance()
             pickYear = cal.get(Calendar.YEAR)
             pickMonth = cal.get(Calendar.MONTH) + 1
             pickDay = cal.get(Calendar.DAY_OF_MONTH)
-            // 开始时间取基础设置默认值（如 17:00）
-            startTimeStr = defaultStartTime
-            // 结束时间取“当前打开时间”并按对齐粒度取整：HALF=30分，HOUR=整点
-            val now = Calendar.getInstance()
-            val roundedMinute = if (endTimeAlign == "HOUR") 0 else (now.get(Calendar.MINUTE) / 30) * 30
-            now.set(Calendar.MINUTE, roundedMinute)
-            now.set(Calendar.SECOND, 0)
-            now.set(Calendar.MILLISECOND, 0)
-            endTimeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now.time)
-            startHour = defaultStartTime.take(2).toIntOrNull() ?: 17
-            startMinute = defaultStartTime.takeLast(2).toIntOrNull() ?: 0
-            endHour = now.get(Calendar.HOUR_OF_DAY)
-            endMinute = roundedMinute
+            pickDurationIndex = indexOfDuration(2.0)
         }
     }
 
@@ -199,8 +177,7 @@ fun AddEditRecordPage(
                 recordId,
                 selectedDate,
                 selectedType,
-                startTimeStr,
-                endTimeStr,
+                durationHours,
                 baseSalary,
                 when (selectedType) {
                     OvertimeType.WORKDAY -> workdayRate
@@ -301,17 +278,10 @@ fun AddEditRecordPage(
 
                 item {
                     BasicComponent(
-                        title = "开始时间",
-                        summary = startTimeStr,
-                        onClick = { showStartPicker = true }
-                    )
-                }
-
-                item {
-                    BasicComponent(
-                        title = "结束时间",
-                        summary = endTimeStr,
-                        onClick = { showEndPicker = true }
+                        title = "加班时长",
+                        summary = SalaryCalculator.formatHours(durationHours),
+                        endActions = { DropdownArrowEndAction(MiuixTheme.colorScheme.primary) },
+                        onClick = { showDurationPicker = true }
                     )
                 }
             }
@@ -406,91 +376,33 @@ fun AddEditRecordPage(
             }
         }
 
-        if (showStartPicker) {
+        if (showDurationPicker) {
             OverlayDialog(
-                show = showStartPicker,
-                title = "开始时间",
-                onDismissRequest = { showStartPicker = false }
+                show = showDurationPicker,
+                title = "选择加班时长（0.5 小时梯度）",
+                onDismissRequest = { showDurationPicker = false }
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        NumberPicker(
-                            value = startHour,
-                            onValueChange = { startHour = it },
-                            range = 0..23,
-                            label = { it.toString().padStart(2, '0') },
-                            wrapAround = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(text = ":", fontWeight = FontWeight.Bold)
-                        NumberPicker(
-                            value = startMinute,
-                            onValueChange = { startMinute = it },
-                            range = 0..59,
-                            label = { it.toString().padStart(2, '0') },
-                            wrapAround = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(
-                        onClick = {
-                            startTimeStr = String.format("%02d:%02d", startHour, startMinute)
-                            showStartPicker = false
+                    NumberPicker(
+                        value = pickDurationIndex,
+                        onValueChange = { pickDurationIndex = it },
+                        range = 0 until durationOptions.size,
+                        label = {
+                            val h = durationOptions[it]
+                            val hi = h.toInt()
+                            val m = ((h - hi) * 60).toInt()
+                            if (m > 0) "${hi}h${m}m" else "${hi}h"
                         },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("确定")
-                    }
-                }
-            }
-        }
-
-        if (showEndPicker) {
-            OverlayDialog(
-                show = showEndPicker,
-                title = "结束时间",
-                onDismissRequest = { showEndPicker = false }
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        NumberPicker(
-                            value = endHour,
-                            onValueChange = { endHour = it },
-                            range = 0..23,
-                            label = { it.toString().padStart(2, '0') },
-                            wrapAround = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(text = ":", fontWeight = FontWeight.Bold)
-                        NumberPicker(
-                            value = endMinute,
-                            onValueChange = { endMinute = it },
-                            range = 0..59,
-                            label = { it.toString().padStart(2, '0') },
-                            wrapAround = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                        modifier = Modifier.heightIn(min = 180.dp)
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
                         onClick = {
-                            endTimeStr = String.format("%02d:%02d", endHour, endMinute)
-                            showEndPicker = false
+                            durationHours = durationOptions[pickDurationIndex]
+                            showDurationPicker = false
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -528,14 +440,18 @@ fun AddEditRecordPage(
             title = "选择请假时长",
             onDismissRequest = { showLeaveDurationPicker = false }
         ) {
-            Column {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 val options = listOf(-4 to "半天 (-4小时)", -8 to "全天 (-8小时)")
-                options.forEachIndexed { index, (value, label) ->
-                    DropdownImpl(
-                        text = label,
-                        optionSize = options.size,
+                val entries = options.map { SpinnerEntry(title = it.second) }
+                entries.forEachIndexed { index, entry ->
+                    val value = options[index].first
+                    SpinnerItemImpl(
+                        entry = entry,
+                        entryCount = entries.size,
                         isSelected = leaveDuration == value,
                         index = index,
+                        spinnerColors = SpinnerDefaults.dialogSpinnerColors(),
+                        dialogMode = true,
                         onSelectedIndexChange = {
                             leaveDuration = options[it].first
                             showLeaveDurationPicker = false
@@ -552,20 +468,15 @@ private suspend fun saveRecord(
     recordId: Long?,
     date: Date,
     type: OvertimeType,
-    startTimeStr: String,
-    endTimeStr: String,
+    durationHours: Double,
     baseSalary: Double,
     rate: Double,
     note: String,
     isLeave: Boolean,
     leaveDuration: Int
 ): OvertimeRecord? {
-    val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date)
-    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-    val startTime = sdf.parse("$dateStr $startTimeStr")?.time ?: date.time
-    val endTime = sdf.parse("$dateStr $endTimeStr")?.time ?: date.time
     // 请假记录：时长取 leaveDuration（半天 -4 / 全天 -8），工资按标准日薪比例扣减（负值）
-    val duration = if (isLeave) leaveDuration.toDouble() else SalaryCalculator.calculateDurationHours(startTime, endTime)
+    val duration = if (isLeave) leaveDuration.toDouble() else durationHours
     val amount = if (isLeave) SalaryCalculator.calculateLeaveDeduction(baseSalary, duration)
     else SalaryCalculator.calculateOvertimeAmount(baseSalary, type, rate, duration)
 
@@ -573,8 +484,6 @@ private suspend fun saveRecord(
         id = recordId ?: 0,
         date = date.time,
         type = type,
-        startTime = if (isLeave) date.time else startTime,
-        endTime = if (isLeave) date.time else endTime,
         durationHours = duration,
         baseSalary = baseSalary,
         rate = rate,

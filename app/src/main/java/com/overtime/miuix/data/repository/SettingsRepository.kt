@@ -34,12 +34,6 @@ class SettingsRepository(private val context: Context) {
     val weekendRate: Flow<Double> = context.dataStore.data.map { it[KEY_WEEKEND_RATE] ?: 2.0 }
     val holidayRate: Flow<Double> = context.dataStore.data.map { it[KEY_HOLIDAY_RATE] ?: 3.0 }
 
-    // 加班默认时间配置（基础设置）
-    // defaultStartTime: 新建记录时默认开始时间，如 "17:00"
-    // endTimeAlign: 结束时间对齐粒度，"HALF"=30分对齐，"HOUR"=整点对齐
-    val defaultStartTime: Flow<String> = context.dataStore.data.map { it[KEY_DEFAULT_START_TIME] ?: "17:00" }
-    val endTimeAlign: Flow<String> = context.dataStore.data.map { it[KEY_END_TIME_ALIGN] ?: "HALF" }
-
     // MCP settings
     val mcpEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_MCP_ENABLED] ?: false }
     val mcpPort: Flow<Int> = context.dataStore.data.map { it[KEY_MCP_PORT] ?: 8080 }
@@ -96,8 +90,6 @@ class SettingsRepository(private val context: Context) {
     suspend fun setWorkdayRate(rate: Double) { context.dataStore.edit { it[KEY_WORKDAY_RATE] = rate } }
     suspend fun setWeekendRate(rate: Double) { context.dataStore.edit { it[KEY_WEEKEND_RATE] = rate } }
     suspend fun setHolidayRate(rate: Double) { context.dataStore.edit { it[KEY_HOLIDAY_RATE] = rate } }
-    suspend fun setDefaultStartTime(time: String) { context.dataStore.edit { it[KEY_DEFAULT_START_TIME] = time } }
-    suspend fun setEndTimeAlign(align: String) { context.dataStore.edit { it[KEY_END_TIME_ALIGN] = align } }
 
     suspend fun setMcpEnabled(enabled: Boolean) { context.dataStore.edit { it[KEY_MCP_ENABLED] = enabled } }
     suspend fun setMcpPort(port: Int) { context.dataStore.edit { it[KEY_MCP_PORT] = port } }
@@ -153,8 +145,6 @@ class SettingsRepository(private val context: Context) {
                     KEY_WORKDAY_RATE.name -> prefs[KEY_WORKDAY_RATE] = value.toDoubleOrNull() ?: 1.5
                     KEY_WEEKEND_RATE.name -> prefs[KEY_WEEKEND_RATE] = value.toDoubleOrNull() ?: 2.0
                     KEY_HOLIDAY_RATE.name -> prefs[KEY_HOLIDAY_RATE] = value.toDoubleOrNull() ?: 3.0
-                    KEY_DEFAULT_START_TIME.name -> prefs[KEY_DEFAULT_START_TIME] = value
-                    KEY_END_TIME_ALIGN.name -> prefs[KEY_END_TIME_ALIGN] = value
                     KEY_PUSH_ENABLED.name -> prefs[KEY_PUSH_ENABLED] = value.toBoolean()
                     KEY_PUSH_CHANNEL.name -> prefs[KEY_PUSH_CHANNEL] = value
                     KEY_PUSH_DINGTALK.name -> prefs[KEY_PUSH_DINGTALK] = value
@@ -205,8 +195,6 @@ class SettingsRepository(private val context: Context) {
             KEY_WORKDAY_RATE.name to workdayRate.first().toString(),
             KEY_WEEKEND_RATE.name to weekendRate.first().toString(),
             KEY_HOLIDAY_RATE.name to holidayRate.first().toString(),
-            KEY_DEFAULT_START_TIME.name to defaultStartTime.first(),
-            KEY_END_TIME_ALIGN.name to endTimeAlign.first(),
             KEY_PUSH_ENABLED.name to pushEnabled.first().toString(),
             KEY_PUSH_CHANNEL.name to pushChannel.first(),
             KEY_PUSH_DINGTALK.name to pushDingTalk.first(),
@@ -290,8 +278,5 @@ class SettingsRepository(private val context: Context) {
         private val KEY_HOLIDAY_MXNZP_APP_ID = stringPreferencesKey("holiday_mxnzp_app_id")
         private val KEY_HOLIDAY_MXNZP_APP_SECRET = stringPreferencesKey("holiday_mxnzp_app_secret")
         private val KEY_HOLIDAY_IGNORE_HOLIDAY = booleanPreferencesKey("holiday_ignore_holiday")
-
-        private val KEY_DEFAULT_START_TIME = stringPreferencesKey("default_start_time")
-        private val KEY_END_TIME_ALIGN = stringPreferencesKey("end_time_align")
     }
 }
