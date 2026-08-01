@@ -1,5 +1,6 @@
 package com.overtime.miuix.ui.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -8,6 +9,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.OvertimeRepository
@@ -76,11 +78,11 @@ fun MainScreen(
         },
         bottomBar = {
             if (useFloatingNav) {
-                // 悬浮底栏：IconOnly 模式（紧凑）+ 高斯模糊毛玻璃效果
+                // 悬浮底栏：透明容器 + 宽 padding（参考 Miuix 底栏样式）
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                        .padding(horizontal = 4.dp, vertical = 6.dp)
                         .textureBlur(
                             backdrop = navBackdrop,
                             shape = RoundedCornerShape(28.dp),
@@ -89,6 +91,7 @@ fun MainScreen(
                         )
                 ) {
                     FloatingNavigationBar(
+                        modifier = Modifier.background(Color.Transparent),
                         mode = floatingNavMode,
                         cornerRadius = 28.dp,
                         horizontalOutSidePadding = 0.dp,
