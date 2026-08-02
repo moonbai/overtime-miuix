@@ -54,13 +54,6 @@ fun MainScreen(
         else -> NavigationBarDisplayMode.IconAndText
     }
 
-    // 悬浮底栏显示模式：与底栏样式设置保持一致
-    val floatingNavMode = when (bottomBarStyle) {
-        "ICON_ONLY" -> FloatingNavigationBarDisplayMode.IconOnly
-        "TEXT_ONLY" -> FloatingNavigationBarDisplayMode.TextOnly
-        else -> FloatingNavigationBarDisplayMode.IconAndText
-    }
-
     // 首页 FAB 的高斯模糊背景层：捕获底栏之上的页面内容作为模糊源
     val fabBackdrop = rememberLayerBackdrop()
     // 悬浮/普通底栏的高斯模糊背景层：捕获页面内容作为毛玻璃源
@@ -181,32 +174,28 @@ fun MainScreen(
                 }
             }
 
-            // 悬浮底栏（叠加层）：外层 Box 仅负责「居中对齐 + 离底间距」，
-            // 内层 textureBlur Box 紧贴 FloatingNavigationBar（wrapContentWidth），
-            // 使高斯模糊背景的位置与尺寸与悬浮底栏完全一致。
+            // 悬浮底栏（叠加层）：将 textureBlur 直接作用于 FloatingNavigationBar 自身，
+            // 使高斯模糊背景的高/宽/圆角与底栏完全一致（miuix 0.9.3 官方用法）；
+            // 模糊生效时底栏底色设为透明以露出毛玻璃，不支持时回落为实色背景。
+            // 外层 Box 仅负责「居中对齐 + 离底间距」。
             if (useFloatingNav) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = navBarInset + floatingBarOffset)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .wrapContentWidth()
-                            .textureBlur(
-                                backdrop = navBackdrop,
-                                shape = RoundedCornerShape(28.dp),
-                                blurRadius = 40f,
-                                enabled = blurSupported
-                            )
+                    FloatingNavigationBar(
+                        modifier = Modifier.textureBlur(
+                            backdrop = navBackdrop,
+                            shape = RoundedCornerShape(28.dp),
+                            blurRadius = 40f,
+                            enabled = blurSupported
+                        ),
+                        color = if (blurSupported) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer,
+                        cornerRadius = 28.dp,
+                        horizontalOutSidePadding = 0.dp,
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        FloatingNavigationBar(
-                            modifier = Modifier.background(Color.Transparent),
-                            mode = floatingNavMode,
-                            cornerRadius = 28.dp,
-                            horizontalOutSidePadding = 0.dp,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
                             FloatingNavigationBarItem(
                                 selected = selectedTab == 0,
                                 onClick = { selectedTab = 0 },
