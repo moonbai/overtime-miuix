@@ -144,8 +144,8 @@ dependencies {
     implementation(libs.gson)
 
     // MIUIX 0.9.3（Compose Multiplatform 库，传递依赖 JetBrains Compose 1.11.1，
-    // 其内部依赖 androidx.compose.foundation:1.11.2，高于 BOM 2024.12.01 的 1.7.x，
-    // Gradle 自动选择高版本，无需 exclude。）
+    // 其内部依赖 androidx.compose.foundation:1.11.2，BOM 2026.04.01 提供 1.11.2，
+    // 版本一致无需 exclude。）
     implementation(libs.miuix.ui)
     implementation(libs.miuix.icons)
     implementation(libs.miuix.blur)
