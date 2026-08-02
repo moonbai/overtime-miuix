@@ -31,9 +31,12 @@ jobs:
         $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
 
     - name: Set up Gradle
-      uses: gradle/actions/setup-gradle@v3
+      uses: gradle/actions/setup-gradle@v4
       with:
         gradle-version: '9.3.1'
+        # 缓存只读：避免 GitHub Actions 缓存服务间歇性故障导致构建被标记为失败
+        # post-action 阶段缓存写入失败不会影响 job 退出码
+        cache-read-only: true
 
     - name: Sync version from tag
       if: startsWith(github.ref, 'refs/tags/v')
@@ -56,7 +59,7 @@ jobs:
         # 可选：CNB 兜底数据源令牌（cnb.cool），供 BuildConfig.CNB_TOKEN 使用。
         # 未配置时为空，CNB 公开仓库仍可匿名访问。
         CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
-      run: ./gradlew assembleRelease --no-daemon
+      run: ./gradlew assembleRelease --no-daemon --stacktrace --warning-mode all
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
