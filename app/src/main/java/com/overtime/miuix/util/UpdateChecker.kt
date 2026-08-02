@@ -71,6 +71,11 @@ object UpdateChecker {
         Pattern.CASE_INSENSITIVE
     )
 
+    private val VERSIONCODE_PATTERN = Pattern.compile(
+        "versionCode[:：]\\s*([0-9]+)",
+        Pattern.CASE_INSENSITIVE
+    )
+
     /** 最近一次检查失败的原因（供 UI 展示更精确的提示）。 */
     var lastError: String? = null
         private set
@@ -80,11 +85,17 @@ object UpdateChecker {
 
     data class UpdateInfo(
         val latestVersion: String,
+        val versionCode: Int?,
         val downloadUrl: String,
         val releaseNotes: String,
         val releaseUrl: String,
-        val expectedSha256: String?
+        val expectedSha256: String?,
+        val source: String = ""
     )
+
+    /** 两个数据源（GitHub / CNB）返回的版本是否不一致（用于提示版本可能未同步）。 */
+    var sourceMismatch: Boolean = false
+        private set
 
     private var cachedInfo: UpdateInfo? = null
 
@@ -124,40 +135,80 @@ object UpdateChecker {
         return 0
     }
 
-    /** 是否有更新（latest 版本号严格大于 current） */
-    fun hasUpdate(currentVersion: String, info: UpdateInfo): Boolean =
-        compareVersion(currentVersion, info.latestVersion) > 0
+    /**
+     * 是否有更新：同时比对 versionCode 与 versionName。
+     * - 远端 versionCode 大于本地 → 有更新；
+     * - 或远端 versionName 严格大于本地 → 有更新。
+     */
+    fun hasUpdate(currentVersion: String, currentVersionCode: Int, info: UpdateInfo): Boolean {
+        val codeNewer = info.versionCode != null && info.versionCode > currentVersionCode
+        val nameNewer = compareVersion(currentVersion, info.latestVersion) > 0
+        return codeNewer || nameNewer
+    }
 
     /**
-     * 检查更新（GitHub → CNB 双源兜底）。
-     * @return 成功返回 [UpdateInfo]，失败（网络/鉴权/限流）返回 null，
-     *         失败时可通过 [lastError] 获取更精确的原因。
+     * 检查更新（GitHub 与 CNB 双源并行查询）。
+     *
+     * - 两源同时发起请求；任意一源成功即可返回信息（防止单边不可达导致无结果）。
+     * - 汇总两源结果：取版本更高者（先比 versionCode，再比 versionName）；
+     *   若两源返回的版本不一致，置位 [sourceMismatch] 供 UI 提示仓库可能未同步。
+     * - 全部失败时返回 null，可通过 [lastError] 获取原因。
+     *
+     * @return 成功返回 [UpdateInfo]，失败返回 null。
      */
     suspend fun check(currentVersion: String): UpdateInfo? {
         lastError = null
+        sourceMismatch = false
         return withContext(Dispatchers.IO) {
-            // 1) GitHub：优先令牌（更高限额 / 私有仓库），否则匿名；再尝试公开镜像兜底
-            if (GITHUB_TOKEN.isNotBlank()) {
-                tryFetch(RELEASES_URL, GITHUB_TOKEN, "GitHub", ACCEPT_GITHUB)
-                    ?.let { return@withContext it }
-            }
-            tryFetch(RELEASES_URL, null, "GitHub", ACCEPT_GITHUB)?.let { return@withContext it }
-            for (mirror in MIRROR_URLS) {
-                tryFetch(mirror, null, "GitHub 镜像", ACCEPT_GITHUB)?.let { return@withContext it }
-            }
-            // 2) CNB 兜底：防止 GitHub 单边不可达（网络 / 区域限制等）
-            // CNB 不支持匿名调用，未注入令牌时直接跳过，避免无谓的 401 覆盖掉更有意义的错误提示
-            if (CNB_TOKEN.isNotBlank()) {
-                tryFetch(CNB_RELEASES_URL, CNB_TOKEN, "CNB", ACCEPT_CNB)?.let {
-                    return@withContext it
+            coroutineScope {
+                // 两源并行查询
+                val githubDeferred = async { tryGithub() }
+                val cnbDeferred = async { tryCnb() }
+                val githubInfo = githubDeferred.await()
+                val cnbInfo = cnbDeferred.await()
+
+                val results = listOfNotNull(githubInfo, cnbInfo)
+                if (results.isEmpty()) {
+                    if (lastError == null) {
+                        lastError = "更新检查失败，请检查网络连接或稍后重试"
+                    }
+                    Log.e(TAG, "更新检查失败: $lastError")
+                    return@coroutineScope null
                 }
+
+                // 两源都成功时，校验版本是否一致（versionCode 优先，否则 versionName）
+                if (githubInfo != null && cnbInfo != null) {
+                    val ghKey = githubInfo.versionCode ?: githubInfo.latestVersion
+                    val cnKey = cnbInfo.versionCode ?: cnbInfo.latestVersion
+                    if (ghKey != cnKey) sourceMismatch = true
+                }
+
+                // 取版本更高者
+                results.maxWithOrNull(compareByDescending<UpdateInfo> { it.versionCode ?: Int.MIN_VALUE }
+                    .thenByDescending { compareVersion(currentVersion, it.latestVersion) > 0 })
+                    ?: results.first()
             }
-            if (lastError == null) {
-                lastError = "更新检查失败，请检查网络连接或稍后重试"
-            }
-            Log.e(TAG, "更新检查失败: $lastError")
-            null
         }
+    }
+
+    /** GitHub 源：令牌 → 匿名 → 公开镜像兜底，命中即返回。 */
+    private suspend fun tryGithub(): UpdateInfo? {
+        if (GITHUB_TOKEN.isNotBlank()) {
+            tryFetch(RELEASES_URL, GITHUB_TOKEN, "GitHub", ACCEPT_GITHUB)?.let { return it }
+        }
+        tryFetch(RELEASES_URL, null, "GitHub", ACCEPT_GITHUB)?.let { return it }
+        for (mirror in MIRROR_URLS) {
+            tryFetch(mirror, null, "GitHub 镜像", ACCEPT_GITHUB)?.let { return it }
+        }
+        return null
+    }
+
+    /** CNB 源：仅作兜底，未注入令牌（不支持匿名）时直接跳过。 */
+    private suspend fun tryCnb(): UpdateInfo? {
+        if (CNB_TOKEN.isNotBlank()) {
+            return tryFetch(CNB_RELEASES_URL, CNB_TOKEN, "CNB", ACCEPT_CNB)
+        }
+        return null
     }
 
     private fun createClient(): HttpClient = HttpClient(OkHttp) {
@@ -193,7 +244,7 @@ object UpdateChecker {
                 val body = response.bodyAsText()
 
                 when (status) {
-                    200 -> parseRelease(body)
+                    200 -> parseRelease(body, source)
                     401, 403 -> {
                         lastError = if (!token.isNullOrBlank()) {
                             "$source：令牌无效或无权限访问该仓库"
@@ -224,7 +275,7 @@ object UpdateChecker {
         }
     }
 
-    private fun parseRelease(body: String): UpdateInfo? {
+    private fun parseRelease(body: String, source: String): UpdateInfo? {
         return try {
             val json = com.google.gson.JsonParser.parseString(body).asJsonObject
             val tagName = json.get("tag_name")?.asString?.removePrefix("v") ?: return null
@@ -240,12 +291,18 @@ object UpdateChecker {
             val expectedSha256 = SHA256_PATTERN.matcher(bodyText).let { m ->
                 if (m.find()) m.group(1)?.lowercase() else null
             }
+            // 从发布说明解析 versionCode（兼容 "versionCode: 12" 写法）
+            val versionCode = VERSIONCODE_PATTERN.matcher(bodyText).let { m ->
+                if (m.find()) m.group(1)?.toIntOrNull() else null
+            }
             val info = UpdateInfo(
                 latestVersion = tagName,
+                versionCode = versionCode,
                 downloadUrl = downloadUrl,
                 releaseNotes = bodyText.take(300),
                 releaseUrl = htmlUrl,
-                expectedSha256 = expectedSha256
+                expectedSha256 = expectedSha256,
+                source = source
             )
             cachedInfo = info
             info

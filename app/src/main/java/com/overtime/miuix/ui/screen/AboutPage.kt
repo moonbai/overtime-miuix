@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.overtime.miuix.BuildConfig
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import com.overtime.miuix.ui.snackbar.showCustomToast
 import com.overtime.miuix.util.UpdateChecker
@@ -193,7 +194,7 @@ fun AboutPage(navController: NavHostController) {
                     )
                     BasicComponent(
                         title = "检查更新",
-                        summary = "查询 GitHub 最新版本",
+                        summary = "同时查询 GitHub 与 CNB 最新版本",
                         startAction = { Icon(MiuixIcons.Update, contentDescription = null) },
                         endActions = {
                             Icon(
@@ -213,7 +214,7 @@ fun AboutPage(navController: NavHostController) {
                                     snackbarHostState.showCustomToast(
                                         UpdateChecker.lastError ?: "检查失败，请检查网络连接"
                                     )
-                                } else if (UpdateChecker.hasUpdate(versionName, info)) {
+                                } else if (UpdateChecker.hasUpdate(versionName, BuildConfig.VERSION_CODE, info)) {
                                     // 有新版：提示更新
                                     updateInfo = info
                                     showUpdateDialog = true
@@ -226,7 +227,12 @@ fun AboutPage(navController: NavHostController) {
                                         updateInfo = info
                                         showConsistencyDialog = true
                                     } else {
-                                        snackbarHostState.showCustomToast("已是最新版本")
+                                        val msg = if (UpdateChecker.sourceMismatch) {
+                                            "已是最新版本（注：GitHub 与 CNB 版本不一致，可能未同步）"
+                                        } else {
+                                            "已是最新版本"
+                                        }
+                                        snackbarHostState.showCustomToast(msg)
                                     }
                                 }
                             }
