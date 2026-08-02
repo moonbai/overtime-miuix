@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
@@ -142,22 +143,20 @@ dependencies {
     // Gson
     implementation(libs.gson)
 
-    // MIUIX 0.9.3 — Compose BOM 已升级至 2026.05.01（Foundation 1.11.2）消除版本冲突
+    // MIUIX 0.9.3 — Compose BOM 已升级至 2026.05.01（Foundation 1.11.2）消除版本冲突。
+    // 仅排除 org.jetbrains.compose.foundation（与 AndroidX Foundation 冲突），
+    // 保留 org.jetbrains.compose.material3（material3-window-size-class 为 miuix 运行时所需）。
     implementation(libs.miuix.ui) {
         exclude(group = "org.jetbrains.compose.foundation")
-        exclude(group = "org.jetbrains.compose.material3")
     }
     implementation(libs.miuix.icons) {
         exclude(group = "org.jetbrains.compose.foundation")
-        exclude(group = "org.jetbrains.compose.material3")
     }
     implementation(libs.miuix.blur) {
         exclude(group = "org.jetbrains.compose.foundation")
-        exclude(group = "org.jetbrains.compose.material3")
     }
     implementation(libs.miuix.preference) {
         exclude(group = "org.jetbrains.compose.foundation")
-        exclude(group = "org.jetbrains.compose.material3")
     }
 
     // NavigationEvent — miuix 0.9.3 OverlayDialog 依赖
@@ -169,4 +168,15 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     debugImplementation(libs.androidx.ui.tooling)
+}
+
+// 强制统一 Compose Foundation 版本：miuix 0.9.3 通过 JetBrains Compose
+// 传递依赖 androidx.compose.foundation:1.11.2，与 BOM 2026.05.01 一致。
+// 排除 org.jetbrains.compose.foundation 避免 Duplicate class（JetBrains JAR 内含 AndroidX 类），
+// 由 AndroidX BOM + force 统管版本。
+configurations.all {
+    resolutionStrategy {
+        force("androidx.compose.foundation:foundation:1.11.2")
+        force("androidx.compose.foundation:foundation-layout:1.11.2")
+    }
 }
