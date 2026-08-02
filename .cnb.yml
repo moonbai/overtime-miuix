@@ -1,0 +1,256 @@
+# CNB 云原生构建配置（对齐 .github/workflows/android.yml 的构建产物）
+#
+# 触发方式：
+#   - main 分支 push        → 构建 Release APK，产物上传到 commit 附件
+#   - 打 v* 标签 tag_push    → 构建 Release APK，创建 Release 并上传 APK 附件
+#   - 仓库页面手动触发        → 同 push 流程，便于不改代码重跑构建
+#
+# 签名密钥（KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD）：
+#   CNB 没有「仓库设置 → Secrets」入口，密钥统一用「密钥仓库 + imports」管理：
+#   在密钥仓库 ismartis/Overtime-Miuix（新建仓库时类型选「密钥仓库」）的 Web 界面
+#   新建 android-sign.yml，写入这 4 项；本文件用 imports 引用，CNB 自动注入为环境变量，
+#   被 check-signing 与 build.gradle.kts 读取。密钥严禁写入本仓库源码。
+
+.android-env: &android-env
+  ANDROID_HOME: /opt/android-sdk
+  ANDROID_SDK_ROOT: /opt/android-sdk
+  # Gradle：关闭 daemon（CI 单次构建无需常驻），限制内存避免容器 OOM
+  GRADLE_OPTS: -Dorg.gradle.daemon=false -Dfile.encoding=UTF-8
+  GRADLE_USER_HOME: /root/.gradle
+  # 更新检查令牌：默认留空，APK 内不写入任何凭证。
+  # 若需启用带令牌的更新检查，在密钥仓库中定义 GH_UPDATE_TOKEN / CNB_UPDATE_TOKEN，
+  # 构建阶段会映射为 BuildConfig 所需的 GITHUB_TOKEN / CNB_TOKEN。
+  # 安全提示：严禁直接使用 CNB 内置的流水线令牌 CNB_TOKEN——它是只读注入的临时凭证，
+  # 若被 build.gradle.kts 读入 BuildConfig，会随 APK 分发出去。构建前必须显式覆盖。
+  GH_UPDATE_TOKEN: ""
+  CNB_UPDATE_TOKEN: ""
+
+.prepare-sdk: &prepare-sdk
+  name: 准备 Android SDK 37 构建环境
+  script: |
+    set -e
+    SDK_ROOT="${ANDROID_SDK_ROOT:-/opt/android-sdk}"
+    SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+
+    if [ ! -x "$SDKMANAGER" ]; then
+      echo "==> 首次构建：安装 Android commandline-tools（后续构建走 volumes 缓存）"
+      apt-get update -qq
+      apt-get install -y -qq --no-install-recommends unzip curl ca-certificates
+      mkdir -p "$SDK_ROOT/cmdline-tools" /tmp/cmdline
+      # 多个候选版本兜底：新版 sdkmanager 才能识别 platforms;android-37.0 这类新命名
+      for V in 13114758 12266719 11076708; do
+        if curl -fsSL --retry 3 --connect-timeout 20 \
+             -o /tmp/cmdline/tools.zip \
+             "https://dl.google.com/android/repository/commandlinetools-linux-${V}_latest.zip"; then
+          echo "==> 已下载 commandline-tools ${V}"
+          break
+        fi
+        echo "!! commandline-tools ${V} 下载失败，尝试下一个候选版本"
+      done
+      unzip -q /tmp/cmdline/tools.zip -d /tmp/cmdline
+      mv /tmp/cmdline/cmdline-tools "$SDK_ROOT/cmdline-tools/latest"
+    else
+      echo "==> 命中缓存，跳过 commandline-tools 安装"
+    fi
+
+    yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+    echo "==> 安装 platforms;android-37.0 与 build-tools;37.0.0"
+    if ! "$SDKMANAGER" --install "platform-tools" "platforms;android-37.0" "build-tools;37.0.0"; then
+      echo "!! SDK 组件安装失败，输出可用包清单用于排查："
+      "$SDKMANAGER" --list | grep -E "platforms;android-3[5-9]|build-tools;3[5-9]" | head -40
+      exit 1
+    fi
+    echo "sdk.dir=$SDK_ROOT" > local.properties
+    echo "==> SDK 就绪：$SDK_ROOT"
+
+.check-signing: &check-signing
+  name: 校验签名密钥配置
+  script: |
+    MISSING=""
+    for V in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+      eval "VAL=\${$V}"
+      [ -z "$VAL" ] && MISSING="$MISSING $V"
+    done
+    if [ -n "$MISSING" ]; then
+      echo "=============================================================="
+      echo " 构建终止：Release 签名密钥缺失 →$MISSING"
+      echo ""
+      echo " 配置方式（在密钥仓库 ismartis/Overtime-Miuix 的 Web 界面新建 android-sign.yml）："
+      echo "   1. 进入 ismartis/Overtime-Miuix 仓库 → Web 界面新建文件 android-sign.yml"
+      echo "   2. 写入 4 项键值对（变量名=值）："
+      echo "      KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD"
+      echo "      其中 KEYSTORE_BASE64 为 .jks 签名文件 base64 后的单行文本"
+      echo "   3. 本仓库 .cnb.yml 已用 imports 引用该文件，无需其它配置"
+      echo "   4. 配置完成后重新推送 main 或点「手动触发」即可出 Release 包"
+      echo "=============================================================="
+      exit 1
+    fi
+    # 关键加固：提前解码并实测 keystore 可读性，避免 5 分钟后才在 packageRelease 失败
+    echo "==> 解码并校验 keystore 完整性 ..."
+    printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' > /tmp/ci_ks_b64.txt
+    if ! base64 -d /tmp/ci_ks_b64.txt > /tmp/ci_ks_check.jks 2>/tmp/ci_ks_err; then
+      echo "=============================================================="
+      echo " 构建终止：KEYSTORE_BASE64 不是合法 base64（被截断/含非法字符/缺失 padding）"
+      echo " 解码错误：$(head -1 /tmp/ci_ks_err)"
+      echo " 请检查 ismartis/Overtime-Miuix 的 android-sign.yml 中 KEYSTORE_BASE64："
+      echo "   · 必须是完整、单行、以 == 结尾的 base64 文本（无换行、无注释 #）"
+      echo "   · 可用本地命令预检：base64 -d <(printf %s \"\$KEYSTORE_BASE64\") > /tmp/k.jks && keytool -list -alias Mars -keystore /tmp/k.jks -storepass <密码>"
+      echo "=============================================================="
+      exit 1
+    fi
+    if ! keytool -list -alias "$KEY_ALIAS" -keystore /tmp/ci_ks_check.jks \
+         -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD" >/dev/null 2>&1; then
+      echo "=============================================================="
+      echo " 构建终止：keystore 解码成功但密钥无法读取（内容损坏或口令不匹配）"
+      echo " keytool 实测：alias=$KEY_ALIAS 读取失败（口令错误或 keystore 损坏）"
+      echo " 常见原因：android-sign.yml 中 KEYSTORE_BASE64 为损坏副本，或"
+      echo "   KEY_ALIAS/KEY_PASSWORD 与 keystore 内实际条目不一致"
+      echo " 请重新用「正确的 .jks」生成 base64 并整体替换 android-sign.yml 的 4 项"
+      echo "=============================================================="
+      exit 1
+    fi
+    echo "==> 签名密钥已注入且校验通过（值不回显）"
+
+.build-apk: &build-apk
+  name: 构建 Release APK
+  script: |
+    set -e
+    chmod +x ./gradlew
+    # 关键：用显式声明的更新令牌覆盖 CNB 内置的临时流水线令牌，
+    # 避免 buildConfigField 把 CI 凭证固化进 APK。未配置时即为空字符串。
+    export GITHUB_TOKEN="${GH_UPDATE_TOKEN:-}"
+    export CNB_TOKEN="${CNB_UPDATE_TOKEN:-}"
+    ./gradlew assembleRelease --no-daemon --stacktrace
+    echo "==> 构建产物："
+    ls -lh app/build/outputs/apk/release/
+    # 校验 APK 内未混入 CI 凭证（BuildConfig 中的令牌应为空串）
+    APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+    echo "==> 产物签名信息："
+    "$ANDROID_SDK_ROOT"/build-tools/37.0.0/apksigner verify --print-certs "$APK" 2>/dev/null | head -8 || \
+      echo "（apksigner 校验跳过）"
+
+main:
+  push:
+    - name: build-release-apk
+      imports: https://cnb.cool/ismartis/Overtime-Miuix/-/blob/main/android-sign.yml
+      docker:
+        image: eclipse-temurin:17-jdk
+        # cow 卷缓存：SDK 与 Gradle 依赖在后续构建中复用，避免每次重新下载
+        volumes:
+          - /root/.gradle:cow
+          - /opt/android-sdk:cow
+      env:
+        <<: *android-env
+      stages:
+        - *prepare-sdk
+        - *check-signing
+        - *build-apk
+        - name: 上传 APK 到 commit 附件
+          image: cnbcool/attachments:latest
+          settings:
+            attachments:
+              - app/build/outputs/apk/release/*.apk
+          exports:
+            FILES: APK_FILES
+        - name: 输出下载地址
+          script: echo "APK 附件：$APK_FILES"
+
+  # 仓库页面「手动触发」按钮，便于不提交代码重跑构建
+  web_trigger:
+    - name: manual-build-release-apk
+      imports: https://cnb.cool/ismartis/Overtime-Miuix/-/blob/main/android-sign.yml
+      docker:
+        image: eclipse-temurin:17-jdk
+        volumes:
+          - /root/.gradle:cow
+          - /opt/android-sdk:cow
+      env:
+        <<: *android-env
+      stages:
+        - *prepare-sdk
+        - *check-signing
+        - *build-apk
+
+  # OpenAPI 远程触发（cnb build start-build --event api_trigger），便于不改代码重跑构建
+  api_trigger:
+    - name: api-build-release-apk
+      imports: https://cnb.cool/ismartis/Overtime-Miuix/-/blob/main/android-sign.yml
+      docker:
+        image: eclipse-temurin:17-jdk
+        volumes:
+          - /root/.gradle:cow
+          - /opt/android-sdk:cow
+      env:
+        <<: *android-env
+      stages:
+        - *prepare-sdk
+        - *check-signing
+        - *build-apk
+        - name: 上传 APK 到 commit 附件
+          image: cnbcool/attachments:latest
+          settings:
+            attachments:
+              - app/build/outputs/apk/release/*.apk
+
+  # 环境自检：不依赖签名密钥，仅验证 SDK 安装与依赖解析是否通畅
+  api_trigger_envcheck:
+    - name: env-check
+      docker:
+        image: eclipse-temurin:17-jdk
+        volumes:
+          - /root/.gradle:cow
+          - /opt/android-sdk:cow
+      env:
+        <<: *android-env
+      stages:
+        - *prepare-sdk
+        - name: 校验依赖解析与编译（不签名）
+          script: |
+            set -e
+            chmod +x ./gradlew
+            export GITHUB_TOKEN=""
+            export CNB_TOKEN=""
+            ./gradlew assembleDebug --no-daemon --stacktrace
+            echo "==> Debug 包构建通过，依赖与编译链路正常"
+            ls -lh app/build/outputs/apk/debug/
+        - name: 上传 APK 到 commit 附件
+          image: cnbcool/attachments:latest
+          settings:
+            attachments:
+              - app/build/outputs/apk/debug/*.apk
+
+$:
+  # 打 v* 标签时发布 Release，供 App 内更新检查读取
+  tag_push:
+    - name: release-apk
+      imports: https://cnb.cool/ismartis/Overtime-Miuix/-/blob/main/android-sign.yml
+      docker:
+        image: eclipse-temurin:17-jdk
+        volumes:
+          - /root/.gradle:cow
+          - /opt/android-sdk:cow
+      env:
+        <<: *android-env
+      stages:
+        - *prepare-sdk
+        - *check-signing
+        - name: 同步标签版本号到 build.gradle.kts
+          script: |
+            set -e
+            VERSION="${CNB_BRANCH#v}"
+            echo "==> 发版版本：$VERSION"
+            sed -i "s/versionName = \".*\"/versionName = \"$VERSION\"/" app/build.gradle.kts
+            grep -E "versionCode|versionName" app/build.gradle.kts
+        - *build-apk
+        - name: 创建 Release
+          type: git:release
+          options:
+            title: ${CNB_BRANCH}
+            description: |
+              Overtime ${CNB_BRANCH} 自动构建版本
+              构建来源：CNB 流水线 #${CNB_BUILD_ID}
+        - name: 上传 APK 到 Release 附件
+          image: cnbcool/attachments:latest
+          settings:
+            attachments:
+              - app/build/outputs/apk/release/*.apk

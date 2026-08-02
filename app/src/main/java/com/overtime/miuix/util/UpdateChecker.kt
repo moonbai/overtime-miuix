@@ -47,9 +47,18 @@ object UpdateChecker {
     private val RELEASES_URL =
         "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest"
 
-    // CNB（cnb.cool）兜底数据源：与 GitHub releases/latest 字段结构兼容（tag_name / body / assets）。
+    // CNB 侧仓库路径与 GitHub 不同：CNB 托管在 ismartis 组织下，切勿复用 GitHub 的 owner/name。
+    private const val CNB_REPO_SLUG = "ismartis/Overtime"
+
+    // CNB（cnb.cool）兜底数据源：字段结构与 GitHub releases/latest 兼容（tag_name / body / assets）。
+    // 注意：CNB OpenAPI 不支持匿名访问（匿名返回 401），必须注入 BuildConfig.CNB_TOKEN 才会生效。
     private val CNB_RELEASES_URL =
-        "https://api.cnb.build/$REPO_OWNER/$REPO_NAME/-/releases/latest"
+        "https://api.cnb.cool/$CNB_REPO_SLUG/-/releases/latest"
+
+    // GitHub 与 CNB 的 Accept 头不通用：CNB 只接受 application/json，
+    // 收到 application/vnd.github+json 会直接返回 406。
+    private const val ACCEPT_GITHUB = "application/vnd.github+json"
+    private const val ACCEPT_CNB = "application/json"
 
     // 直连失败时的兜底镜像（仅供【公开仓库】匿名代理，不携带令牌）。
     private val MIRROR_URLS = listOf(
@@ -129,15 +138,19 @@ object UpdateChecker {
         return withContext(Dispatchers.IO) {
             // 1) GitHub：优先令牌（更高限额 / 私有仓库），否则匿名；再尝试公开镜像兜底
             if (GITHUB_TOKEN.isNotBlank()) {
-                tryFetch(RELEASES_URL, GITHUB_TOKEN, "GitHub")?.let { return@withContext it }
+                tryFetch(RELEASES_URL, GITHUB_TOKEN, "GitHub", ACCEPT_GITHUB)
+                    ?.let { return@withContext it }
             }
-            tryFetch(RELEASES_URL, null, "GitHub")?.let { return@withContext it }
+            tryFetch(RELEASES_URL, null, "GitHub", ACCEPT_GITHUB)?.let { return@withContext it }
             for (mirror in MIRROR_URLS) {
-                tryFetch(mirror, null, "GitHub 镜像")?.let { return@withContext it }
+                tryFetch(mirror, null, "GitHub 镜像", ACCEPT_GITHUB)?.let { return@withContext it }
             }
             // 2) CNB 兜底：防止 GitHub 单边不可达（网络 / 区域限制等）
-            tryFetch(CNB_RELEASES_URL, CNB_TOKEN.takeIf { it.isNotBlank() }, "CNB")?.let {
-                return@withContext it
+            // CNB 不支持匿名调用，未注入令牌时直接跳过，避免无谓的 401 覆盖掉更有意义的错误提示
+            if (CNB_TOKEN.isNotBlank()) {
+                tryFetch(CNB_RELEASES_URL, CNB_TOKEN, "CNB", ACCEPT_CNB)?.let {
+                    return@withContext it
+                }
             }
             if (lastError == null) {
                 lastError = "更新检查失败，请检查网络连接或稍后重试"
@@ -158,14 +171,20 @@ object UpdateChecker {
     }
 
     /**
-     * 通用请求：请求 [url]，[token] 非空时附带 Bearer 鉴权，[source] 仅用于错误提示标注来源。
+     * 通用请求：请求 [url]，[token] 非空时附带 Bearer 鉴权，[source] 仅用于错误提示标注来源，
+     * [accept] 为该数据源要求的 Accept 头（GitHub 与 CNB 取值不同，混用会被 CNB 判为 406）。
      * CNB 与 GitHub 的 releases/latest 响应字段结构兼容，复用同一解析逻辑。
      */
-    private suspend fun tryFetch(url: String, token: String?, source: String): UpdateInfo? {
+    private suspend fun tryFetch(
+        url: String,
+        token: String?,
+        source: String,
+        accept: String
+    ): UpdateInfo? {
         return try {
             createClient().use { client ->
                 val response = client.get(url) {
-                    headers.append(HttpHeaders.Accept, "application/vnd.github+json")
+                    headers.append(HttpHeaders.Accept, accept)
                     if (!token.isNullOrBlank()) {
                         headers.append(HttpHeaders.Authorization, "Bearer $token")
                     }
