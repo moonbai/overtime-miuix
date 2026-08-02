@@ -151,9 +151,6 @@ dependencies {
     implementation(libs.miuix.blur)
     implementation(libs.miuix.preference)
 
-    // NavigationEvent — miuix 0.9.3 OverlayDialog 依赖
-    implementation("androidx.navigationevent:navigationevent-android:1.1.2")
-
     // 其他
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.android)
