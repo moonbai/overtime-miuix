@@ -68,7 +68,7 @@ fun MainScreen(
 
     // 悬浮底栏：离底部间距 + 估算高度（用于内容底部留白，确保不被遮挡）。
     // 采用保守偏大值，避免「关于」等内容被悬浮底栏遮挡。
-    val floatingBarOffset = 10.dp
+    val floatingBarOffset = 5.dp
     val floatingBarHeight = 80.dp
     // 悬浮底栏「彻底悬浮」时，各页面列表需补充的底部留白（离底间距 + 估算高度 + 余量），
     // 保证末项（如「关于」）可滚动至悬浮底栏之上，不被遮挡。
