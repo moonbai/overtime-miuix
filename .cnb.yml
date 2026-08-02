@@ -73,7 +73,8 @@
     done
     if [ -n "$MISSING" ]; then
       echo "=============================================================="
-      echo " 构建终止：Release 签名密钥缺失 →$MISSING"
+      echo " ⚠ Release 签名密钥缺失 →$MISSING"
+      echo " 将降级为构建 Debug APK（无签名，仅验证编译通过）"
       echo ""
       echo " 配置方式（在密钥仓库 ismartis/Overtime-Miuix 的 Web 界面新建 android-sign.yml）："
       echo "   1. 进入 ismartis/Overtime-Miuix 仓库 → Web 界面新建文件 android-sign.yml"
@@ -83,7 +84,8 @@
       echo "   3. 本仓库 .cnb.yml 已用 imports 引用该文件，无需其它配置"
       echo "   4. 配置完成后重新推送 main 或点「手动触发」即可出 Release 包"
       echo "=============================================================="
-      exit 1
+      export SIGNING_SKIP=1
+      exit 0
     fi
     # 关键加固：提前解码并实测 keystore 可读性，避免 5 分钟后才在 packageRelease 失败
     echo "==> 解码并校验 keystore 完整性 ..."
@@ -110,9 +112,10 @@
       exit 1
     fi
     echo "==> 签名密钥已注入且校验通过（值不回显）"
+    export SIGNING_SKIP=0
 
 .build-apk: &build-apk
-  name: 构建 Release APK
+  name: 构建 APK（密钥就绪→Release，缺失→Debug）
   script: |
     set -e
     chmod +x ./gradlew
@@ -120,14 +123,21 @@
     # 避免 buildConfigField 把 CI 凭证固化进 APK。未配置时即为空字符串。
     export GITHUB_TOKEN="${GH_UPDATE_TOKEN:-}"
     export CNB_TOKEN="${CNB_UPDATE_TOKEN:-}"
-    ./gradlew assembleRelease --no-daemon --stacktrace
-    echo "==> 构建产物："
-    ls -lh app/build/outputs/apk/release/
-    # 校验 APK 内未混入 CI 凭证（BuildConfig 中的令牌应为空串）
-    APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
-    echo "==> 产物签名信息："
-    "$ANDROID_SDK_ROOT"/build-tools/37.0.0/apksigner verify --print-certs "$APK" 2>/dev/null | head -8 || \
-      echo "（apksigner 校验跳过）"
+    if [ "${SIGNING_SKIP:-0}" = "1" ]; then
+      echo "==> 签名密钥缺失，构建 Debug APK（验证编译通过）"
+      ./gradlew assembleDebug --no-daemon --stacktrace
+      echo "==> Debug 构建产物："
+      ls -lh app/build/outputs/apk/debug/
+    else
+      ./gradlew assembleRelease --no-daemon --stacktrace
+      echo "==> Release 构建产物："
+      ls -lh app/build/outputs/apk/release/
+      # 校验 APK 内未混入 CI 凭证（BuildConfig 中的令牌应为空串）
+      APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+      echo "==> 产物签名信息："
+      "$ANDROID_SDK_ROOT"/build-tools/37.0.0/apksigner verify --print-certs "$APK" 2>/dev/null | head -8 || \
+        echo "（apksigner 校验跳过）"
+    fi
 
 main:
   push:
@@ -150,6 +160,7 @@ main:
           settings:
             attachments:
               - app/build/outputs/apk/release/*.apk
+              - app/build/outputs/apk/debug/*.apk
           exports:
             FILES: APK_FILES
         - name: 输出下载地址
