@@ -1,9 +1,9 @@
-# OvertimeMiuix 加班记录
+# OvertimeMiuix 加班记
 
-> 基于 MIUIX 0.9.0 Compose 框架开发的加班记录应用
+> 基于 MIUIX 0.9.3 Compose 框架开发的加班记录应用
 
-[![MIUIX](https://img.shields.io/badge/MIUIX-0.9.0-blue)](https://github.com/moonbai/miuix)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-purple)](https://kotlinlang.org)
+[![MIUIX](https://img.shields.io/badge/MIUIX-0.9.3-blue)](https://github.com/moonbai/miuix)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4.0-purple)](https://kotlinlang.org)
 [![AGP](https://img.shields.io/badge/AGP-9.1.1-green)](https://developer.android.com/build)
 [![Gradle](https://img.shields.io/badge/Gradle-9.3.1-02303A)](https://gradle.org)
 [![API](https://img.shields.io/badge/API-26%2B-orange)](https://developer.android.com)
@@ -26,11 +26,11 @@
 
 | 类别 | 技术 | 版本 |
 |------|------|------|
-| UI 框架 | MIUIX Compose (`miuix-ui` + `miuix-icons-android`) | 0.9.0 |
+| UI 框架 | MIUIX Compose (`miuix-ui` + `miuix-icons-android`) | 0.9.3 |
 | 构建 | Android Gradle Plugin | 9.1.1 |
 | 构建 | Gradle | 9.3.1 |
-| 语言 | Kotlin | 2.3.20 |
-| 编译 | KSP | 2.3.10 |
+| 语言 | Kotlin | 2.4.0 |
+| 编译 | KSP | 2.4.0 |
 | 数据库 | Room | 2.8.4 |
 | 存储 | DataStore Preferences | 1.1.1 |
 | 导航 | Navigation Compose | 2.8.5 |
@@ -230,6 +230,36 @@ GET  /mcp/tools/get_monthly_stats?month=YYYY-MM - 获取月度统计
 - 悬浮底栏改为「彻底悬浮」：内容可滚动至底栏背后（毛玻璃透出其后内容），各页面列表补充底部留白，保证末项（如「关于」）可滚动至悬浮栏之上、不被遮挡
 - 更新检查升级为 GitHub / CNB 双源：GitHub（令牌 → 匿名 → 镜像）全部失败后追加 CNB（cnb.cool）兜底，防止单边网络 / 区域不可达
 - CI 注入可选 CNB_TOKEN 供兜底数据源鉴权（公开仓库可匿名访问）
+
+### v1.1.0
+
+- 依赖升级：miuix 0.9.0 → 0.9.3，Kotlin 2.3.20 → 2.4.0，KSP 2.3.10 → 2.4.0
+- Compose BOM 2025.12.01 → 2026.04.01
+- 移除 `kotlin-android` 插件（AGP 9.0+ 已内置 Kotlin 支持）
+- 显式添加 Compose Foundation / Animation / Material Icons Extended 依赖
+- Gradle 镜像切换为 Tencent 镜像加速国内下载
+- 新增请假记录功能：支持半天/全天请假，自动计算工资扣减
+- 统计页新增日历热力图与日净时长展示
+- 快速提报模式：首页双 FAB（添加 + 快速提报），一键记录今日加班
+
+### v1.1.1
+
+- 悬浮底栏偏移 10dp → 5dp，减少与内容间距
+- 普通底栏背景改为高斯模糊（毛玻璃效果）
+- FAB 按钮背景改为强调色高斯模糊，与底栏保持安全间距
+- 关于页面 UI 重构：Hero 卡片简化、Slogan 单行展示、应用描述更新
+- 更新检查修复：新增 try-catch + finally 防止异常后永久阻塞；CNB 支持匿名访问兜底
+- NavigationBarDisplayMode.TextOnly 降级为 IconOnly（miuix 0.9.3 已移除）
+
+### v1.1.2
+
+- **UI Designer 全量审查优化**：统一全局设计系统
+- Card 圆角统一为 16dp（嵌套 Card 12dp、Hero Card 24dp）
+- 所有设置页二级分组统一使用 `SettingsGroup` 组件包裹
+- QuickSubmitSheet 类型/时长选择按钮圆角统一 12dp
+- 内容间距规范化（LazyColumn contentPadding 统一 16dp）
+- 标题字重统一 SemiBold
+- 代码整洁：移除多余注释、修正 import
 
 ## 开源协议
 

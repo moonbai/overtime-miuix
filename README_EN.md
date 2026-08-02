@@ -2,10 +2,10 @@
 
 > [中文版](README.md)
 >
-> An overtime record application built with the MIUIX 0.9.0 Compose framework.
+> An overtime record application built with the MIUIX 0.9.3 Compose framework.
 
-[![MIUIX](https://img.shields.io/badge/MIUIX-0.9.0-blue)](https://github.com/moonbai/miuix)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-purple)](https://kotlinlang.org)
+[![MIUIX](https://img.shields.io/badge/MIUIX-0.9.3-blue)](https://github.com/moonbai/miuix)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4.0-purple)](https://kotlinlang.org)
 [![AGP](https://img.shields.io/badge/AGP-9.1.1-green)](https://developer.android.com/build)
 [![Gradle](https://img.shields.io/badge/Gradle-9.3.1-02303A)](https://gradle.org)
 [![API](https://img.shields.io/badge/API-26%2B-orange)](https://developer.android.com)
@@ -28,11 +28,11 @@
 
 | Category | Technology | Version |
 |----------|------------|---------|
-| UI Framework | MIUIX Compose (`miuix-ui` + `miuix-icons-android`) | 0.9.0 |
+| UI Framework | MIUIX Compose (`miuix-ui` + `miuix-icons-android`) | 0.9.3 |
 | Build | Android Gradle Plugin | 9.1.1 |
 | Build | Gradle | 9.3.1 |
-| Language | Kotlin | 2.3.20 |
-| Compile | KSP | 2.3.10 |
+| Language | Kotlin | 2.4.0 |
+| Compile | KSP | 2.4.0 |
 | Database | Room | 2.8.4 |
 | Storage | DataStore Preferences | 1.1.1 |
 | Navigation | Navigation Compose | 2.8.5 |
@@ -232,6 +232,36 @@ Config example:
 - Floating bottom bar is now "truly floating": content scrolls behind the bar (the frosted-glass blur shows the content beneath), while each screen's list reserves bottom padding so the last item (e.g. "About") can still scroll above the bar and stays unobscured
 - Update check upgraded to GitHub / CNB dual-source: after GitHub (token → anonymous → mirror) fully fails, CNB (cnb.cool) is used as a fallback to guard against one side being unreachable (network / regional restrictions)
 - CI injects an optional CNB_TOKEN for the fallback data source (public repos can be accessed anonymously)
+
+### v1.1.0
+
+- Dependency upgrades: miuix 0.9.0 → 0.9.3, Kotlin 2.3.20 → 2.4.0, KSP 2.3.10 → 2.4.0
+- Compose BOM 2025.12.01 → 2026.04.01
+- Removed `kotlin-android` plugin (built into AGP 9.0+)
+- Explicitly added Compose Foundation / Animation / Material Icons Extended dependencies
+- Gradle mirror switched to Tencent mirror for faster downloads in China
+- Added leave record feature: half-day / full-day leave with automatic salary deduction calculation
+- Statistics page: new calendar heatmap and daily net hours display
+- Quick-submit mode: dual FABs on home (Add + Quick Submit) for one-tap today's overtime
+
+### v1.1.1
+
+- Floating nav bar offset 10dp → 5dp for tighter spacing
+- Normal nav bar background changed to Gaussian blur (frosted glass)
+- FAB buttons now use accent-color Gaussian blur backgrounds with safe spacing from the nav bar
+- About page UI redesign: simplified hero card, single-line slogan, updated app description
+- Update checker fix: added try-catch + finally to prevent permanent UI block on exception; CNB supports anonymous access fallback
+- NavigationBarDisplayMode.TextOnly downgraded to IconOnly (removed in miuix 0.9.3)
+
+### v1.1.2
+
+- **UI Designer Full Audit & Optimization**: unified design system across all screens
+- Global Card cornerRadius standardized to 16dp (nested cards 12dp, hero card 24dp)
+- All settings page sub-groups now consistently use the `SettingsGroup` wrapper
+- QuickSubmitSheet type/duration selector button cornerRadius unified to 12dp
+- Content padding standardized (LazyColumn contentPadding 16dp)
+- Title font weight unified to SemiBold
+- Code cleanup: removed redundant comments, fixed imports
 
 ## License
 
