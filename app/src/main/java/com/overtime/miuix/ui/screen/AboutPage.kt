@@ -106,7 +106,7 @@ fun AboutPage(navController: NavHostController) {
                         Spacer(modifier = Modifier.height(16.dp))
                         // 应用名 + 版本
                         Row(
-                            verticalAlignment = Alignment.Baseline,
+                            verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center,
                             modifier = Modifier.fillMaxWidth()
                         ) {
