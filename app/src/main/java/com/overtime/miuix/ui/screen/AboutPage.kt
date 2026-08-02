@@ -24,6 +24,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.BuildConfig
@@ -67,26 +68,24 @@ fun AboutPage(navController: NavHostController) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            contentPadding = PaddingValues(16.dp)
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            item { Spacer(modifier = Modifier.height(12.dp)) }
-
-            // Hero：应用图标 + 名称 + 版本 + 标语（标准 surface 卡片）
+            // Hero 卡片：图标 + 名称 + 版本 + 一行 Slogan
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     cornerRadius = 24.dp,
-                    insideMargin = PaddingValues(24.dp)
+                    insideMargin = PaddingValues(28.dp)
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // 图标置于 primaryContainer 圆角容器，克制强调色
+                        // 应用图标
                         Box(
                             modifier = Modifier
-                                .size(120.dp)
-                                .clip(RoundedCornerShape(28.dp))
+                                .size(88.dp)
+                                .clip(RoundedCornerShape(24.dp))
                                 .background(MiuixTheme.colorScheme.primaryContainer),
                             contentAlignment = Alignment.Center
                         ) {
@@ -95,42 +94,53 @@ fun AboutPage(navController: NavHostController) {
                                     bitmap = bitmap.asImageBitmap(),
                                     contentDescription = "应用图标",
                                     contentScale = ContentScale.Fit,
-                                    modifier = Modifier.size(96.dp)
+                                    modifier = Modifier.size(68.dp)
                                 )
                             } ?: Icon(
                                 MiuixIcons.AppRecording,
                                 contentDescription = "应用图标",
                                 tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.size(80.dp)
+                                modifier = Modifier.size(56.dp)
                             )
                         }
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "加班记",
-                            style = MiuixTheme.textStyles.headline2,
-                            fontWeight = FontWeight.Bold,
-                            color = MiuixTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "版本 $versionName",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
+                        // 应用名 + 版本
+                        Row(
+                            verticalAlignment = Alignment.Baseline,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "加班记",
+                                style = MiuixTheme.textStyles.headline2,
+                                fontWeight = FontWeight.Bold,
+                                color = MiuixTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "v$versionName",
+                                style = MiuixTheme.textStyles.body1,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        // Slogan：一行显示
                         Text(
                             text = "用心记录，每一份付出都值得被看见",
-                            style = MiuixTheme.textStyles.title3,
+                            style = MiuixTheme.textStyles.body1,
                             color = MiuixTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(20.dp)) }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
 
-            // 关于应用（实底卡片，与全局组件一致）
+            // 应用简介
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -143,16 +153,16 @@ fun AboutPage(navController: NavHostController) {
                         fontWeight = FontWeight.Bold,
                         color = MiuixTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "一款简洁实用的加班记录与薪资计算工具，帮你轻松记录每一次加班，精准计算应得报酬。",
+                        text = "简洁实用的加班记录与薪资计算工具，支持本地记录、多渠道推送、云端备份、日历同步、智能识别与薪资自动计算。",
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(20.dp)) }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
 
             // 主要功能
             item {
@@ -161,12 +171,12 @@ fun AboutPage(navController: NavHostController) {
             }
             item { FeatureGrid() }
 
-            item { Spacer(modifier = Modifier.height(20.dp)) }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
 
-            // 开发者信息（与设置页一致的 BasicComponent 列表）
+            // 开发者 & 操作
             item {
                 Column {
-                    SmallTitle(text = "开发者")
+                    SmallTitle(text = "关于")
                     BasicComponent(
                         title = "作者",
                         summary = "Mars",
@@ -174,7 +184,7 @@ fun AboutPage(navController: NavHostController) {
                     )
                     BasicComponent(
                         title = "开源仓库",
-                        summary = "Github",
+                        summary = "GitHub",
                         startAction = { Icon(MiuixIcons.Link, contentDescription = null) },
                         endActions = {
                             Icon(
@@ -194,7 +204,7 @@ fun AboutPage(navController: NavHostController) {
                     )
                     BasicComponent(
                         title = "检查更新",
-                        summary = "同时查询 GitHub 与 CNB 最新版本",
+                        summary = if (checking) "正在检查…" else "查询 GitHub / CNB 最新版本",
                         startAction = { Icon(MiuixIcons.Update, contentDescription = null) },
                         endActions = {
                             Icon(
@@ -215,20 +225,17 @@ fun AboutPage(navController: NavHostController) {
                                             UpdateChecker.lastError ?: "检查失败，请检查网络连接"
                                         )
                                     } else if (UpdateChecker.hasUpdate(versionName, BuildConfig.VERSION_CODE, info)) {
-                                        // 有新版：提示更新
                                         updateInfo = info
                                         showUpdateDialog = true
                                     } else {
-                                        // 版本一致：额外校验安装包与官方是否一致
                                         val localSha = UpdateChecker.getInstalledApkSha256(context)
                                         val consistent = UpdateChecker.isLocalConsistent(info, localSha)
                                         if (consistent == false) {
-                                            // 与仓库官方安装包不一致（可能被篡改/替换），提示重装
                                             updateInfo = info
                                             showConsistencyDialog = true
                                         } else {
                                             val msg = if (UpdateChecker.sourceMismatch) {
-                                                "已是最新版本（注：GitHub 与 CNB 版本不一致，可能未同步）"
+                                                "已是最新版本（GitHub 与 CNB 版本可能未同步）"
                                             } else {
                                                 "已是最新版本"
                                             }
@@ -250,19 +257,10 @@ fun AboutPage(navController: NavHostController) {
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
 
-            // 版权信息
+            // 版权
             item {
                 Text(
-                    text = "© 2026 Mars",
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
-            }
-            item {
-                Text(
-                    text = "All rights reserved",
+                    text = "© 2026 Mars · All rights reserved",
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
                     modifier = Modifier.fillMaxWidth(),
@@ -314,7 +312,7 @@ fun AboutPage(navController: NavHostController) {
         }
     }
 
-    // 校验一致性对话框：版本一致但与官方安装包校验值不符，提示重新安装
+    // 一致性校验对话框
     if (showConsistencyDialog && updateInfo != null) {
         val info = updateInfo!!
         OverlayDialog(

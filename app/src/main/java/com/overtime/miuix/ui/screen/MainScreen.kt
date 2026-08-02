@@ -10,7 +10,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.OvertimeRepository
@@ -67,12 +66,16 @@ fun MainScreen(
         .calculateBottomPadding()
 
     // 悬浮底栏：离底部间距 + 估算高度（用于内容底部留白，确保不被遮挡）。
-    // 采用保守偏大值，避免「关于」等内容被悬浮底栏遮挡。
     val floatingBarOffset = 5.dp
     val floatingBarHeight = 80.dp
     // 悬浮底栏「彻底悬浮」时，各页面列表需补充的底部留白（离底间距 + 估算高度 + 余量），
     // 保证末项（如「关于」）可滚动至悬浮底栏之上，不被遮挡。
     val floatingBottomReserve = floatingBarOffset + floatingBarHeight + 8.dp
+
+    // FAB 与底栏之间的间距（悬浮/普通模式各自计算）
+    val floatingFabBottom = navBarInset + floatingBarOffset + floatingBarHeight + 16.dp
+    // 普通模式：估算 NavigationBar 高度约 64dp + 系统栏 + 间距
+    val normalFabBottom = navBarInset + 64.dp + 24.dp
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -86,8 +89,7 @@ fun MainScreen(
                 }
             )
         },
-        // 普通底栏：恢复为 Scaffold 预留空间的底栏（原有行为），并叠加高斯模糊背景。
-        // 由 Scaffold 为其预留布局空间，内容自动上移，不会被底栏遮挡。
+        // 普通底栏：高斯模糊背景
         bottomBar = {
             if (!useFloatingNav) {
                 Box(
@@ -102,7 +104,8 @@ fun MainScreen(
                 ) {
                     NavigationBar(
                         modifier = Modifier.background(Color.Transparent),
-                        mode = navMode
+                        mode = navMode,
+                        color = if (blurSupported) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
                     ) {
                         NavigationBarItem(
                             selected = selectedTab == 0,
@@ -174,9 +177,7 @@ fun MainScreen(
                 }
             }
 
-            // 悬浮底栏（叠加层）：外层 Box 仅负责「居中对齐 + 离底间距」，
-            // 内层 textureBlur Box 紧贴 FloatingNavigationBar（wrapContentWidth），
-            // 使高斯模糊背景的位置与尺寸与悬浮底栏完全一致。
+            // 悬浮底栏（叠加层）：外层 Box 仅负责「居中对齐 + 离底间距」
             if (useFloatingNav) {
                 Box(
                     modifier = Modifier
@@ -201,7 +202,6 @@ fun MainScreen(
                             icon = AppIcons.Home,
                             label = "首页"
                         )
-                        // 按钮之间留白，避免拥挤
                         Spacer(modifier = Modifier.width(24.dp))
                         FloatingNavigationBarItem(
                             selected = selectedTab == 1,
@@ -219,12 +219,12 @@ fun MainScreen(
                     }
                 }
 
-                // 悬浮模式首页 FAB：叠加在内容之上，位于悬浮底栏上方（适当下移）
+                // 悬浮模式首页 FAB：位于悬浮底栏上方
                 if (selectedTab == 0) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(end = 20.dp, bottom = navBarInset + 56.dp)
+                            .padding(end = 20.dp, bottom = floatingFabBottom)
                     ) {
                         HomeFab(
                             quickSubmit = quickSubmit,
@@ -242,7 +242,7 @@ fun MainScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(end = 20.dp, bottom = navBarInset + 88.dp)
+                        .padding(end = 20.dp, bottom = normalFabBottom)
                 ) {
                     HomeFab(
                         quickSubmit = quickSubmit,
@@ -273,7 +273,7 @@ fun MainScreen(
 
 /**
  * 首页悬浮操作按钮：快速提报模式下提供「添加 / 快速提报」两个按钮，
- * 否则为带有高斯模糊背景的单个添加按钮。
+ * 否则为单个带有强调色高斯模糊背景的添加按钮。
  */
 @Composable
 private fun HomeFab(
@@ -284,47 +284,67 @@ private fun HomeFab(
     onQuickSubmit: () -> Unit
 ) {
     if (quickSubmit) {
-        // 快速提报模式：底栏区直接提供「提报」按钮，点击弹出快速录入
+        // 快速提报模式：两个按钮并排，带强调色高斯模糊背景
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 常规添加（进入完整表单）
-            FloatingActionButton(
-                onClick = onAddRecord,
-                containerColor = MiuixTheme.colorScheme.secondaryContainer
-            ) {
-                Icon(
-                    MiuixIcons.Add,
-                    contentDescription = "添加记录",
-                    tint = MiuixTheme.colorScheme.onSecondaryContainer
+            // 常规添加（进入完整表单）—— 次要容器色毛玻璃
+            Box(
+                modifier = Modifier.textureBlur(
+                    backdrop = fabBackdrop,
+                    shape = CircleShape,
+                    blurRadius = 28f,
+                    enabled = blurSupported
                 )
-            }
-            // 快速提报（一键记录今天）
-            FloatingActionButton(
-                onClick = onQuickSubmit,
-                containerColor = MiuixTheme.colorScheme.primary
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                FloatingActionButton(
+                    onClick = onAddRecord,
+                    containerColor = if (blurSupported) MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
+                    else MiuixTheme.colorScheme.secondaryContainer
                 ) {
                     Icon(
-                        MiuixIcons.Ok,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.onPrimary
+                        MiuixIcons.Add,
+                        contentDescription = "添加记录",
+                        tint = MiuixTheme.colorScheme.onSecondaryContainer
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "快速提报",
-                        color = MiuixTheme.colorScheme.onPrimary,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                    )
+                }
+            }
+            // 快速提报（一键记录今天）—— 强调色毛玻璃
+            Box(
+                modifier = Modifier.textureBlur(
+                    backdrop = fabBackdrop,
+                    shape = RoundedCornerShape(28.dp),
+                    blurRadius = 28f,
+                    enabled = blurSupported
+                )
+            ) {
+                FloatingActionButton(
+                    onClick = onQuickSubmit,
+                    containerColor = if (blurSupported) MiuixTheme.colorScheme.primary.copy(alpha = 0.55f)
+                    else MiuixTheme.colorScheme.primary
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    ) {
+                        Icon(
+                            MiuixIcons.Ok,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.onPrimary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "快速提报",
+                            color = MiuixTheme.colorScheme.onPrimary,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                        )
+                    }
                 }
             }
         }
     } else {
-        // Texture Blur 高斯模糊：将 FAB 背景渲染为页面内容的毛玻璃
+        // 单按钮模式：强调色高斯模糊背景
         Box(
             modifier = Modifier.textureBlur(
                 backdrop = fabBackdrop,
@@ -335,7 +355,8 @@ private fun HomeFab(
         ) {
             FloatingActionButton(
                 onClick = onAddRecord,
-                containerColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.6f)
+                containerColor = if (blurSupported) MiuixTheme.colorScheme.primary.copy(alpha = 0.55f)
+                else MiuixTheme.colorScheme.primary
             ) {
                 Icon(MiuixIcons.Add, contentDescription = "添加记录")
             }
