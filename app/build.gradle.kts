@@ -121,7 +121,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.navigation.compose)
-    implementation("androidx.navigationevent:navigationevent-compose-android:1.0.2")
+    implementation(libs.androidx.navigationevent.compose)
     implementation(libs.androidx.datastore.preferences)
 
     // Room (KSP 处理)
@@ -142,15 +142,30 @@ dependencies {
     // Gson
     implementation(libs.gson)
 
-    // MIUIX
-    implementation(libs.miuix.ui)
-    implementation(libs.miuix.icons)
-    implementation(libs.miuix.blur)
-    implementation(libs.miuix.preference)
+    // MIUIX（0.9.3 开始内部依赖 JetBrains Compose Multiplatform，与 AndroidX Compose
+    // 类路径冲突会导致 Duplicate class 编译错误；排除其传递的 Compose 依赖，
+    // 项目统一使用 AndroidX BOM 管理的 Compose 库）
+    implementation(libs.miuix.ui) {
+        exclude(group = "org.jetbrains.compose.foundation")
+        exclude(group = "org.jetbrains.compose.material3")
+    }
+    implementation(libs.miuix.icons) {
+        exclude(group = "org.jetbrains.compose.foundation")
+        exclude(group = "org.jetbrains.compose.material3")
+    }
+    implementation(libs.miuix.blur) {
+        exclude(group = "org.jetbrains.compose.foundation")
+        exclude(group = "org.jetbrains.compose.material3")
+    }
+    implementation(libs.miuix.preference) {
+        exclude(group = "org.jetbrains.compose.foundation")
+        exclude(group = "org.jetbrains.compose.material3")
+    }
 
     // NavigationEvent — Miuix OverlayDialog 使用 NavigationBackHandler 需要此依赖
-    implementation("androidx.navigationevent:navigationevent-android:1.0.2")
-    implementation("androidx.navigationevent:navigationevent-compose-android:1.0.2")
+    // miuix 0.9.3 内置 navigationevent-compose-android:1.1.2，统一使用版本目录管理
+    implementation("androidx.navigationevent:navigationevent-android:1.1.2")
+    implementation(libs.androidx.navigationevent.compose)
 
     // 其他
     implementation(libs.okhttp)
