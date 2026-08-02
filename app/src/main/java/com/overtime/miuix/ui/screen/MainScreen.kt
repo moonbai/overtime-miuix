@@ -54,13 +54,6 @@ fun MainScreen(
         else -> NavigationBarDisplayMode.IconAndText
     }
 
-    // 悬浮底栏显示模式：与底栏样式设置保持一致（miuix 0.9.0 保留此 API）
-    val floatingNavMode = when (bottomBarStyle) {
-        "ICON_ONLY" -> FloatingNavigationBarDisplayMode.IconOnly
-        "TEXT_ONLY" -> FloatingNavigationBarDisplayMode.TextOnly
-        else -> FloatingNavigationBarDisplayMode.IconAndText
-    }
-
     // 首页 FAB 的高斯模糊背景层：捕获底栏之上的页面内容作为模糊源
     val fabBackdrop = rememberLayerBackdrop()
     // 悬浮/普通底栏的高斯模糊背景层：捕获页面内容作为毛玻璃源
@@ -190,45 +183,39 @@ fun MainScreen(
                         .align(Alignment.BottomCenter)
                         .padding(bottom = navBarInset + floatingBarOffset)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .wrapContentWidth()
-                            .textureBlur(
-                                backdrop = navBackdrop,
-                                shape = RoundedCornerShape(28.dp),
-                                blurRadius = 40f,
-                                enabled = blurSupported
-                            )
+                    FloatingNavigationBar(
+                        modifier = Modifier.textureBlur(
+                            backdrop = navBackdrop,
+                            shape = RoundedCornerShape(28.dp),
+                            blurRadius = 40f,
+                            enabled = blurSupported
+                        ),
+                        color = if (blurSupported) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer,
+                        cornerRadius = 28.dp,
+                        horizontalOutSidePadding = 0.dp,
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        FloatingNavigationBar(
-                            modifier = Modifier.background(Color.Transparent),
-                            mode = floatingNavMode,
-                            cornerRadius = 28.dp,
-                            horizontalOutSidePadding = 0.dp,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            FloatingNavigationBarItem(
-                                selected = selectedTab == 0,
-                                onClick = { selectedTab = 0 },
-                                icon = AppIcons.Home,
-                                label = "首页"
-                            )
-                            // 按钮之间留白，避免拥挤
-                            Spacer(modifier = Modifier.width(24.dp))
-                            FloatingNavigationBarItem(
-                                selected = selectedTab == 1,
-                                onClick = { selectedTab = 1 },
-                                icon = MiuixIcons.Months,
-                                label = "统计"
-                            )
-                            Spacer(modifier = Modifier.width(24.dp))
-                            FloatingNavigationBarItem(
-                                selected = selectedTab == 2,
-                                onClick = { selectedTab = 2 },
-                                icon = MiuixIcons.Settings,
-                                label = "设置"
-                            )
-                        }
+                        FloatingNavigationBarItem(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            icon = AppIcons.Home,
+                            label = "首页"
+                        )
+                        // 按钮之间留白，避免拥挤
+                        Spacer(modifier = Modifier.width(24.dp))
+                        FloatingNavigationBarItem(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            icon = MiuixIcons.Months,
+                            label = "统计"
+                        )
+                        Spacer(modifier = Modifier.width(24.dp))
+                        FloatingNavigationBarItem(
+                            selected = selectedTab == 2,
+                            onClick = { selectedTab = 2 },
+                            icon = MiuixIcons.Settings,
+                            label = "设置"
+                        )
                     }
                 }
 
