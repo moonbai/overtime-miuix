@@ -124,6 +124,8 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.navigationevent.compose)
     implementation(libs.androidx.datastore.preferences)
+    // JetBrains Compose 传递依赖 androidx.collection，exclude 后需显式声明
+    implementation(libs.androidx.collection)
 
     // Room (KSP 处理)
     implementation(libs.room.runtime)
@@ -143,13 +145,34 @@ dependencies {
     // Gson
     implementation(libs.gson)
 
-    // MIUIX 0.9.3（Compose Multiplatform 库，传递依赖 JetBrains Compose 1.11.1，
-    // 其内部依赖 androidx.compose.foundation:1.11.2，BOM 2026.04.01 提供 1.11.2，
-    // 版本一致无需 exclude。）
-    implementation(libs.miuix.ui)
-    implementation(libs.miuix.icons)
-    implementation(libs.miuix.blur)
-    implementation(libs.miuix.preference)
+    // MIUIX 0.9.3（Compose Multiplatform 库，传递依赖 JetBrains Compose 1.11.1）
+    // JetBrains Compose AAR 中重打包了 AndroidX Compose 类，与 BOM 提供的 AndroidX 库冲突。
+    // 策略：排除所有 org.jetbrains.compose.* 传递依赖，统一由 AndroidX BOM 管理版本。
+    // 保留 org.jetbrains.compose.material3（material3-window-size-class 为 miuix 运行时依赖）。
+    implementation(libs.miuix.ui) {
+        exclude(group = "org.jetbrains.compose.foundation")
+        exclude(group = "org.jetbrains.compose.runtime")
+        exclude(group = "org.jetbrains.compose.ui")
+        exclude(group = "org.jetbrains.compose.animation")
+    }
+    implementation(libs.miuix.icons) {
+        exclude(group = "org.jetbrains.compose.foundation")
+        exclude(group = "org.jetbrains.compose.runtime")
+        exclude(group = "org.jetbrains.compose.ui")
+        exclude(group = "org.jetbrains.compose.animation")
+    }
+    implementation(libs.miuix.blur) {
+        exclude(group = "org.jetbrains.compose.foundation")
+        exclude(group = "org.jetbrains.compose.runtime")
+        exclude(group = "org.jetbrains.compose.ui")
+        exclude(group = "org.jetbrains.compose.animation")
+    }
+    implementation(libs.miuix.preference) {
+        exclude(group = "org.jetbrains.compose.foundation")
+        exclude(group = "org.jetbrains.compose.runtime")
+        exclude(group = "org.jetbrains.compose.ui")
+        exclude(group = "org.jetbrains.compose.animation")
+    }
 
     // 其他
     implementation(libs.okhttp)
@@ -157,4 +180,25 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     debugImplementation(libs.androidx.ui.tooling)
+}
+
+// 强制统一 Compose Foundation/Runtime/UI 版本：
+// miuix 0.9.3 通过 JetBrains Compose 传递依赖 androidx.compose.*:1.11.2，
+// exclude 后由 BOM 2026.04.01 统一管理（同样提供 1.11.2）。
+// force 确保所有传递依赖使用同一版本，消除版本冲突警告。
+configurations.all {
+    resolutionStrategy {
+        force("androidx.compose.foundation:foundation:1.11.2")
+        force("androidx.compose.foundation:foundation-layout:1.11.2")
+        force("androidx.compose.runtime:runtime:1.11.2")
+        force("androidx.compose.runtime:runtime-saveable:1.11.2")
+        force("androidx.compose.ui:ui:1.11.2")
+        force("androidx.compose.ui:ui-geometry:1.11.2")
+        force("androidx.compose.ui:ui-graphics:1.11.2")
+        force("androidx.compose.ui:ui-text:1.11.2")
+        force("androidx.compose.ui:ui-unit:1.11.2")
+        force("androidx.compose.ui:ui-util:1.11.2")
+        force("androidx.compose.animation:animation:1.11.2")
+        force("androidx.compose.animation:animation-core:1.11.2")
+    }
 }
