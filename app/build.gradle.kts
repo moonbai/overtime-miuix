@@ -148,9 +148,6 @@ dependencies {
     implementation(libs.miuix.blur)
     implementation(libs.miuix.preference)
 
-    // NavigationEvent — Miuix OverlayDialog 使用 NavigationBackHandler 需要此依赖
-    implementation(libs.androidx.navigationevent.compose)
-
     // 其他
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.android)
