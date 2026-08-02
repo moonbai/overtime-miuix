@@ -208,32 +208,39 @@ fun AboutPage(navController: NavHostController) {
                             if (checking) return@BasicComponent
                             checking = true
                             scope.launch {
-                                val info = UpdateChecker.check(versionName)
-                                checking = false
-                                if (info == null) {
-                                    snackbarHostState.showCustomToast(
-                                        UpdateChecker.lastError ?: "检查失败，请检查网络连接"
-                                    )
-                                } else if (UpdateChecker.hasUpdate(versionName, BuildConfig.VERSION_CODE, info)) {
-                                    // 有新版：提示更新
-                                    updateInfo = info
-                                    showUpdateDialog = true
-                                } else {
-                                    // 版本一致：额外校验安装包与官方是否一致
-                                    val localSha = UpdateChecker.getInstalledApkSha256(context)
-                                    val consistent = UpdateChecker.isLocalConsistent(info, localSha)
-                                    if (consistent == false) {
-                                        // 与仓库官方安装包不一致（可能被篡改/替换），提示重装
+                                try {
+                                    val info = UpdateChecker.check(versionName)
+                                    if (info == null) {
+                                        snackbarHostState.showCustomToast(
+                                            UpdateChecker.lastError ?: "检查失败，请检查网络连接"
+                                        )
+                                    } else if (UpdateChecker.hasUpdate(versionName, BuildConfig.VERSION_CODE, info)) {
+                                        // 有新版：提示更新
                                         updateInfo = info
-                                        showConsistencyDialog = true
+                                        showUpdateDialog = true
                                     } else {
-                                        val msg = if (UpdateChecker.sourceMismatch) {
-                                            "已是最新版本（注：GitHub 与 CNB 版本不一致，可能未同步）"
+                                        // 版本一致：额外校验安装包与官方是否一致
+                                        val localSha = UpdateChecker.getInstalledApkSha256(context)
+                                        val consistent = UpdateChecker.isLocalConsistent(info, localSha)
+                                        if (consistent == false) {
+                                            // 与仓库官方安装包不一致（可能被篡改/替换），提示重装
+                                            updateInfo = info
+                                            showConsistencyDialog = true
                                         } else {
-                                            "已是最新版本"
+                                            val msg = if (UpdateChecker.sourceMismatch) {
+                                                "已是最新版本（注：GitHub 与 CNB 版本不一致，可能未同步）"
+                                            } else {
+                                                "已是最新版本"
+                                            }
+                                            snackbarHostState.showCustomToast(msg)
                                         }
-                                        snackbarHostState.showCustomToast(msg)
                                     }
+                                } catch (e: Exception) {
+                                    snackbarHostState.showCustomToast(
+                                        "检查异常：${e.javaClass.simpleName}"
+                                    )
+                                } finally {
+                                    checking = false
                                 }
                             }
                         }

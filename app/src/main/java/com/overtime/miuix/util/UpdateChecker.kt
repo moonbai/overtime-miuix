@@ -53,7 +53,7 @@ object UpdateChecker {
     private const val CNB_REPO_SLUG = "ismartis/Overtime"
 
     // CNB（cnb.cool）兜底数据源：字段结构与 GitHub releases/latest 兼容（tag_name / body / assets）。
-    // 注意：CNB OpenAPI 不支持匿名访问（匿名返回 401），必须注入 BuildConfig.CNB_TOKEN 才会生效。
+    // 公开仓库支持匿名访问（无需令牌），有令牌时优先使用以获得更高限额。
     private val CNB_RELEASES_URL =
         "https://api.cnb.cool/$CNB_REPO_SLUG/-/releases/latest"
 
@@ -161,56 +161,66 @@ object UpdateChecker {
     suspend fun check(currentVersion: String): UpdateInfo? {
         lastError = null
         sourceMismatch = false
+        val errors = mutableListOf<String>()
         return withContext(Dispatchers.IO) {
-            coroutineScope {
-                // 两源并行查询
-                val githubDeferred = async { tryGithub() }
-                val cnbDeferred = async { tryCnb() }
-                val githubInfo = githubDeferred.await()
-                val cnbInfo = cnbDeferred.await()
+            try {
+                coroutineScope {
+                    // 两源并行查询
+                    val githubDeferred = async { tryGithub(errors) }
+                    val cnbDeferred = async { tryCnb(errors) }
+                    val githubInfo = githubDeferred.await()
+                    val cnbInfo = cnbDeferred.await()
 
-                val results = listOfNotNull(githubInfo, cnbInfo)
-                if (results.isEmpty()) {
-                    if (lastError == null) {
-                        lastError = "更新检查失败，请检查网络连接或稍后重试"
+                    val results = listOfNotNull(githubInfo, cnbInfo)
+                    if (results.isEmpty()) {
+                        lastError = if (errors.isNotEmpty()) {
+                            errors.joinToString("；")
+                        } else {
+                            "更新检查失败，请检查网络连接或稍后重试"
+                        }
+                        Log.e(TAG, "更新检查失败: $lastError")
+                        return@coroutineScope null
                     }
-                    Log.e(TAG, "更新检查失败: $lastError")
-                    return@coroutineScope null
-                }
 
-                // 两源都成功时，校验版本是否一致（versionCode 优先，否则 versionName）
-                if (githubInfo != null && cnbInfo != null) {
-                    val ghKey = githubInfo.versionCode ?: githubInfo.latestVersion
-                    val cnKey = cnbInfo.versionCode ?: cnbInfo.latestVersion
-                    if (ghKey != cnKey) sourceMismatch = true
-                }
+                    // 两源都成功时，校验版本是否一致（versionCode 优先，否则 versionName）
+                    if (githubInfo != null && cnbInfo != null) {
+                        val ghKey = githubInfo.versionCode ?: githubInfo.latestVersion
+                        val cnKey = cnbInfo.versionCode ?: cnbInfo.latestVersion
+                        if (ghKey != cnKey) sourceMismatch = true
+                    }
 
-                // 取版本更高者
-                results.maxWithOrNull(compareByDescending<UpdateInfo> { it.versionCode ?: Int.MIN_VALUE }
-                    .thenByDescending { compareVersion(currentVersion, it.latestVersion) > 0 })
-                    ?: results.first()
+                    // 取版本更高者
+                    results.maxWithOrNull(compareByDescending<UpdateInfo> { it.versionCode ?: Int.MIN_VALUE }
+                        .thenByDescending { compareVersion(currentVersion, it.latestVersion) > 0 })
+                        ?: results.first()
+                }
+            } catch (e: Exception) {
+                lastError = "检查过程异常：${e.javaClass.simpleName}"
+                Log.e(TAG, "check() 异常", e)
+                null
             }
         }
     }
 
     /** GitHub 源：令牌 → 匿名 → 公开镜像兜底，命中即返回。 */
-    private suspend fun tryGithub(): UpdateInfo? {
+    private suspend fun tryGithub(errors: MutableList<String>): UpdateInfo? {
         if (GITHUB_TOKEN.isNotBlank()) {
-            tryFetch(RELEASES_URL, GITHUB_TOKEN, "GitHub", ACCEPT_GITHUB)?.let { return it }
+            tryFetch(RELEASES_URL, GITHUB_TOKEN, "GitHub", ACCEPT_GITHUB, errors)?.let { return it }
         }
-        tryFetch(RELEASES_URL, null, "GitHub", ACCEPT_GITHUB)?.let { return it }
+        tryFetch(RELEASES_URL, null, "GitHub", ACCEPT_GITHUB, errors)?.let { return it }
         for (mirror in MIRROR_URLS) {
-            tryFetch(mirror, null, "GitHub 镜像", ACCEPT_GITHUB)?.let { return it }
+            tryFetch(mirror, null, "GitHub 镜像", ACCEPT_GITHUB, errors)?.let { return it }
         }
         return null
     }
 
-    /** CNB 源：仅作兜底，未注入令牌（不支持匿名）时直接跳过。 */
-    private suspend fun tryCnb(): UpdateInfo? {
+    /** CNB 源：兜底数据源，公开仓库支持匿名访问。有令牌时优先使用令牌。 */
+    private suspend fun tryCnb(errors: MutableList<String>): UpdateInfo? {
         if (CNB_TOKEN.isNotBlank()) {
-            return tryFetch(CNB_RELEASES_URL, CNB_TOKEN, "CNB", ACCEPT_CNB)
+            tryFetch(CNB_RELEASES_URL, CNB_TOKEN, "CNB", ACCEPT_CNB, errors)?.let { return it }
         }
-        return null
+        // 公开仓库也支持匿名访问，作为最后兜底
+        return tryFetch(CNB_RELEASES_URL, null, "CNB", ACCEPT_CNB, errors)
     }
 
     private fun createClient(): HttpClient = HttpClient(OkHttp) {
@@ -232,7 +242,8 @@ object UpdateChecker {
         url: String,
         token: String?,
         source: String,
-        accept: String
+        accept: String,
+        errors: MutableList<String>
     ): UpdateInfo? {
         return try {
             createClient().use { client ->
@@ -248,30 +259,34 @@ object UpdateChecker {
                 when (status) {
                     200 -> parseRelease(body, source)
                     401, 403 -> {
-                        lastError = if (!token.isNullOrBlank()) {
+                        val err = if (!token.isNullOrBlank()) {
                             "$source：令牌无效或无权限访问该仓库"
                         } else if (body.contains("rate limit", ignoreCase = true)) {
-                            "$source：请求过于频繁，请稍后重试"
+                            "$source：API 请求频率超限，请稍后重试"
                         } else {
                             "$source：访问受限（可能需要配置令牌）"
                         }
-                        Log.w(TAG, "$source API 返回 $status: $lastError")
+                        errors.add(err)
+                        Log.w(TAG, "$source API 返回 $status: $err")
                         null
                     }
                     404 -> {
-                        lastError = "$source：未找到发布版本（仓库或 Release 不存在）"
+                        val err = "$source：未找到发布版本"
+                        errors.add(err)
                         Log.w(TAG, "$source API 返回 404")
                         null
                     }
                     else -> {
-                        lastError = "$source API 返回异常状态码 $status"
+                        val err = "$source API 返回异常状态码 $status"
+                        errors.add(err)
                         Log.w(TAG, "$source API 返回 $status: ${body.take(200)}")
                         null
                     }
                 }
             }
         } catch (e: Exception) {
-            lastError = "$source 请求异常：${e.javaClass.simpleName}"
+            val err = "$source：${e.javaClass.simpleName}（${e.message?.take(80)}）"
+            errors.add(err)
             Log.w(TAG, "$source 请求异常: $url -> ${e.message}")
             null
         }
