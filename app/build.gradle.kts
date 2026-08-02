@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
@@ -84,7 +83,7 @@ android {
     }
 
     // Room KSP 配置
-    sourceSets["main"].java.srcDir("build/generated/ksp/main/kotlin")
+    sourceSets["main"].java.srcDirs("build/generated/ksp/main/kotlin")
 
     // Release APK 输出命名规则：加班记-android-universal-版本号.apk
     androidComponents {
