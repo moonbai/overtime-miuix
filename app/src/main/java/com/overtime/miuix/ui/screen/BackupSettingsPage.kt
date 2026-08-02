@@ -227,8 +227,8 @@ fun BackupSettingsPage(
                     if (autoBackupEnabled) {
                         val locationItems = remember {
                             listOf(
-                                SpinnerEntry(title = "仅本地"),
-                                SpinnerEntry(title = "本地 + WebDAV 云端")
+                                DropdownItem(text = "仅本地"),
+                                DropdownItem(text = "本地 + WebDAV 云端")
                             )
                         }
                         val locationSelected = remember(autoBackupLocation) {

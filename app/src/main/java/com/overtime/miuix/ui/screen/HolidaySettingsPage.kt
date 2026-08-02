@@ -95,7 +95,7 @@ fun HolidaySettingsPage(
 
             item {
                 val sourceItems = remember {
-                    HolidayDataSource.entries.map { SpinnerEntry(title = it.label) }
+                    HolidayDataSource.entries.map { DropdownItem(text = it.label) }
                 }
                 val sourceSelected = remember(dataSource) {
                     HolidayDataSource.entries.indexOfFirst { it.name == dataSource }.coerceAtLeast(0)

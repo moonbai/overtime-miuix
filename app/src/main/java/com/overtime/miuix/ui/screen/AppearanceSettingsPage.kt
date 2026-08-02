@@ -49,14 +49,14 @@ fun AppearanceSettingsPage(
     val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
 
     // 主题 Dropdown
-    val themeItems = remember { THEME_OPTIONS.map { SpinnerEntry(title = it.second) } }
+    val themeItems = remember { THEME_OPTIONS.map { DropdownItem(text = it.second) } }
     val themeSelected = remember(themeMode) {
         THEME_OPTIONS.indexOfFirst { it.first == themeMode }.coerceAtLeast(0)
     }
 
     // 底栏样式 Dropdown
     val bottomBarItems = remember {
-        BottomBarStyle.entries.map { SpinnerEntry(title = it.label) }
+        BottomBarStyle.entries.map { DropdownItem(text = it.label) }
     }
     val bottomBarSelected = remember(bottomBarStyle) {
         BottomBarStyle.entries.indexOfFirst { it.name == bottomBarStyle }.coerceAtLeast(0)

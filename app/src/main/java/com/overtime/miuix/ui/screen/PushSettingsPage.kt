@@ -85,7 +85,7 @@ fun PushSettingsPage(
         "custom" to "自定义 WebHook"
     )
     val channelItems = remember(channelOptions) {
-        channelOptions.map { (_, label) -> SpinnerEntry(title = label) }
+        channelOptions.map { (_, label) -> DropdownItem(text = label) }
     }
     val selectedIndex = remember(pushChannel) {
         channelOptions.indexOfFirst { it.first == pushChannel }.coerceAtLeast(0)
