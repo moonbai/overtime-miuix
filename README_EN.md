@@ -1,8 +1,8 @@
-# OvertimeMiuix - Overtime Record App
+# OvertimeMiuX 加班记
 
 > [中文版](README.md)
 >
-> An overtime record application built with the MIUIX 0.9.3 Compose framework.
+> A streamlined overtime record & salary calculator app built with the MIUIX 0.9.3 Compose framework.
 
 [![MIUIX](https://img.shields.io/badge/MIUIX-0.9.3-blue)](https://github.com/moonbai/miuix)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.0-purple)](https://kotlinlang.org)
@@ -13,31 +13,42 @@
 
 ## Features
 
-- **Overtime Records** — Categorize workday, weekend, and holiday overtime, with time-off/leave flags
-- **Real-time Salary Preview** — Estimate salary in real time based on base salary and multipliers
-- **Statistics** — Monthly/annual overtime hours and salary statistics with tab switching
-- **Calendar Sync** — Auto-sync overtime records to the system calendar
-- **Smart Notifications** — Support DingTalk, Feishu, WxPusher, Telegram, Discord, etc.
-- **Holiday Management** — Built-in 2026 holiday data
-- **Data Backup** — Local JSON export/import, WebDAV cloud sync
-- **MCP Service** — Built-in Model Context Protocol server for AI assistant integration
-- **Customization** — Theme switching (light/dark/system), accent color, selectable bottom bar style
-- **Update Check** — In-app GitHub Release update detection with download guidance (public repo works anonymously; optional PAT raises the rate limit; no plaintext token in source)
+### Core
+
+- **Overtime Records** — Three overtime types (workday / weekend / holiday), with leave flags (half-day / full-day) and automatic salary deduction
+- **Real-time Salary Preview** — Live salary estimate while entering data; leave records show estimated deduction
+- **Quick Submit** — One-tap today's overtime from home screen with automatic date-type detection and common duration shortcuts
+- **Statistics** — Month / year toggle, calendar heatmap + categorized stats, tap any date for daily details
+- **Smart Date Detection** — Multiple data sources (Timor / MXNZP / Custom API) auto-detect workdays, weekends, and holidays
+
+### Extended
+
+- **Multi-channel Notifications** — DingTalk, Feishu, WeCom, WxPusher, Telegram, Discord, custom WebHook
+- **Calendar Sync** — Auto-sync overtime records to the system calendar with batch sync support
+- **Cloud Backup** — WebDAV cloud sync with manual upload / download and auto-backup (local + cloud dual mode)
+- **MCP Service** — Built-in Model Context Protocol server for AI assistant data access
+
+### Customization
+
+- **Theme** — Follow system / Light / Dark / Monet (dynamic color) four modes
+- **Nav Bar Style** — Normal / Floating styles, both with Gaussian blur frosted-glass effects
+- **Type Colors** — Customizable indicator colors for workday / weekend / holiday overtime
+- **Update Check** — GitHub + CNB dual-source detection with anonymous access and consistency verification
 
 ## Tech Stack
 
 | Category | Technology | Version |
 |----------|------------|---------|
-| UI Framework | MIUIX Compose (`miuix-ui` + `miuix-icons-android`) | 0.9.3 |
+| UI Framework | MIUIX Compose (miuix-ui + miuix-icons + miuix-blur) | 0.9.3 |
 | Build | Android Gradle Plugin | 9.1.1 |
 | Build | Gradle | 9.3.1 |
 | Language | Kotlin | 2.4.0 |
-| Compile | KSP | 2.4.0 |
+| Compile | KSP | 2.3.10 |
 | Database | Room | 2.8.4 |
 | Storage | DataStore Preferences | 1.1.1 |
 | Navigation | Navigation Compose | 2.8.5 |
-| Network | Ktor (CIO + SSE + WebSockets) | 3.0.3 |
-| MCP | Kotlin SDK (io.modelcontextprotocol) | 0.8.0 |
+| Network | Ktor (CIO + SSE + WebSockets + OkHttp) | 3.0.3 |
+| HTTP | OkHttp | 4.12.0 |
 | JSON | Gson | 2.11.0 |
 | Coroutines | Kotlinx Coroutines | 1.10.1 |
 | Serialization | Kotlinx Serialization | 1.7.3 |
@@ -46,9 +57,8 @@
 
 | Config | Value |
 |--------|-------|
-| compileSdk | 37 |
+| compileSdk / targetSdk | 37 |
 | minSdk | 26 |
-| targetSdk | 37 |
 | JVM Target | 17 |
 | Source Compatibility | Java 17 |
 
@@ -57,7 +67,7 @@
 ### Local Build
 
 ```bash
-# Debug package (debug signing, cannot overwrite a release build on install)
+# Debug package
 ./gradlew assembleDebug
 # Output: app/build/outputs/apk/debug/app-debug.apk
 
@@ -74,42 +84,25 @@ Release signing is injected via environment variables (CI uses GitHub Secrets; l
 |----------|-------------|
 | `KEYSTORE_BASE64` | Base64 of the Mars keystore |
 | `KEYSTORE_PASSWORD` | Keystore password |
-| `KEY_ALIAS` | Alias (currently `Mars`) |
+| `KEY_ALIAS` | Alias (`Mars`) |
 | `KEY_PASSWORD` | Key password |
 
-> ⚠️ The keystore file and passwords **must not be committed** to the repo. Provide them only via environment variables / local `local.properties`.
+> ⚠️ Keystore files and passwords must not be committed.
 
-### CI Auto-Release (GitHub Actions)
+### CI Auto-Release
 
-`.github/workflows/android.yml` listens for `v*` tag pushes and automatically runs "build → Mars signing → publish Release → upload APK":
+`.github/workflows/android.yml` listens for `v*` tag pushes, automatically building → signing → releasing → uploading APK.
 
-```bash
-# 1. Update versionCode / versionName in app/build.gradle.kts
-# 2. Commit and tag to trigger the auto-release
-git tag v1.0.7 && git push origin v1.0.7
-```
-
-Configure the following in the repo's `Settings → Secrets and variables → Actions`:
-
-| Secret | Description |
-|--------|-------------|
-| `KEYSTORE_BASE64` / `KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD` | Mars signing info |
-| `GH_PAT` | **Long-lived read-only PAT**, injected into the APK as `BuildConfig.GITHUB_TOKEN` for the update checker to access the private repo |
-
-> You **must** use a long-lived read-only PAT (`GH_PAT`). Do **not** use the Actions default `secrets.GITHUB_TOKEN` — it is only valid for the duration of the job and expires immediately after packaging, so it cannot be used for runtime update checks in an installed app.
+Configure signing Secrets and the optional `GH_PAT` (long-lived read-only PAT for in-app update checking) in the repo's `Settings → Secrets and variables → Actions`.
 
 ## In-App Update Check
 
-The in-app update detection is implemented in `util/UpdateChecker.kt`, triggered from **Settings → About → Check for Updates**:
+Entry point: Settings → About → Check for Updates
 
-1. **Data Source**: `GET https://api.github.com/repos/moonbai/overtime-miuix/releases/latest`
-2. **Auth (optional)**: The repo is public, so `/releases/latest` can be accessed **anonymously** (limit 60 req/hour/IP — enough for manual checks). If a PAT is injected at **compile time** via `BuildConfig.GITHUB_TOKEN`, it is used first for a higher limit (5000 req/hour) and private-repo support (**no plaintext token hardcoded in source**, complying with security rules)
-3. **Version Compare**: `compareVersion()` compares the current `versionName` with the Release tag segment by segment; a dialog prompts when a newer version exists
-4. **Jump to Download**: The dialog button opens the GitHub Release page via `Intent.ACTION_VIEW`, letting the user complete the download/install (mirror fallback such as `ghproxy` is supported)
-5. **Consistency Check**: When versions match but the local and remote SHA256 differ, it warns "installation package verification mismatch" and guides a re-download
-6. **Robustness**: API failures are skipped silently; pre-release versions are filtered by default
-
-> Update checking is manually triggered. For "auto-check on launch", add a `LaunchedEffect` calling `UpdateChecker.check()` at an entry point such as `MainScreen`.
+- **Data sources**: GitHub Releases API (primary) → CNB Releases API (fallback)
+- **Auth**: Public repos work anonymously; PAT injection raises rate limits
+- **Comparison**: Segment-by-segment `versionName` comparison; dialog prompts when a newer version is found
+- **Verification**: SHA256 consistency check warns if the local APK doesn't match the official release
 
 ## Project Structure
 
@@ -117,151 +110,58 @@ The in-app update detection is implemented in `util/UpdateChecker.kt`, triggered
 app/src/main/java/com/overtime/miuix/
 ├── data/
 │   ├── database/       # Room database (AppDatabase, DAO, Entity)
-│   ├── model/          # Data models (OvertimeType, etc.)
+│   ├── model/          # Data models (OvertimeType, BottomBarStyle)
 │   └── repository/     # Repositories (OvertimeRepository, SettingsRepository)
 ├── ui/
-│   ├── screen/         # Screen components (14 pages)
-│   │   ├── MainScreen.kt              # Main frame + bottom navigation
+│   ├── screen/         # Screen components (13 pages + 1 sheet)
+│   │   ├── MainScreen.kt              # Main frame + bottom nav + FAB
 │   │   ├── HomePage.kt                # Home (record list + monthly overview)
 │   │   ├── AddEditRecordPage.kt       # Add/edit record
-│   │   ├── StatisticsPage.kt          # Statistics report
+│   │   ├── QuickSubmitSheet.kt        # Quick-submit dialog
+│   │   ├── StatisticsPage.kt          # Statistics (calendar + month/year stats)
 │   │   ├── SettingsPage.kt            # Settings center
+│   │   ├── SettingsGroup.kt           # Unified group wrapper
 │   │   ├── AppearanceSettingsPage.kt  # Appearance settings
-│   │   ├── SalarySettingsPage.kt      # Salary settings
+│   │   ├── SalarySettingsPage.kt      # Base settings (salary/multipliers)
 │   │   ├── PushSettingsPage.kt        # Push settings
-│   │   ├── BackupSettingsPage.kt      # Backup settings
-│   │   ├── CalendarSettingsPage.kt    # Calendar settings
+│   │   ├── BackupSettingsPage.kt      # Backup & restore
+│   │   ├── CalendarSettingsPage.kt    # Calendar sync
 │   │   ├── HolidaySettingsPage.kt     # Holiday management
-│   │   ├── McpSettingsPage.kt         # MCP service settings
+│   │   ├── McpSettingsPage.kt         # MCP service
 │   │   └── AboutPage.kt              # About page
-│   └── theme/
-│       └── Theme.kt                   # Theme config (ThemeController)
+│   ├── icon/            # Custom icons
+│   ├── snackbar/        # Custom toast
+│   └── theme/           # Theme config (ThemeController)
 ├── util/               # Utilities
-│   ├── SalaryCalculator.kt            # Salary calculation
-│   ├── HolidayManager.kt             # Holiday management
-│   └── ...                            # Other utilities
+│   ├── SalaryCalculator.kt            # Salary calculation (overtime + leave deduction)
+│   ├── HolidayManager.kt             # Holiday management (multi-source)
+│   ├── BackupManager.kt              # Backup management (ZIP import/export)
+│   ├── RecordSyncHelper.kt           # Record sync (push + calendar + backup)
+│   ├── UpdateChecker.kt              # Update check (GitHub + CNB dual-source)
+│   ├── WebDavManager.kt              # WebDAV management
+│   └── DataMigrationUtil.kt          # Data migration utilities
+├── push/
+│   ├── PushManager.kt                # Push channel management
+│   └── CalendarSyncManager.kt        # Calendar sync management
 └── mcp/
     └── McpHostService.kt              # MCP service (Ktor Server)
 ```
 
 ## MCP Service
 
-Once enabled, data can be accessed via these endpoints:
-
-```
-GET  /mcp/tools                           - List available tools
-POST /mcp/tools/add_overtime_record        - Add overtime record
-POST /mcp/tools/query_overtime_records     - Query overtime records
-GET  /mcp/tools/get_monthly_stats?month=YYYY-MM - Get monthly stats
-```
-
-Config example:
+Once enabled, data can be accessed via the MCP protocol:
 
 ```json
 {
   "mcpServers": {
-    "overtime": {
+    "overtime-note": {
       "url": "http://<deviceIP>:8080/mcp"
     }
   }
 }
 ```
 
-## Changelog
-
-### v1.0.0 (2026-07-31)
-
-**MIUIX 0.8.8 → 0.9.0 Migration**
-
-- Dependency modularization: monolithic `miuix` → `miuix-ui` + `miuix-icons-android`
-- NavigationBar migrated to slot-based API + NavigationBarDisplayMode
-- ListItem → BasicComponent (startAction/endActions)
-- PreferenceGroup → SmallTitle
-- SwitchItem → BasicComponent + Switch
-- AlertDialog → OverlayDialog (declarative API)
-- ScrollableTabRow → TabRow (tabs + selectedTabIndex)
-- Theme API: rememberThemeController() → ThemeController
-- Text style updates: headline3→headline2, labelMedium→button, caption→footnote1
-- Color updates: onSurfaceVariant → onSurfaceVariantSummary
-
-**Bug Fixes**
-
-- Fixed Flow.collect {} suspension issue (OvertimeRepository + McpHostService)
-- Fixed missing McpHostService declaration in AndroidManifest
-- Fixed HolidayManager missing SimpleDateFormat import
-- Added Room fallbackToDestructiveMigration to avoid DB upgrade crashes
-- Fixed preview amount not accounting for isLeave state in time-off mode
-- Fixed DataStore state desync on salary settings page
-- Fixed MCP service hardcoded salary, now reads from SettingsRepository
-
-**Build System Upgrade**
-
-- AGP 8.13.2 → 9.1.1
-- Gradle 8.13 → 9.3.1
-- KSP 2.3.9 → 2.3.10
-- compileSdk / targetSdk 36 → 37
-- Removed kotlin-android plugin (built into AGP 9.0+)
-
-### v1.0.3 ~ v1.0.6
-
-- **v1.0.3**: Switched to the Mars signing keystore, fixed install failure caused by `INSTALL_FAILED_DUPLICATE_PERMISSION` (signature conflict)
-- **v1.0.4**: UI optimization and robustness improvements (TopAppBar overlap fix, normal bottom bar glass blur, floating bar button spacing/widening, update package SHA256 consistency check, MCP service crash protection)
-- **v1.0.5**: Fixed "check for updates" always failing — switched to PAT auth + OkHttp + segment-by-segment version comparison
-- **v1.0.6**: Floating bottom bar changed to a true overlay float (no longer occupies Scaffold reserved space, content can scroll under the bar); release APK naming prefix `加班记 → Overtime` (applies to future releases); completed CI injection of the update-check token and the `REQUEST_INSTALL_PACKAGES` permission
-
-### v1.0.7
-
-- Bottom bar interaction rework: both normal and floating bars are now overlays floating above content; the three screens can scroll under the bar
-- Normal bottom bar gains a Gaussian-blur background; the floating bar's blur background now fits exactly the three buttons' footprint (no longer full-width)
-- The floating action button (FAB) is moved down to avoid overlapping the floating bar
-- Update-check robustness: removed the dead mirror fallback (HTTP 000 and no private-repo auth forwarding), added request timeouts and clear error messages, plus empty-token detection
-
-### v1.0.8
-
-- Update check now supports anonymous access for public repositories: no token required to check for updates (GitHub public repo `releases/latest` returns 200 anonymously); the token is now optional, used only to raise the rate limit and for private repos
-- Detection order: token (if configured) → anonymous request → public mirror fallback; clearly distinguishes 404 (repo inaccessible) / 403 (rate limited) / 401 (invalid token) errors
-
-### v1.0.9
-
-- Normal bottom bar restored to its original behavior (Scaffold reserved space) with a Gaussian-blur background added; content is no longer obscured by the bar
-- Fixed the Settings "About" and other content being hidden behind the bar: all three screens (Home / Statistics / Settings) now reserve proper bottom padding and can scroll above the bar
-- The floating bottom bar's Gaussian-blur background now matches the floating bar exactly in both position and size (no more empty frosted-glass area around it)
-
-### v1.0.10
-
-- Floating bottom bar is now "truly floating": content scrolls behind the bar (the frosted-glass blur shows the content beneath), while each screen's list reserves bottom padding so the last item (e.g. "About") can still scroll above the bar and stays unobscured
-- Update check upgraded to GitHub / CNB dual-source: after GitHub (token → anonymous → mirror) fully fails, CNB (cnb.cool) is used as a fallback to guard against one side being unreachable (network / regional restrictions)
-- CI injects an optional CNB_TOKEN for the fallback data source (public repos can be accessed anonymously)
-
-### v1.1.0
-
-- Dependency upgrades: miuix 0.9.0 → 0.9.3, Kotlin 2.3.20 → 2.4.0, KSP 2.3.10 → 2.4.0
-- Compose BOM 2025.12.01 → 2026.04.01
-- Removed `kotlin-android` plugin (built into AGP 9.0+)
-- Explicitly added Compose Foundation / Animation / Material Icons Extended dependencies
-- Gradle mirror switched to Tencent mirror for faster downloads in China
-- Added leave record feature: half-day / full-day leave with automatic salary deduction calculation
-- Statistics page: new calendar heatmap and daily net hours display
-- Quick-submit mode: dual FABs on home (Add + Quick Submit) for one-tap today's overtime
-
-### v1.1.1
-
-- Floating nav bar offset 10dp → 5dp for tighter spacing
-- Normal nav bar background changed to Gaussian blur (frosted glass)
-- FAB buttons now use accent-color Gaussian blur backgrounds with safe spacing from the nav bar
-- About page UI redesign: simplified hero card, single-line slogan, updated app description
-- Update checker fix: added try-catch + finally to prevent permanent UI block on exception; CNB supports anonymous access fallback
-- NavigationBarDisplayMode.TextOnly downgraded to IconOnly (removed in miuix 0.9.3)
-
-### v1.1.2
-
-- **UI Designer Full Audit & Optimization**: unified design system across all screens
-- Global Card cornerRadius standardized to 16dp (nested cards 12dp, hero card 24dp)
-- All settings page sub-groups now consistently use the `SettingsGroup` wrapper
-- QuickSubmitSheet type/duration selector button cornerRadius unified to 12dp
-- Content padding standardized (LazyColumn contentPadding 16dp)
-- Title font weight unified to SemiBold
-- Code cleanup: removed redundant comments, fixed imports
+Supported tools: `add_overtime_record` / `query_overtime_records` / `get_monthly_stats`
 
 ## License
 
