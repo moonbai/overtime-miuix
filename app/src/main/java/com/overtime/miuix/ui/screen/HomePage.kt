@@ -50,10 +50,10 @@ fun HomePage(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = 12.dp,
-            top = 12.dp,
-            end = 12.dp,
-            bottom = 12.dp + bottomReserve
+            start = 16.dp,
+            top = 16.dp,
+            end = 16.dp,
+            bottom = 16.dp + bottomReserve
         ),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -251,7 +251,7 @@ private fun RecordCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        cornerRadius = 12.dp
+        cornerRadius = 16.dp
     ) {
         Row(
             modifier = Modifier

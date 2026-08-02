@@ -135,7 +135,7 @@ fun QuickSubmitSheet(
                         Surface(
                             color = if (selected) MiuixTheme.colorScheme.primary
                             else MiuixTheme.colorScheme.secondaryContainer,
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
@@ -167,7 +167,7 @@ fun QuickSubmitSheet(
                     Surface(
                         color = if (selected) MiuixTheme.colorScheme.primary
                         else MiuixTheme.colorScheme.secondaryContainer,
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .weight(1f)
                             .selectable(selected = selected, onClick = { durationHours = h })

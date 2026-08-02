@@ -144,7 +144,7 @@ fun AboutPage(navController: NavHostController) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 20.dp,
+                    cornerRadius = 16.dp,
                     insideMargin = PaddingValues(20.dp)
                 ) {
                     Text(

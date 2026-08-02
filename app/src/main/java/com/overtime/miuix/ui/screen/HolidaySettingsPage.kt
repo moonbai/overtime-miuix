@@ -121,8 +121,7 @@ fun HolidaySettingsPage(
 
             if (selectedSource == HolidayDataSource.MXNZP) {
                 item {
-                    Column {
-                        SmallTitle(text = "MXNZP 配置")
+                    SettingsGroup(title = "MXNZP 配置") {
                         TextField(
                             value = mxnzpAppIdText,
                             onValueChange = { mxnzpAppIdText = it; scope.launch { settingsRepository.setHolidayMxnzpAppId(it) } },
@@ -157,8 +156,7 @@ fun HolidaySettingsPage(
 
             if (selectedSource == HolidayDataSource.CUSTOM) {
                 item {
-                    Column {
-                        SmallTitle(text = "自定义 API 配置")
+                    SettingsGroup(title = "自定义 API 配置") {
                         Text(
                             text = "支持 {year} 或 \${year} 占位符自动替换年份。\n响应格式需兼容 Timor 或 MXNZP 格式。",
                             style = MiuixTheme.textStyles.footnote1,

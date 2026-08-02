@@ -324,7 +324,6 @@ fun BackupSettingsPage(
                                 ) { Text("立即上传") }
                             }
                             Spacer(modifier = Modifier.height(8.dp))
-                            // 云端下载/恢复：列出远端备份文件供选择
                             BasicComponent(
                                 title = "从云端恢复",
                                 summary = "列出 WebDAV 上的备份文件并下载恢复",

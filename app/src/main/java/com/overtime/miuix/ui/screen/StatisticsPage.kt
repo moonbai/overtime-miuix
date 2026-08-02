@@ -318,7 +318,7 @@ fun StatisticsPage(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp),
-                            cornerRadius = 12.dp
+                            cornerRadius = 16.dp
                         ) {
                             Row(
                                 modifier = Modifier

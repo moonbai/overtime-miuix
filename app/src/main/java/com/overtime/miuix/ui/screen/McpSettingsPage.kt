@@ -147,12 +147,13 @@ fun McpSettingsPage(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 12.dp
+                    cornerRadius = 16.dp
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
                             text = "可用工具",
-                            style = MiuixTheme.textStyles.title3
+                            style = MiuixTheme.textStyles.title3,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("• add_overtime_record - 添加加班记录")
@@ -171,19 +172,14 @@ fun McpSettingsPage(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 12.dp
+                    cornerRadius = 16.dp
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "MCP 配置 JSON",
-                                style = MiuixTheme.textStyles.title3,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                        Text(
+                            text = "MCP 配置 JSON",
+                            style = MiuixTheme.textStyles.title3,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -201,7 +197,7 @@ fun McpSettingsPage(
                         Spacer(modifier = Modifier.height(8.dp))
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            cornerRadius = 8.dp
+                            cornerRadius = 12.dp
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Text(

@@ -220,21 +220,21 @@ fun PushSettingsPage(
             }
 
             item {
-                Button(
-                    onClick = {
-                        scope.launch {
-                            if (pushChannel == "none") {
-                                snackbarHostState.showCustomToast("请先选择推送渠道")
-                                return@launch
+                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                if (pushChannel == "none") {
+                                    snackbarHostState.showCustomToast("请先选择推送渠道")
+                                    return@launch
+                                }
+                                val ok = PushManager.sendToSelectedChannel(pushChannel, buildConfigMap(), sampleRecord())
+                                snackbarHostState.showCustomToast(if (ok) "测试推送成功" else "测试推送失败")
                             }
-                            val ok = PushManager.sendToSelectedChannel(pushChannel, buildConfigMap(), sampleRecord())
-                            snackbarHostState.showCustomToast(if (ok) "测试推送成功" else "测试推送失败")
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) { Text("测试推送") }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("测试推送") }
+                }
             }
         }
     }
