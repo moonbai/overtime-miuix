@@ -142,11 +142,7 @@ dependencies {
     // Gson
     implementation(libs.gson)
 
-    // MIUIX 0.9.3（Compose Multiplatform 库，传递依赖 JetBrains Compose 1.11.1，
-    // 其中 org.jetbrains.compose.foundation:foundation 内部又依赖了
-    // androidx.compose.foundation:foundation:1.11.2，与项目 BOM 版本冲突。
-    // 解决方案：升级 BOM 至 2026.04.01（Foundation 1.11.2），同时排除
-    // JetBrains 的 Compose 传递依赖，统一由 AndroidX BOM 管理 Compose 库版本。）
+    // MIUIX 0.9.3 — Compose BOM 已升级至 2026.05.01（Foundation 1.11.2）消除版本冲突
     implementation(libs.miuix.ui) {
         exclude(group = "org.jetbrains.compose.foundation")
         exclude(group = "org.jetbrains.compose.material3")
@@ -164,7 +160,7 @@ dependencies {
         exclude(group = "org.jetbrains.compose.material3")
     }
 
-    // NavigationEvent — miuix 0.9.3 的 OverlayDialog 使用 NavigationBackHandler 依赖此库
+    // NavigationEvent — miuix 0.9.3 OverlayDialog 依赖
     implementation("androidx.navigationevent:navigationevent-android:1.1.2")
 
     // 其他
