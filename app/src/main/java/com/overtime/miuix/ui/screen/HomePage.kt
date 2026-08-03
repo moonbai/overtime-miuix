@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.stickyHeader
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -81,10 +80,11 @@ fun HomePage(
         derivedStateOf {
             val q = searchQuery.trim()
             records.filter { rec ->
-                val matchFilter = when (recordFilter) {
+                val currentFilter = recordFilter
+                val matchFilter = when (currentFilter) {
                     RecordFilter.All -> true
                     RecordFilter.Leave -> rec.isLeave
-                    is RecordFilter.Type -> !rec.isLeave && rec.type == recordFilter.t
+                    is RecordFilter.Type -> !rec.isLeave && rec.type == currentFilter.t
                 }
                 val matchQuery = q.isEmpty() || rec.note.contains(q, ignoreCase = true)
                         || monthFormatter.format(Date(rec.date)).contains(q)
