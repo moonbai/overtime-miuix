@@ -54,11 +54,16 @@
     fi
 
     yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
-    echo "==> 安装 platforms;android-37.0 与 build-tools;37.0.0"
-    if ! "$SDKMANAGER" --install "platform-tools" "platforms;android-37.0" "build-tools;37.0.0"; then
-      echo "!! SDK 组件安装失败，输出可用包清单用于排查："
-      "$SDKMANAGER" --list | grep -E "platforms;android-3[5-9]|build-tools;3[5-9]" | head -40
-      exit 1
+    echo "==> 安装 platforms;android-37 与 build-tools;37.0.0"
+    # 兼容两种平台包命名：标准名为 platforms;android-37；部分新版 sdkmanager 可能识别
+    # platforms;android-37.0。先试一种，失败回退另一种，避免「包不存在」直接终止构建。
+    if ! "$SDKMANAGER" --install "platform-tools" "platforms;android-37" "build-tools;37.0.0"; then
+      echo "==> platforms;android-37 未找到，回退尝试 platforms;android-37.0"
+      if ! "$SDKMANAGER" --install "platform-tools" "platforms;android-37.0" "build-tools;37.0.0"; then
+        echo "!! SDK 组件安装失败，输出可用包清单用于排查："
+        "$SDKMANAGER" --list | grep -E "platforms;android-3[5-9]|build-tools;3[5-9]" | head -40
+        exit 1
+      fi
     fi
     echo "sdk.dir=$SDK_ROOT" > local.properties
     echo "==> SDK 就绪：$SDK_ROOT"
