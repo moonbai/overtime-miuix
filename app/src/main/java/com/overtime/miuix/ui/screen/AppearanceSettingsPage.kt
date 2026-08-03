@@ -47,6 +47,7 @@ fun AppearanceSettingsPage(
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
     val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
     val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
+    val accentColor by settingsRepository.accentColor.collectAsState(initial = 0xFF3482FF.toInt())
 
     // 主题 Dropdown
     val themeItems = remember { THEME_OPTIONS.map { DropdownItem(text = it.second) } }
@@ -137,6 +138,22 @@ fun AppearanceSettingsPage(
                                 onCheckedChange = { scope.launch { settingsRepository.setQuickSubmit(it) } }
                             )
                         }
+                    )
+                }
+            }
+
+            item {
+                SettingsGroup(title = "强调色") {
+                    Text(
+                        text = "用于按钮、选中态等全局强调元素",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                    ColorPickerRow(
+                        label = "全局强调色",
+                        selected = accentColor,
+                        onSelect = { scope.launch { settingsRepository.setAccentColor(it) } }
                     )
                 }
             }

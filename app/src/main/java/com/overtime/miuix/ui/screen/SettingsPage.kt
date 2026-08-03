@@ -76,13 +76,26 @@ fun SettingsPage(navController: NavHostController, bottomReserve: Dp = 0.dp) {
         }
 
         item {
-            SettingsGroup(title = "MCP 服务") {
+            // 高级设置：默认折叠，避免普通用户被开发者选项干扰
+            var showAdvanced by remember { mutableStateOf(false) }
+            Column {
                 BasicComponent(
-                    title = "MCP 服务设置",
-                    summary = "配置 Model Context Protocol",
-                    startAction = { Icon(MiuixIcons.CloudFill, contentDescription = null) },
-                    onClick = { navController.navigate("mcp_settings") }
+                    title = "高级设置",
+                    summary = "MCP 服务等开发者选项",
+                    startAction = { Icon(MiuixIcons.Settings, contentDescription = null) },
+                    endActions = { DropdownArrowEndAction(MiuixTheme.colorScheme.primary) },
+                    onClick = { showAdvanced = !showAdvanced }
                 )
+                if (showAdvanced) {
+                    SettingsGroup(title = "MCP 服务") {
+                        BasicComponent(
+                            title = "MCP 服务设置",
+                            summary = "配置 Model Context Protocol",
+                            startAction = { Icon(MiuixIcons.CloudFill, contentDescription = null) },
+                            onClick = { navController.navigate("mcp_settings") }
+                        )
+                    }
+                }
             }
         }
 

@@ -28,6 +28,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 @Composable
@@ -52,8 +53,8 @@ fun AddEditRecordPage(
     var durationHours by remember { mutableStateOf(2.0) }
     var note by remember { mutableStateOf("") }
     var isLeave by remember { mutableStateOf(false) }
-    // 请假时长：半天 = -4，全天 = -8（小时）
-    var leaveDuration by remember { mutableStateOf(-4) }
+    // 请假时长：以 0.5 小时为梯度，范围 -0.5 ~ -24（小时），默认半天 -4
+    var leaveDuration by remember { mutableStateOf(-4.0) }
     // 用户是否手动改过加班类型：为 true 时不再按日期自动覆盖
     var typeManuallyChanged by remember { mutableStateOf(false) }
     // 当前日期自动判定得到的类型标签（用于展示提示）
@@ -61,6 +62,10 @@ fun AddEditRecordPage(
 
     // 请假时长选择弹窗显隐
     var showLeaveDurationPicker by remember { mutableStateOf(false) }
+
+    // 请假时长选项：-0.5 ~ -24（0.5 梯度）
+    val leaveOptions = remember { (1..48).map { -(it * 0.5) } }
+    var pickLeaveIndex by remember { mutableIntStateOf(7) } // 默认 -4.0（半天）
 
     // 节假日数据源配置
     val holidayDataSource by settingsRepository.holidayDataSource.collectAsState(initial = "TIMOR")
@@ -117,8 +122,8 @@ fun AddEditRecordPage(
 
     val previewAmount = remember(selectedDate, selectedType, durationHours, baseSalary, workdayRate, weekendRate, holidayRate, isLeave, leaveDuration) {
         if (isLeave) {
-            // 请假：预估为工资扣减（负值）
-            SalaryCalculator.calculateLeaveDeduction(baseSalary, leaveDuration.toDouble())
+                // 请假：预估为工资扣减（负值）
+                SalaryCalculator.calculateLeaveDeduction(baseSalary, leaveDuration)
         } else {
             val rate = when (selectedType) {
                 OvertimeType.WORKDAY -> workdayRate
@@ -141,9 +146,11 @@ fun AddEditRecordPage(
                 durationHours = if (it.isLeave) Math.abs(it.durationHours) else it.durationHours.coerceAtLeast(0.5)
                 note = it.note
                 isLeave = it.isLeave
-                // 请假时长按已存时长初始化（-4 半天 / -8 全天）
+                // 请假时长按已存时长就近吸附到 0.5h 梯度初始化
                 if (it.isLeave) {
-                    leaveDuration = if (it.durationHours <= -8) -8 else -4
+                    leaveDuration = (it.durationHours / 0.5).roundToInt() * 0.5
+                    pickLeaveIndex = ((kotlin.math.abs(leaveDuration) / 0.5).roundToInt() - 1)
+                        .coerceIn(0, leaveOptions.size - 1)
                 }
                 // 同步选择器状态
                 val cal = Calendar.getInstance().apply { time = Date(it.date) }
@@ -287,6 +294,16 @@ fun AddEditRecordPage(
                         onClick = { showDurationPicker = true }
                     )
                 }
+
+                // 编辑场景下曾手动改过类型：提供「恢复按日期自动判定」入口
+                if (typeManuallyChanged) {
+                    item {
+                        TextButton(
+                            text = "恢复按日期自动判定类型",
+                            onClick = { typeManuallyChanged = false }
+                        )
+                    }
+                }
             }
 
             item {
@@ -311,14 +328,18 @@ fun AddEditRecordPage(
                 )
             }
 
-            // 请假时长选择（Dropdown (O)），仅在请假模式下显示，位于请假开关下方
+            // 请假时长选择（0.5h 梯度 NumberPicker），仅在请假模式下显示，位于请假开关下方
             if (isLeave) {
                 item {
                     BasicComponent(
                         title = "请假时长",
-                        summary = if (leaveDuration == -8) "全天 (-8小时)" else "半天 (-4小时)",
+                        summary = SalaryCalculator.formatHours(kotlin.math.abs(leaveDuration)),
                         endActions = { DropdownArrowEndAction(MiuixTheme.colorScheme.primary) },
-                        onClick = { showLeaveDurationPicker = true }
+                        onClick = {
+                            pickLeaveIndex = ((kotlin.math.abs(leaveDuration) / 0.5).roundToInt() - 1)
+                                .coerceIn(0, leaveOptions.size - 1)
+                            showLeaveDurationPicker = true
+                        }
                     )
                 }
             }
@@ -440,24 +461,34 @@ fun AddEditRecordPage(
 
         OverlayDialog(
             show = showLeaveDurationPicker,
-            title = "选择请假时长",
+            title = "选择请假时长（0.5 小时梯度）",
             onDismissRequest = { showLeaveDurationPicker = false }
         ) {
-            // 改用 Dropdown(O) 组件呈现请假时长选项：
-            // 此前使用 SpinnerItemImpl，与「加班类型」弹窗风格不一致且宽度未撑满
-            Column(modifier = Modifier.fillMaxWidth()) {
-                val options = listOf(-4 to "半天 (-4小时)", -8 to "全天 (-8小时)")
-                options.forEachIndexed { index, option ->
-                    FullWidthDropdownItem(
-                        text = option.second,
-                        optionSize = options.size,
-                        isSelected = leaveDuration == option.first,
-                        index = index,
-                        onSelected = {
-                            leaveDuration = options[it].first
-                            showLeaveDurationPicker = false
-                        }
-                    )
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                NumberPicker(
+                    value = pickLeaveIndex,
+                    onValueChange = { pickLeaveIndex = it },
+                    range = 0 until leaveOptions.size,
+                    label = {
+                        val h = kotlin.math.abs(leaveOptions[it])
+                        val hi = h.toInt()
+                        val m = ((h - hi) * 60).toInt()
+                        if (m > 0) "${hi}小时${m}分钟" else "${hi}小时"
+                    },
+                    modifier = Modifier.heightIn(min = 180.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        leaveDuration = leaveOptions[pickLeaveIndex]
+                        showLeaveDurationPicker = false
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("确定")
                 }
             }
         }
@@ -515,7 +546,7 @@ private suspend fun saveRecord(
     rate: Double,
     note: String,
     isLeave: Boolean,
-    leaveDuration: Int
+    leaveDuration: Double
 ): OvertimeRecord? {
     // 请假记录：时长取 leaveDuration（半天 -4 / 全天 -8），工资按标准日薪比例扣减（负值）
     val duration = if (isLeave) leaveDuration.toDouble() else durationHours

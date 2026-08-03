@@ -1,5 +1,6 @@
 package com.overtime.miuix.ui.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
@@ -13,6 +14,8 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun SalarySettingsPage(
@@ -37,12 +40,31 @@ fun SalarySettingsPage(
     LaunchedEffect(weekendRate) { weekendText = weekendRate.toString() }
     LaunchedEffect(holidayRate) { holidayText = holidayRate.toString() }
 
+    // 校验：基础薪资与倍率均须为正；非法输入触发保存拦截
+    fun parsePositive(text: String): Double? = text.toDoubleOrNull()?.takeIf { it > 0 }
+    val salaryValid = parsePositive(salaryText) != null
+    val workdayValid = parsePositive(workdayText) != null
+    val weekendValid = parsePositive(weekendText) != null
+    val holidayValid = parsePositive(holidayText) != null
+    val allValid = salaryValid && workdayValid && weekendValid && holidayValid
+
+    val isDirty = salaryText != baseSalary.toString()
+            || workdayText != workdayRate.toString()
+            || weekendText != weekendRate.toString()
+            || holidayText != holidayRate.toString()
+
+    var showDiscardDialog by remember { mutableStateOf(false) }
+
+    fun tryExit() {
+        if (isDirty) showDiscardDialog = true else navController.popBackStack()
+    }
+
     Scaffold(
         topBar = {
             SmallTopAppBar(
                 title = "基础设置",
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = { tryExit() }) {
                         Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
                     }
                 }
@@ -93,14 +115,28 @@ fun SalarySettingsPage(
                 )
             }
 
+            if (!allValid) {
+                item {
+                    Text(
+                        text = "基础薪资与各项倍率都必须大于 0",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.error
+                    )
+                }
+            }
+
             item {
                 Button(
                     onClick = {
+                        if (!allValid) {
+                            scope.launch { snackbarHostState.showCustomToast("请填写大于 0 的合法数值") }
+                            return@Button
+                        }
                         scope.launch {
-                            settingsRepository.setBaseSalary(salaryText.toDoubleOrNull() ?: 2200.0)
-                            settingsRepository.setWorkdayRate(workdayText.toDoubleOrNull() ?: 1.5)
-                            settingsRepository.setWeekendRate(weekendText.toDoubleOrNull() ?: 2.0)
-                            settingsRepository.setHolidayRate(holidayText.toDoubleOrNull() ?: 3.0)
+                            settingsRepository.setBaseSalary(salaryText.toDouble())
+                            settingsRepository.setWorkdayRate(workdayText.toDouble())
+                            settingsRepository.setWeekendRate(weekendText.toDouble())
+                            settingsRepository.setHolidayRate(holidayText.toDouble())
                             snackbarHostState.showCustomToast("已保存基础设置")
                             navController.popBackStack()
                         }
@@ -112,4 +148,35 @@ fun SalarySettingsPage(
             }
         }
     }
+
+    // 未保存修改时返回需二次确认
+    OverlayDialog(
+        show = showDiscardDialog,
+        title = "放弃修改",
+        summary = "当前有未保存的修改，确定要放弃吗？",
+        onDismissRequest = { showDiscardDialog = false }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            TextButton(
+                text = "取消",
+                onClick = { showDiscardDialog = false },
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            TextButton(
+                text = "放弃",
+                onClick = {
+                    showDiscardDialog = false
+                    navController.popBackStack()
+                },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+
+    // 系统返回键同样走二次确认
+    BackHandler(enabled = true) { tryExit() }
 }

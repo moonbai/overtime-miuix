@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.overtime.miuix.data.database.OvertimeRecord
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
@@ -18,6 +19,7 @@ import com.overtime.miuix.util.BackupData
 import com.overtime.miuix.util.BackupManager
 import com.overtime.miuix.util.DataMigrationUtil
 import com.overtime.miuix.util.WebDavManager
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -27,6 +29,10 @@ import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
 import java.io.FileOutputStream
+
+/** 业务去重键：同日期 + 同类型 + 同时长 + 同请假标记 + 同备注 视为同一条记录 */
+private fun recordKey(r: OvertimeRecord): String =
+    "${r.date}_${r.type}_${r.durationHours}_${r.isLeave}_${r.note.trim()}"
 
 @Composable
 fun BackupSettingsPage(
@@ -60,6 +66,9 @@ fun BackupSettingsPage(
     var remoteFiles by remember { mutableStateOf<List<String>>(emptyList()) }
     var loadingRemote by remember { mutableStateOf(false) }
 
+    // 导入/恢复二次确认：解析完成后暂存，由确认框触发真正写入
+    var pendingImport by remember { mutableStateOf<BackupData?>(null) }
+
     LaunchedEffect(webdavUrl) { webdavUrlText = webdavUrl }
     LaunchedEffect(webdavUsername) { webdavUserText = webdavUsername }
     LaunchedEffect(webdavPassword) { webdavPassText = webdavPassword }
@@ -77,6 +86,25 @@ fun BackupSettingsPage(
         remotePath = webdavPathText.ifBlank { "/overtime_backup/" }
     )
 
+    /**
+     * 真正执行导入：按业务键去重，仅插入库中不存在的记录，避免重复恢复导致记录翻倍。
+     */
+    suspend fun applyImport(data: BackupData) {
+        val existingKeys = repository.getAllRecords().first().map { recordKey(it) }.toSet()
+        var inserted = 0
+        data.records.forEach { rec ->
+            if (recordKey(rec) !in existingKeys) {
+                repository.insert(rec.copy(id = 0))
+                inserted++
+            }
+        }
+        if (data.settings.isNotEmpty()) {
+            settingsRepository.importSettings(data.settings)
+        }
+        val skipped = data.records.size - inserted
+        showToast("导入完成：新增 $inserted 条，跳过 $skipped 条重复")
+    }
+
     // 从云端下载指定备份文件并恢复记录与设置（支持 ZIP 和旧版 JSON）
     suspend fun restoreFromCloud(fileName: String) {
         showToast("正在下载 $fileName ...")
@@ -88,16 +116,13 @@ fun BackupSettingsPage(
             return
         }
         val data = if (isZip) BackupManager.importZip(localPath) else BackupManager.importData(localPath)
+        runCatching { File(localPath).delete() }
         if (data == null) {
             showToast("文件解析失败")
             return
         }
-        data.records.forEach { repository.insert(it.copy(id = 0)) }
-        if (data.settings.isNotEmpty()) {
-            settingsRepository.importSettings(data.settings)
-        }
-        runCatching { File(localPath).delete() }
-        showToast("云端恢复成功，共 ${data.records.size} 条记录")
+        // 解析成功，交由二次确认框触发真正写入
+        pendingImport = data
     }
 
     // 导出到用户选择的文件（ZIP 格式，包含 records.json + settings.json）
@@ -149,11 +174,8 @@ fun BackupSettingsPage(
                     showToast("文件解析失败")
                     return@launch
                 }
-                data.records.forEach { repository.insert(it.copy(id = 0)) }
-                if (data.settings.isNotEmpty()) {
-                    settingsRepository.importSettings(data.settings)
-                }
-                showToast("导入成功，共 ${data.records.size} 条记录")
+                // 解析成功，交由二次确认框触发真正写入
+                pendingImport = data
             } catch (e: Exception) {
                 e.printStackTrace()
                 showToast("导入失败：${e.message}")
@@ -205,7 +227,7 @@ fun BackupSettingsPage(
                     )
                     BasicComponent(
                         title = "导入数据",
-                        summary = "从 ZIP / JSON 文件恢复记录与设置",
+                        summary = "从 ZIP / JSON 文件恢复记录与设置（自动去重）",
                         startAction = { Icon(MiuixIcons.Import, contentDescription = null) },
                         onClick = { importLauncher.launch(arrayOf("application/zip", "application/json", "*/*")) }
                     )
@@ -373,6 +395,38 @@ fun BackupSettingsPage(
                     text = "取消",
                     onClick = { showRestoreDialog = false },
                     modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        // 导入/恢复二次确认：解析完成后提示将写入的记录数，确认才真正去重写入
+        OverlayDialog(
+            show = pendingImport != null,
+            title = "确认导入",
+            summary = if (pendingImport != null) {
+                val settingsHint = if (pendingImport!!.settings.isNotEmpty()) "，并覆盖恢复设置" else ""
+                "将导入 ${pendingImport!!.records.size} 条记录（自动跳过重复）$settingsHint，确定继续吗？"
+            } else "",
+            onDismissRequest = { pendingImport = null }
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = { pendingImport = null },
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                TextButton(
+                    text = "导入",
+                    onClick = {
+                        val data = pendingImport
+                        pendingImport = null
+                        data?.let { scope.launch { applyImport(it) } }
+                    },
+                    modifier = Modifier.weight(1f)
                 )
             }
         }

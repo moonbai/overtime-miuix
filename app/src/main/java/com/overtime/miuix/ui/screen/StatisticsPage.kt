@@ -48,8 +48,33 @@ fun StatisticsPage(
     settingsRepository: SettingsRepository,
     bottomReserve: Dp = 0.dp
 ) {
-    val yearMonths = remember { SalaryCalculator.getYearMonthList(12) }
-    var selectedMonth by remember { mutableStateOf(yearMonths.first()) }
+    // 全部记录：用于动态计算可统计的月份范围（最早记录月 ~ 当前月）
+    val allRecords by repository.getAllRecords().collectAsState(initial = emptyList())
+
+    val yearMonths by remember(allRecords) {
+        derivedStateOf {
+            val cal = Calendar.getInstance()
+            val endY = cal.get(Calendar.YEAR)
+            val endM = cal.get(Calendar.MONTH) + 1
+            val startYM = if (allRecords.isEmpty()) {
+                String.format("%04d-%02d", endY, endM)
+            } else {
+                val minCal = Calendar.getInstance().apply { timeInMillis = allRecords.minOf { it.date } }
+                String.format("%04d-%02d", minCal.get(Calendar.YEAR), minCal.get(Calendar.MONTH) + 1)
+            }
+            val list = mutableListOf<String>()
+            var y = startYM.substring(0, 4).toInt()
+            var m = startYM.substring(5, 7).toInt()
+            while (y < endY || (y == endY && m <= endM)) {
+                list.add(String.format("%04d-%02d", y, m))
+                m++
+                if (m > 12) { m = 1; y++ }
+            }
+            list
+        }
+    }
+
+    var selectedMonth by remember { mutableStateOf(SalaryCalculator.getCurrentYearMonth()) }
     var selectedYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR).toString()) }
     var viewMode by remember { mutableStateOf(StatsViewMode.MONTH) }
     var stats by remember { mutableStateOf<com.overtime.miuix.data.repository.MonthlyStats?>(null) }
@@ -142,6 +167,39 @@ fun StatisticsPage(
         }
     }
 
+    // 年度维度：按月趋势 + 类型占比
+    val yearTrend by remember(allRecords, selectedYear) {
+        derivedStateOf {
+            val y = selectedYear.toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
+            val cal = Calendar.getInstance()
+            (1..12).map { m ->
+                val sum = allRecords.filter { rec ->
+                    cal.timeInMillis = rec.date
+                    cal.get(Calendar.YEAR) == y && cal.get(Calendar.MONTH) + 1 == m
+                }.sumOf { it.durationHours }
+                m to sum
+            }
+        }
+    }
+    val yearTypeRatio by remember(allRecords, selectedYear) {
+        derivedStateOf {
+            val y = selectedYear.toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
+            val cal = Calendar.getInstance()
+            var workday = 0.0; var weekend = 0.0; var holiday = 0.0
+            allRecords.filter { rec ->
+                cal.timeInMillis = rec.date
+                cal.get(Calendar.YEAR) == y && !rec.isLeave
+            }.forEach { rec ->
+                when (rec.type) {
+                    OvertimeType.WORKDAY -> workday += rec.durationHours
+                    OvertimeType.WEEKEND -> weekend += rec.durationHours
+                    OvertimeType.HOLIDAY -> holiday += rec.durationHours
+                }
+            }
+            Triple(workday, weekend, holiday)
+        }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -208,6 +266,11 @@ fun StatisticsPage(
             }
         }
 
+        // 图例：类型颜色说明
+        item {
+            LegendRow(typeColor = typeColor)
+        }
+
         // 月度视图专属：日历卡片
         if (viewMode == StatsViewMode.MONTH) {
             item {
@@ -249,6 +312,21 @@ fun StatisticsPage(
                     "年度预估薪资" to (yearlyStats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
                 )
             )
+        }
+
+        // 年度视图：按月趋势 + 类型占比
+        if (viewMode == StatsViewMode.YEAR) {
+            item {
+                YearTrendCard(yearTrend = yearTrend)
+            }
+            item {
+                TypeRatioCard(
+                    workday = yearTypeRatio.first,
+                    weekend = yearTypeRatio.second,
+                    holiday = yearTypeRatio.third,
+                    typeColor = typeColor
+                )
+            }
         }
     }
 
@@ -317,7 +395,8 @@ fun StatisticsPage(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp),
+                                .padding(vertical = 4.dp)
+                                .clickable { navController.navigate("edit_record/${record.id}") },
                             cornerRadius = 16.dp
                         ) {
                             Row(
@@ -391,6 +470,152 @@ fun StatisticsPage(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LegendRow(typeColor: (OvertimeType) -> Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        LegendItem(MiuixTheme.colorScheme.error, "请假")
+        LegendItem(typeColor(OvertimeType.WORKDAY), "工作日")
+        LegendItem(typeColor(OvertimeType.WEEKEND), "周末")
+        LegendItem(typeColor(OvertimeType.HOLIDAY), "节假日")
+    }
+}
+
+@Composable
+private fun LegendItem(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(color, RoundedCornerShape(2.dp))
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = label,
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+        )
+    }
+}
+
+@Composable
+private fun YearTrendCard(yearTrend: List<Pair<Int, Double>>) {
+    Card(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "按月趋势（净时长）",
+                style = MiuixTheme.textStyles.title3,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            val maxAbs = yearTrend.maxOfOrNull { abs(it.second) } ?: 0.0
+            yearTrend.forEach { (month, hours) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${month}月",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.width(36.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(14.dp)
+                            .background(MiuixTheme.colorScheme.secondaryContainer, RoundedCornerShape(4.dp))
+                    ) {
+                        if (maxAbs > 0) {
+                            val fraction = (abs(hours) / maxAbs).toFloat().coerceIn(0f, 1f)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fraction)
+                                    .height(14.dp)
+                                    .background(
+                                        if (hours < 0) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary,
+                                        RoundedCornerShape(4.dp)
+                                    )
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = compactHours(hours),
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = if (hours < 0) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.width(56.dp),
+                        textAlign = TextAlign.End
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TypeRatioCard(
+    workday: Double,
+    weekend: Double,
+    holiday: Double,
+    typeColor: (OvertimeType) -> Color
+) {
+    val total = workday + weekend + holiday
+    Card(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "类型占比（加班时长）",
+                style = MiuixTheme.textStyles.title3,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            if (total <= 0) {
+                Text(
+                    text = "本年暂无加班记录",
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
+            } else {
+                // 占比条
+                Row(modifier = Modifier.fillMaxWidth().height(12.dp)) {
+                    Box(modifier = Modifier.fillMaxWidth((workday / total).toFloat()).background(typeColor(OvertimeType.WORKDAY)))
+                    Box(modifier = Modifier.fillMaxWidth((weekend / total).toFloat()).background(typeColor(OvertimeType.WEEKEND)))
+                    Box(modifier = Modifier.fillMaxWidth((holiday / total).toFloat()).background(typeColor(OvertimeType.HOLIDAY)))
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    RatioItem(typeColor(OvertimeType.WORKDAY), "工作日", workday, total)
+                    RatioItem(typeColor(OvertimeType.WEEKEND), "周末", weekend, total)
+                    RatioItem(typeColor(OvertimeType.HOLIDAY), "节假日", holiday, total)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RatioItem(color: Color, label: String, value: Double, total: Double) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = SalaryCalculator.formatHours(value),
+            style = MiuixTheme.textStyles.body1,
+            fontWeight = FontWeight.Medium,
+            color = color
+        )
+        Text(
+            text = "$label ${((value / total) * 100).toInt()}%",
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+        )
     }
 }
 

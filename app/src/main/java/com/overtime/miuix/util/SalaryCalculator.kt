@@ -15,11 +15,12 @@ object SalaryCalculator {
         rate: Double,
         durationHours: Double
     ): Double {
-        if (durationHours <= 0) return 0.0
-        
+        // 防御：基础薪资、倍率、时长任一非正均为非法输入，返回 0 避免脏数据
+        if (baseSalary <= 0 || rate <= 0 || durationHours <= 0) return 0.0
+
         val dailySalary = baseSalary / WORKING_DAYS_PER_MONTH
         val hourlySalary = dailySalary / HOURS_PER_DAY
-        
+
         return hourlySalary * rate * durationHours
     }
 
@@ -29,7 +30,7 @@ object SalaryCalculator {
      */
     fun calculateLeaveDeduction(baseSalary: Double, durationHours: Double): Double {
         val absHours = kotlin.math.abs(durationHours)
-        if (absHours <= 0) return 0.0
+        if (baseSalary <= 0 || absHours <= 0) return 0.0
         return -calculateOvertimeAmount(baseSalary, OvertimeType.WORKDAY, 1.0, absHours)
     }
     

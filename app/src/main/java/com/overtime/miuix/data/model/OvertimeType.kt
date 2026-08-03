@@ -8,6 +8,5 @@ enum class OvertimeType(val label: String) {
 
 enum class BottomBarStyle(val label: String) {
     ICON_TEXT("图标+文字"),
-    ICON_ONLY("仅图标"),
-    TEXT_ONLY("仅文字")
+    ICON_ONLY("仅图标")
 }

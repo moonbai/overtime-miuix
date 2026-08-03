@@ -59,12 +59,21 @@ fun QuickSubmitSheet(
     val dateStr = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(today) }
     val dateLabel = remember { SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault()).format(today) }
 
+    // 今日已有记录（用于「今日已记录」提示）
+    val allRecords by repository.getAllRecords().collectAsState(initial = emptyList())
+    val todayRecords = remember(allRecords, dateStr) {
+        allRecords.filter { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(it.date)) == dateStr }
+    }
+
     var selectedType by remember { mutableStateOf(OvertimeType.WORKDAY) }
     var typeManuallyChanged by remember { mutableStateOf(false) }
     var autoDetected by remember { mutableStateOf(false) }
     var durationHours by remember { mutableStateOf(2.0) }
     var note by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
+    // 请假模式：快速提报也支持记请假
+    var isLeave by remember { mutableStateOf(false) }
+    var leaveDuration by remember { mutableStateOf(-4.0) }
 
     // 弹出时按当天日期自动判定加班类型
     LaunchedEffect(show) {
@@ -87,7 +96,11 @@ fun QuickSubmitSheet(
         OvertimeType.WEEKEND -> weekendRate
         OvertimeType.HOLIDAY -> holidayRate
     }
-    val previewAmount = SalaryCalculator.calculateOvertimeAmount(baseSalary, selectedType, rate, durationHours)
+    val previewAmount = if (isLeave) {
+        SalaryCalculator.calculateLeaveDeduction(baseSalary, leaveDuration)
+    } else {
+        SalaryCalculator.calculateOvertimeAmount(baseSalary, selectedType, rate, durationHours)
+    }
 
     OverlayDialog(
         show = show,
@@ -111,66 +124,107 @@ fun QuickSubmitSheet(
                 )
             }
 
-            // 加班类型
-            SmallTitle(text = if (autoDetected && !typeManuallyChanged) "加班类型（按日期自动判定）" else "加班类型")
+            // 今日已记录提示
+            if (todayRecords.isNotEmpty()) {
+                Surface(
+                    color = MiuixTheme.colorScheme.secondaryContainer,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "今日已记录 ${todayRecords.size} 条，继续将新增一条",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                    )
+                }
+            }
+
+            // 记为请假开关
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                OvertimeType.entries.forEach { type ->
-                    val selected = selectedType == type
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .selectable(
-                                selected = selected,
-                                onClick = {
-                                    selectedType = type
-                                    typeManuallyChanged = true
-                                }
-                            )
-                    ) {
-                        Surface(
-                            color = if (selected) MiuixTheme.colorScheme.primary
-                            else MiuixTheme.colorScheme.secondaryContainer,
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
+                Text(
+                    text = "记为请假",
+                    style = MiuixTheme.textStyles.body1,
+                    color = if (isLeave) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurface
+                )
+                Switch(checked = isLeave, onCheckedChange = { isLeave = it })
+            }
+
+            // 加班类型（请假模式下隐藏）
+            if (!isLeave) {
+                SmallTitle(text = if (autoDetected && !typeManuallyChanged) "加班类型（按日期自动判定）" else "加班类型")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OvertimeType.entries.forEach { type ->
+                        val selected = selectedType == type
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .selectable(
+                                    selected = selected,
+                                    onClick = {
+                                        selectedType = type
+                                        typeManuallyChanged = true
+                                    }
+                                )
                         ) {
-                            Text(
-                                text = type.label.replace("加班", ""),
-                                style = MiuixTheme.textStyles.body2,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (selected) MiuixTheme.colorScheme.onPrimary
-                                else MiuixTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 10.dp),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
+                            Surface(
+                                color = if (selected) MiuixTheme.colorScheme.primary
+                                else MiuixTheme.colorScheme.secondaryContainer,
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = type.label.replace("加班", ""),
+                                    style = MiuixTheme.textStyles.body2,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (selected) MiuixTheme.colorScheme.onPrimary
+                                    else MiuixTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 10.dp),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // 加班时长快捷选择
-            SmallTitle(text = "加班时长：${SalaryCalculator.formatHours(durationHours)}")
+            // 时长快捷选择（含 0.5h 档；请假模式使用请假时长）
+            val durationOptions = if (isLeave) listOf(0.5, 1.0, 2.0, 4.0, 8.0) else listOf(0.5, 1.0, 2.0, 3.0, 4.0)
+            val currentDuration = if (isLeave) kotlin.math.abs(leaveDuration) else durationHours
+            SmallTitle(
+                text = if (isLeave) "请假时长：${SalaryCalculator.formatHours(kotlin.math.abs(leaveDuration))}"
+                else "加班时长：${SalaryCalculator.formatHours(durationHours)}"
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf(1.0, 2.0, 3.0, 4.0).forEach { h ->
-                    val selected = durationHours == h
+                durationOptions.forEach { h ->
+                    val selected = currentDuration == h
                     Surface(
                         color = if (selected) MiuixTheme.colorScheme.primary
                         else MiuixTheme.colorScheme.secondaryContainer,
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .weight(1f)
-                            .selectable(selected = selected, onClick = { durationHours = h })
+                            .selectable(selected = selected, onClick = { if (isLeave) leaveDuration = -h else durationHours = h })
                     ) {
                         Text(
                             text = "${h.toInt()}h",
@@ -195,11 +249,17 @@ fun QuickSubmitSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
-                    onClick = { durationHours = (durationHours - 0.5).coerceAtLeast(0.5) },
+                    onClick = {
+                        if (isLeave) leaveDuration = (leaveDuration - 0.5).coerceIn(-24.0, -0.5)
+                        else durationHours = (durationHours - 0.5).coerceAtLeast(0.5)
+                    },
                     modifier = Modifier.weight(1f)
                 ) { Text("-0.5h") }
                 Button(
-                    onClick = { durationHours = (durationHours + 0.5).coerceAtMost(24.0) },
+                    onClick = {
+                        if (isLeave) leaveDuration = (leaveDuration + 0.5).coerceIn(-24.0, -0.5)
+                        else durationHours = (durationHours + 0.5).coerceAtMost(24.0)
+                    },
                     modifier = Modifier.weight(1f)
                 ) { Text("+0.5h") }
             }
@@ -234,19 +294,24 @@ fun QuickSubmitSheet(
                         saving = true
                         scope.launch {
                             try {
-                                val amount = SalaryCalculator.calculateOvertimeAmount(
-                                    baseSalary, selectedType, rate, durationHours
-                                )
+                                val finalDuration = if (isLeave) leaveDuration else durationHours
+                                val amount = if (isLeave) {
+                                    SalaryCalculator.calculateLeaveDeduction(baseSalary, leaveDuration)
+                                } else {
+                                    SalaryCalculator.calculateOvertimeAmount(
+                                        baseSalary, selectedType, rate, durationHours
+                                    )
+                                }
                                 val record = OvertimeRecord(
                                     id = 0,
                                     date = today.time,
                                     type = selectedType,
-                                    durationHours = durationHours,
+                                    durationHours = finalDuration,
                                     baseSalary = baseSalary,
                                     rate = rate,
                                     amount = amount,
                                     note = note,
-                                    isLeave = false
+                                    isLeave = isLeave
                                 )
                                 val id = repository.insert(record)
                                 // 记录已入库，同步环节的失败不应影响提交结果，仅转为提示文案

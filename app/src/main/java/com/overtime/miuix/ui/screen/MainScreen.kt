@@ -46,10 +46,9 @@ fun MainScreen(
     val snackbarHostStateForQuick = LocalSnackbarHostState.current
     val quickScope = rememberCoroutineScope()
 
-    // 普通底栏显示模式（miuix 0.9.3：NavigationBarDisplayMode.TextOnly 已移除）
+    // 普通底栏显示模式（miuix 0.9.3：NavigationBarDisplayMode.TextOnly 已移除，仅保留图标/图标+文字）
     val navMode = when (bottomBarStyle) {
         "ICON_ONLY" -> NavigationBarDisplayMode.IconOnly
-        "TEXT_ONLY" -> NavigationBarDisplayMode.IconOnly  // TextOnly 已移除，降级为 IconOnly
         else -> NavigationBarDisplayMode.IconAndText
     }
 
