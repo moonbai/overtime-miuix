@@ -203,12 +203,12 @@ fun StatisticsPage(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = 16.dp,
-            top = 16.dp,
-            end = 16.dp,
-            bottom = 16.dp + bottomReserve
+            start = SettingsDimens.PageHorizontal,
+            top = SettingsDimens.PageVertical,
+            end = SettingsDimens.PageHorizontal,
+            bottom = SettingsDimens.PageVertical + bottomReserve
         ),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(SettingsDimens.GroupSpacing)
     ) {
         // 顶部日期导航（点击切换月/年视图）
         item {

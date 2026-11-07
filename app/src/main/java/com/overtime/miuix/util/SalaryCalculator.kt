@@ -39,9 +39,13 @@ object SalaryCalculator {
     }
     
     fun formatHours(hours: Double): String {
-        val h = hours.toInt()
-        val m = ((hours - h) * 60).toInt()
-        return if (m > 0) "${h}小时${m}分钟" else "${h}小时"
+        // 总时长可能为负（请假抵扣后），先取绝对值再拼分钟，
+        // 否则 -2.5h 会被拼成「-2小时-30分钟」。
+        val sign = if (hours < 0) "-" else ""
+        val absHours = kotlin.math.abs(hours)
+        val h = absHours.toInt()
+        val m = ((absHours - h) * 60).toInt()
+        return if (m > 0) "$sign${h}小时${m}分钟" else "$sign${h}小时"
     }
     
     fun formatAmount(amount: Double): String {

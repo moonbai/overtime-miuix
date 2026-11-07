@@ -5,7 +5,9 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,7 +46,8 @@ fun HomePage(
     navController: NavHostController,
     repository: OvertimeRepository,
     settingsRepository: SettingsRepository,
-    bottomReserve: Dp = 0.dp
+    bottomReserve: Dp = 0.dp,
+    listState: LazyListState = rememberLazyListState()
 ) {
     val records by repository.getAllRecords().collectAsState(initial = emptyList())
     val currentMonth = remember { SalaryCalculator.getCurrentYearMonth() }
@@ -111,13 +114,14 @@ fun HomePage(
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
+            state = listState,
             contentPadding = PaddingValues(
-                start = 16.dp,
-                top = 16.dp,
-                end = 16.dp,
-                bottom = 16.dp + bottomReserve
+                start = SettingsDimens.PageHorizontal,
+                top = SettingsDimens.PageVertical,
+                end = SettingsDimens.PageHorizontal,
+                bottom = SettingsDimens.PageVertical + bottomReserve
             ),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(SettingsDimens.GroupSpacing)
         ) {
             item {
                 MonthlyOverviewCard(repository, currentMonth, records)
@@ -467,7 +471,12 @@ private fun RecordCard(
                     color = if (record.isLeave) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary
                 )
                 Text(
-                    text = SalaryCalculator.formatHours(record.durationHours),
+                    // 请假在库中存负时长用于统计抵扣，列表里按正数展示并标注「请假」
+                    text = if (record.isLeave) {
+                        "请假 " + SalaryCalculator.formatHours(kotlin.math.abs(record.durationHours))
+                    } else {
+                        SalaryCalculator.formatHours(record.durationHours)
+                    },
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )

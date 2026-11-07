@@ -155,7 +155,14 @@ fun QuickSubmitSheet(
                     style = MiuixTheme.textStyles.body1,
                     color = if (isLeave) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurface
                 )
-                Switch(checked = isLeave, onCheckedChange = { isLeave = it })
+                Switch(
+                    checked = isLeave,
+                    onCheckedChange = {
+                        isLeave = it
+                        // 切到请假时回到半天档，避免沿用上一次的微调值导致两个选项都不选中
+                        if (it) leaveDuration = -4.0
+                    }
+                )
             }
 
             // 加班类型（请假模式下隐藏）
@@ -197,8 +204,8 @@ fun QuickSubmitSheet(
                 }
             }
 
-            // 时长快捷选择（含 0.5h 档；请假模式使用请假时长）
-            val durationOptions = if (isLeave) listOf(0.5, 1.0, 2.0, 4.0, 8.0) else listOf(0.5, 1.0, 2.0, 3.0, 4.0)
+            // 时长快捷选择：请假只提供半天(4h) / 全天(8h)，加班保留 0.5h 梯度档位
+            val durationOptions = if (isLeave) listOf(4.0, 8.0) else listOf(0.5, 1.0, 2.0, 3.0, 4.0)
             val currentDuration = if (isLeave) kotlin.math.abs(leaveDuration) else durationHours
             SmallTitle(
                 text = if (isLeave) "请假时长：${SalaryCalculator.formatHours(kotlin.math.abs(leaveDuration))}"
@@ -222,7 +229,8 @@ fun QuickSubmitSheet(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = "${h.toInt()}h",
+                            // 不能用 h.toInt()：0.5h 会被渲染成「0h」
+                            text = if (h % 1.0 == 0.0) "${h.toInt()}h" else "${h}h",
                             style = MiuixTheme.textStyles.body2,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                             modifier = Modifier
@@ -233,28 +241,25 @@ fun QuickSubmitSheet(
                     }
                 }
             }
-            // 时长微调
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Button(
-                    onClick = {
-                        if (isLeave) leaveDuration = (leaveDuration - 0.5).coerceIn(-24.0, -0.5)
-                        else durationHours = (durationHours - 0.5).coerceAtLeast(0.5)
-                    },
-                    modifier = Modifier.weight(1f)
-                ) { Text("-0.5h") }
-                Button(
-                    onClick = {
-                        if (isLeave) leaveDuration = (leaveDuration + 0.5).coerceIn(-24.0, -0.5)
-                        else durationHours = (durationHours + 0.5).coerceAtMost(24.0)
-                    },
-                    modifier = Modifier.weight(1f)
-                ) { Text("+0.5h") }
+            // 时长微调只对加班开放：请假固定半天 / 全天两档，
+            // 保留 ±0.5h 会绕过选项产生 3.5h、8.5h 之类的时长。
+            if (!isLeave) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = { durationHours = (durationHours - 0.5).coerceAtLeast(0.5) },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("-0.5h") }
+                    Button(
+                        onClick = { durationHours = (durationHours + 0.5).coerceAtMost(24.0) },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("+0.5h") }
+                }
             }
 
             // 备注

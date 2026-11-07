@@ -2,6 +2,7 @@ package com.overtime.miuix.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
@@ -46,6 +47,14 @@ fun MainScreen(
     val snackbarHostStateForQuick = LocalSnackbarHostState.current
     val quickScope = rememberCoroutineScope()
 
+    // 首页列表状态由 MainScreen 持有：重复点击「首页」tab 时平滑回到顶部，
+    // 记录多、下滑很深时无需手动一路滚回。
+    val homeListState = rememberLazyListState()
+    val scrollScope = rememberCoroutineScope()
+    fun scrollHomeToTop() {
+        scrollScope.launch { homeListState.animateScrollToItem(0) }
+    }
+
     // 普通底栏显示模式（miuix 0.9.3：NavigationBarDisplayMode.TextOnly 已移除，仅保留图标/图标+文字）
     val navMode = when (bottomBarStyle) {
         "ICON_ONLY" -> NavigationBarDisplayMode.IconOnly
@@ -71,13 +80,27 @@ fun MainScreen(
     // 保证末项（如「关于」）可滚动至悬浮底栏之上，不被遮挡。
     val floatingBottomReserve = floatingBarOffset + floatingBarHeight + 8.dp
 
-    // FAB 与底栏之间的间距（悬浮/普通模式各自计算）
-    val floatingFabBottom = navBarInset + floatingBarOffset + floatingBarHeight + 16.dp
-    // 普通模式：估算 NavigationBar 高度约 64dp + 系统栏 + 间距
-    val normalFabBottom = navBarInset + 64.dp + 24.dp
+    // FAB 的水平/垂直留白与首页、统计、设置页的卡片边距统一（16dp），
+    // 避免右下角按钮与列表卡片右边缘错开。
+    val floatingFabBottom = navBarInset + floatingBarOffset + floatingBarHeight +
+        SettingsDimens.PageVertical
+    // 普通模式的底部距离改为在 content 内用 Scaffold 实测的 bottomBar 高度计算：
+    // 旧实现硬编码「64dp 底栏 + 24dp 间距」，在图标+文字底栏 / 大字体 / 不同 ROM 上
+    // 会与底栏重叠或悬得过高。
+
+    // Snackbar 默认贴在底栏上方，正好覆盖右下角 FAB 并拦截触摸：保存记录后
+    // 必须等提示消失才能再次点「添加」。把提示整体抬到 FAB 顶部之上，
+    // 悬浮底栏模式下 FAB 更高，额外叠加底栏高度与离底间距。
+    val snackbarLift = SettingsDimens.PageVertical + FabSize + 16.dp +
+        (if (useFloatingNav) navBarInset + floatingBarOffset + floatingBarHeight else 0.dp)
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(
+                snackbarHostState,
+                modifier = Modifier.padding(bottom = snackbarLift)
+            )
+        },
         topBar = {
             SmallTopAppBar(
                 title = when (selectedTab) {
@@ -108,7 +131,10 @@ fun MainScreen(
                     ) {
                         NavigationBarItem(
                             selected = selectedTab == 0,
-                            onClick = { selectedTab = 0 },
+                            onClick = {
+                                // 已在首页时再次点击（即双击的第二次）回到列表顶部
+                                if (selectedTab == 0) scrollHomeToTop() else selectedTab = 0
+                            },
                             icon = AppIcons.Home,
                             label = "首页"
                         )
@@ -129,6 +155,10 @@ fun MainScreen(
             }
         }
     ) { paddingValues ->
+        // 普通底栏模式：FAB 底部偏移取 Scaffold 实测的底栏高度 + 统一间距
+        val normalFabBottom = paddingValues.calculateBottomPadding() +
+            SettingsDimens.PageVertical
+
         // 内容底部留白：
         // - 普通底栏：Scaffold 已为其预留空间（paddingValues 含底栏高度），内容自然不被遮挡；
         // - 悬浮底栏（彻底悬浮）：内容层底部不预留空间，可滚动至底栏「背后」，
@@ -161,7 +191,8 @@ fun MainScreen(
                         navController = navController,
                         repository = repository,
                         settingsRepository = settingsRepository,
-                        bottomReserve = bottomReserve
+                        bottomReserve = bottomReserve,
+                        listState = homeListState
                     )
                     1 -> StatisticsPage(
                         navController = navController,
@@ -197,7 +228,10 @@ fun MainScreen(
                     ) {
                         FloatingNavigationBarItem(
                             selected = selectedTab == 0,
-                            onClick = { selectedTab = 0 },
+                            onClick = {
+                                // 与普通底栏保持一致：重复点击「首页」回到顶部
+                                if (selectedTab == 0) scrollHomeToTop() else selectedTab = 0
+                            },
                             icon = AppIcons.Home,
                             label = "首页"
                         )
@@ -223,7 +257,7 @@ fun MainScreen(
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(end = 20.dp, bottom = floatingFabBottom)
+                            .padding(end = SettingsDimens.PageHorizontal, bottom = floatingFabBottom)
                     ) {
                         HomeFab(
                             quickSubmit = quickSubmit,
@@ -241,7 +275,7 @@ fun MainScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(end = 20.dp, bottom = normalFabBottom)
+                        .padding(end = SettingsDimens.PageHorizontal, bottom = normalFabBottom)
                 ) {
                     HomeFab(
                         quickSubmit = quickSubmit,
@@ -270,6 +304,15 @@ fun MainScreen(
     )
 }
 
+/** FAB 毛玻璃背景统一模糊半径，避免三个按钮各写一份数值出现细微差异。 */
+private const val FAB_BLUR_RADIUS = 28f
+
+/** MIUIX FloatingActionButton 的默认 MinWidth / MinHeight */
+private val FabSize = 60.dp
+
+/** 扩展型「快速提报」按钮的圆角，按钮本体与模糊层共用同一形状。 */
+private val FabExtendedShape = RoundedCornerShape(28.dp)
+
 /**
  * 首页悬浮操作按钮：快速提报模式下提供「添加 / 快速提报」两个按钮，
  * 否则为单个带有强调色高斯模糊背景的添加按钮。
@@ -293,7 +336,7 @@ private fun HomeFab(
                 modifier = Modifier.textureBlur(
                     backdrop = fabBackdrop,
                     shape = CircleShape,
-                    blurRadius = 28f,
+                    blurRadius = FAB_BLUR_RADIUS,
                     enabled = blurSupported
                 )
             ) {
@@ -313,13 +356,14 @@ private fun HomeFab(
             Box(
                 modifier = Modifier.textureBlur(
                     backdrop = fabBackdrop,
-                    shape = RoundedCornerShape(28.dp),
-                    blurRadius = 28f,
+                    shape = FabExtendedShape,
+                    blurRadius = FAB_BLUR_RADIUS,
                     enabled = blurSupported
                 )
             ) {
                 FloatingActionButton(
                     onClick = onQuickSubmit,
+                    shape = FabExtendedShape,
                     containerColor = if (blurSupported) MiuixTheme.colorScheme.primary.copy(alpha = 0.55f)
                     else MiuixTheme.colorScheme.primary
                 ) {
@@ -348,7 +392,7 @@ private fun HomeFab(
             modifier = Modifier.textureBlur(
                 backdrop = fabBackdrop,
                 shape = CircleShape,
-                blurRadius = 28f,
+                blurRadius = FAB_BLUR_RADIUS,
                 enabled = blurSupported
             )
         ) {
@@ -357,7 +401,14 @@ private fun HomeFab(
                 containerColor = if (blurSupported) MiuixTheme.colorScheme.primary.copy(alpha = 0.55f)
                 else MiuixTheme.colorScheme.primary
             ) {
-                Icon(MiuixIcons.Add, contentDescription = "添加记录")
+                // 显式指定前景色：MIUIX 的 Icon 默认取 LocalContentColor，
+                // 在 primary 底上会与背景同色系、对比度不足（快速提报模式的按钮此前已显式指定）。
+                Icon(
+                    MiuixIcons.Add,
+                    contentDescription = "添加记录",
+                    tint = MiuixTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
     }

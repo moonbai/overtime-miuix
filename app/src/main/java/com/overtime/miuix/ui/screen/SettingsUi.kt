@@ -28,6 +28,16 @@ object SettingsDimens {
     /** LazyColumn 中各分组卡片的间距 */
     val GroupSpacing = 12.dp
 
+    /**
+     * 页面左右留白：与 HomePage / StatisticsPage 的 LazyColumn 统一为 16dp。
+     * 设置页此前没有水平 contentPadding，卡片是贴着屏幕边缘的，
+     * 与首页、统计页并排切换时视觉上明显不齐。
+     */
+    val PageHorizontal = 16.dp
+
+    /** 页面上下留白，与首页 / 统计页一致 */
+    val PageVertical = 16.dp
+
     /** 卡片圆角，与 [SettingsGroup] 保持一致 */
     val CardCorner = 16.dp
 
@@ -50,7 +60,12 @@ fun SettingsList(
 ) {
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp + bottomReserve),
+        contentPadding = PaddingValues(
+            start = SettingsDimens.PageHorizontal,
+            top = SettingsDimens.PageVertical,
+            end = SettingsDimens.PageHorizontal,
+            bottom = SettingsDimens.PageVertical + bottomReserve
+        ),
         verticalArrangement = Arrangement.spacedBy(SettingsDimens.GroupSpacing),
         content = content
     )
@@ -180,14 +195,21 @@ fun SettingsNote(
     )
 }
 
-/** 页面级状态提示（列表顶部），统一替代各页手写的 status 文本块 */
+/**
+ * 页面级状态提示，统一替代各页手写的 status 文本块。
+ * @param insideCard 放在 [SettingsGroup] 卡片内时传 true（补卡片内边距）；
+ *                   作为独立 item 放在列表里时传 false，由列表的页面留白负责，
+ *                   避免出现「比卡片多缩进 16dp」的错位。
+ */
 @Composable
-fun SettingsStatusText(text: String) {
+fun SettingsStatusText(text: String, insideCard: Boolean = false) {
     Text(
         text = text,
         style = MiuixTheme.textStyles.footnote1,
         color = MiuixTheme.colorScheme.primary,
-        modifier = Modifier.padding(horizontal = SettingsDimens.ItemHorizontal)
+        modifier = Modifier.padding(
+            horizontal = if (insideCard) SettingsDimens.ItemHorizontal else 0.dp
+        )
     )
 }
 
@@ -213,14 +235,14 @@ fun SettingsPrimaryButton(
     enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = Modifier.padding(horizontal = SettingsDimens.ItemHorizontal)) {
-        Button(
-            onClick = onClick,
-            enabled = enabled,
-            modifier = modifier.fillMaxWidth()
-        ) {
-            Text(text)
-        }
+    // 列表的 contentPadding 已经统一留白，这里不再叠加一层 16dp，
+    // 否则按钮会比同一页的卡片窄 32dp，左右边缘对不齐。
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Text(text)
     }
 }
 

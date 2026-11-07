@@ -58,7 +58,13 @@ data class PushPayload(
                 },
                 // 仅在节假日缓存明确标注「调休」时判定；无缓存视为未知，不臆测为 false
                 isMakeUpWork = dayInfo?.name?.contains("调休"),
-                hours = record.durationHours,
+                // 库中请假存负时长（用于统计抵扣），但对外的时长字段一律为正值，
+                // 请假与加班由 recordMode 区分，避免 webhook 收到 -4 / -8 这类内部表示。
+                hours = if (record.isLeave) {
+                    kotlin.math.abs(record.durationHours)
+                } else {
+                    record.durationHours
+                },
                 hourlySalary = SalaryCalculator.hourlySalary(record.baseSalary),
                 amount = record.amount,
                 rate = record.rate,
@@ -82,7 +88,8 @@ data class PushPayload(
                 null -> "null"
             }
         ).append('\n')
-        append("加班时长：").append(num(hours)).append('\n')
+        append(if (recordMode == "请假") "请假时长：" else "加班时长：")
+            .append(num(hours)).append('\n')
         append("小时薪资：").append(num(hourlySalary)).append('\n')
         append("加班费：").append(num(amount)).append('\n')
         append("倍数：").append(num(rate)).append('\n')
