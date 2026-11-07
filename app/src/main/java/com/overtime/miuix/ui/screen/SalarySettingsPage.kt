@@ -130,7 +130,7 @@ fun SalarySettingsPage(
                     summary = if (deleteConfirmEnabled) {
                         "删除前弹窗确认，防止误删"
                     } else {
-                        "已关闭：点删除立即移除，4 秒内可撤销"
+                        "点删除后立即移除，4 秒内可撤销"
                     },
                     checked = deleteConfirmEnabled,
                     onCheckedChange = { enabled ->
