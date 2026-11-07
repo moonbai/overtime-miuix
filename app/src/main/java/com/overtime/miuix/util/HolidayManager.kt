@@ -25,7 +25,12 @@ object HolidayManager {
     private const val TIMOR_API_URL_TEMPLATE = "https://timor.tech/api/holiday/year/{year}"
     private const val MXNZP_API_URL_TEMPLATE = "https://www.mxnzp.com/api/holiday/list/year/{year}"
 
-    private val holidayCache = mutableMapOf<String, HolidayInfo>()
+    // 公平内存：有界 LRU（accessOrder），上限≈5.6 年全年日历，超限按最久未用淘汰，防止无界增长
+    private const val HOLIDAY_CACHE_MAX = 2048
+    private val holidayCache = object : LinkedHashMap<String, HolidayInfo>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, HolidayInfo>?): Boolean =
+            size > HOLIDAY_CACHE_MAX
+    }
 
     data class HolidayInfo(
         val date: String,
@@ -55,6 +60,19 @@ object HolidayManager {
     }
 
     fun getDataSource(): HolidayDataSource = cachedDataSource ?: HolidayDataSource.TIMOR
+
+    /** 公平内存：驱逐 OkHttp 空闲连接（下次请求自动重建，无功能影响）。 */
+    fun evictConnections() { client.connectionPool.evictAll() }
+
+    /**
+     * 公平内存：内存预警时清理日历缓存。
+     * @param keepCurrentYearOnly 轻档预警只保留当年（次年起自动重建）；重档全清。
+     */
+    fun trimCache(keepCurrentYearOnly: Boolean) {
+        if (!keepCurrentYearOnly) { holidayCache.clear(); return }
+        val year = Calendar.getInstance().get(Calendar.YEAR).toString()
+        holidayCache.keys.retainAll { it.startsWith(year) }
+    }
 
     private fun isWeekend(dateStr: String): Boolean {
         val format = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)

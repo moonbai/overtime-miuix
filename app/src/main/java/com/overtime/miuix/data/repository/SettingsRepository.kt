@@ -17,6 +17,9 @@ class SettingsRepository(private val context: Context) {
     val bottomBarStyle: Flow<String> = context.dataStore.data.map { it[KEY_BOTTOM_BAR_STYLE] ?: "ICON_TEXT" }
     val quickSubmit: Flow<Boolean> = context.dataStore.data.map { it[KEY_QUICK_SUBMIT] ?: false }
 
+    // 删除二次确认开关（关闭后点删除立即移除记录，配合可撤销通知条兜底）
+    val deleteConfirmEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_DELETE_CONFIRM] ?: true }
+
     // Monet 动态取色（使用系统壁纸动态配色）
     val monetEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_MONET_ENABLED] ?: false }
 
@@ -80,6 +83,7 @@ class SettingsRepository(private val context: Context) {
     suspend fun setAccentColor(color: Int) { context.dataStore.edit { it[KEY_ACCENT_COLOR] = color } }
     suspend fun setBottomBarStyle(style: String) { context.dataStore.edit { it[KEY_BOTTOM_BAR_STYLE] = style } }
     suspend fun setQuickSubmit(enabled: Boolean) { context.dataStore.edit { it[KEY_QUICK_SUBMIT] = enabled } }
+    suspend fun setDeleteConfirmEnabled(enabled: Boolean) { context.dataStore.edit { it[KEY_DELETE_CONFIRM] = enabled } }
     suspend fun setMonetEnabled(enabled: Boolean) { context.dataStore.edit { it[KEY_MONET_ENABLED] = enabled } }
     suspend fun setUseFloatingNav(enabled: Boolean) { context.dataStore.edit { it[KEY_FLOATING_NAV] = enabled } }
     suspend fun setTypeColorWorkday(color: Int) { context.dataStore.edit { it[KEY_TYPE_COLOR_WORKDAY] = color } }
@@ -160,6 +164,7 @@ class SettingsRepository(private val context: Context) {
                     KEY_PUSH_DISCORD_USERNAME.name -> prefs[KEY_PUSH_DISCORD_USERNAME] = value
                     KEY_PUSH_CUSTOM.name -> prefs[KEY_PUSH_CUSTOM] = value
                     KEY_PUSH_CUSTOM_HEADERS.name -> prefs[KEY_PUSH_CUSTOM_HEADERS] = value
+                    KEY_DELETE_CONFIRM.name -> prefs[KEY_DELETE_CONFIRM] = value.toBoolean()
                     KEY_CALENDAR_SYNC.name -> prefs[KEY_CALENDAR_SYNC] = value.toBoolean()
                     KEY_WEBDAV_ENABLED.name -> prefs[KEY_WEBDAV_ENABLED] = value.toBoolean()
                     KEY_WEBDAV_URL.name -> prefs[KEY_WEBDAV_URL] = value
@@ -210,6 +215,7 @@ class SettingsRepository(private val context: Context) {
             KEY_PUSH_DISCORD_USERNAME.name to pushDiscordUsername.first(),
             KEY_PUSH_CUSTOM.name to pushCustom.first(),
             KEY_PUSH_CUSTOM_HEADERS.name to pushCustomHeaders.first(),
+            KEY_DELETE_CONFIRM.name to deleteConfirmEnabled.first().toString(),
             KEY_CALENDAR_SYNC.name to calendarSyncEnabled.first().toString(),
             KEY_WEBDAV_ENABLED.name to webdavEnabled.first().toString(),
             KEY_WEBDAV_URL.name to webdavUrl.first(),
@@ -231,6 +237,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_ACCENT_COLOR = intPreferencesKey("accent_color")
         private val KEY_BOTTOM_BAR_STYLE = stringPreferencesKey("bottom_bar_style")
         private val KEY_QUICK_SUBMIT = booleanPreferencesKey("quick_submit")
+        private val KEY_DELETE_CONFIRM = booleanPreferencesKey("delete_confirm")
         private val KEY_MONET_ENABLED = booleanPreferencesKey("monet_enabled")
         private val KEY_FLOATING_NAV = booleanPreferencesKey("floating_nav")
 

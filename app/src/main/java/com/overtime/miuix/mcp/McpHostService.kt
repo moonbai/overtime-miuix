@@ -64,7 +64,9 @@ class McpHostService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val port = intent?.getIntExtra("port", 8080) ?: 8080
         startServer(port)
-        return START_STICKY
+        // 公平内存：NOT_STICKY——内存告急被系统查杀后不自动复活（反复拉起会触发
+        // 公平运行内存机制的高优进程判定），用户回到设置页重开即可
+        return START_NOT_STICKY
     }
 
     private fun startServer(port: Int) {

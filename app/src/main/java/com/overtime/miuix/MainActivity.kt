@@ -1,11 +1,21 @@
 package com.overtime.miuix
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -24,11 +34,25 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        
+
+        // Android 17（API 37）：targetSdk >= 37 后，访问局域网设备（WebDAV 备份、MCP 局域网接入）
+        // 需要 ACCESS_LOCAL_NETWORK 运行时权限（dangerous），未授权时系统 BPF 层静默丢包（表现为超时）。
+        // 仅在 API 37+ 且尚未授权时请求一次；被永久拒绝后需到 系统设置→应用→权限 中手动开启。
+        if (Build.VERSION.SDK_INT >= 37 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_LOCAL_NETWORK)
+                != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_LOCAL_NETWORK),
+                REQUEST_LOCAL_NETWORK
+            )
+        }
+
         val database = AppDatabase.getDatabase(this)
         val repository = OvertimeRepository(database)
         val settingsRepository = SettingsRepository(this)
-        
+
         setContent {
             val themeMode by settingsRepository.themeMode.collectAsState(initial = "system")
             val accentColor by settingsRepository.accentColor.collectAsState(initial = 0xFF3482FF.toInt())
@@ -54,6 +78,10 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    companion object {
+        private const val REQUEST_LOCAL_NETWORK = 1001
+    }
 }
 
 @Composable
@@ -75,7 +103,15 @@ fun MainNavHost(
     ) {
         NavHost(
             navController = navController,
-            startDestination = "main"
+            startDestination = "main",
+            // 返回（pop）动画改为缩放：下层页自 0.92 放大淡入，当前页缩至 0.88 淡出；
+            // 手势返回的实时预览（predictive back）复用同一组转场规格，预览即缩放效果
+            popEnterTransition = {
+                scaleIn(animationSpec = tween(300), initialScale = 0.92f) + fadeIn(tween(300))
+            },
+            popExitTransition = {
+                scaleOut(animationSpec = tween(300), targetScale = 0.88f) + fadeOut(tween(300))
+            }
         ) {
         composable("main") {
             MainScreen(

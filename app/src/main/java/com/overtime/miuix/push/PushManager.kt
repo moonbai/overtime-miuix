@@ -25,6 +25,9 @@ object PushManager {
         .build()
     private val mediaType = "application/json; charset=utf-8".toMediaType()
 
+    /** 公平内存：驱逐 OkHttp 空闲连接（下次请求自动重建，无功能影响）。 */
+    fun evictConnections() { client.connectionPool.evictAll() }
+
     private fun typeLabel(type: OvertimeType): String = when (type) {
         OvertimeType.WORKDAY -> "工作日"
         OvertimeType.WEEKEND -> "周末"

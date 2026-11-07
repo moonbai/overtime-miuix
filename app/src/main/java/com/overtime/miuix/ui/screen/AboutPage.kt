@@ -426,7 +426,17 @@ private fun loadMipmapIcon(context: Context): Bitmap? {
             val resId = resources.getIdentifier(resName, "mipmap", packageName)
             if (resId != 0) {
                 try {
-                    val options = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 }
+                    // 公平内存：先量尺寸、再按 2 的幂降采样，输出压到 256px 级别；
+                    // 全尺寸 ARGB_8888 图标（xxxhdpi 768px）单张可占 2MB+ 堆内存
+                    val bound = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeResource(resources, resId, bound)
+                    var sampleSize = 1
+                    var longest = maxOf(bound.outWidth, bound.outHeight)
+                    while (longest / 2 >= 256) { longest /= 2; sampleSize *= 2 }
+                    val options = BitmapFactory.Options().apply {
+                        inPreferredConfig = Bitmap.Config.ARGB_8888
+                        inSampleSize = sampleSize
+                    }
                     val bitmap = BitmapFactory.decodeResource(resources, resId, options)
                     if (bitmap != null) return bitmap
                 } catch (_: Exception) {}
