@@ -2,7 +2,11 @@ package com.overtime.miuix.util
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.overtime.miuix.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
@@ -15,8 +19,28 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.MessageDigest
+import java.util.Collections
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
+
+/**
+ * 检查结果：成功与失败、有更新与已是最新都显式区分。
+ *
+ * 旧实现用 `UpdateInfo? == null` 表示失败，同时把 lastError / sourceMismatch
+ * 放在 object 的全局可变字段里，多个检查并发时会互相覆盖；判定逻辑也散落在 UI 层。
+ * 现在一次检查的所有结论都随结果返回，调用方只需 when 分支即可。
+ */
+sealed interface UpdateCheckResult {
+    data class Success(
+        val info: UpdateChecker.UpdateInfo,
+        /** 已由检查器按 versionCode / versionName 统一判定 */
+        val hasUpdate: Boolean,
+        /** GitHub 与 CNB 返回的版本号不一致，提示仓库可能未同步 */
+        val sourceMismatch: Boolean
+    ) : UpdateCheckResult
+
+    data class Failure(val reason: String) : UpdateCheckResult
+}
 
 /**
  * GitHub / CNB 双源 Release 更新检查器。
@@ -27,10 +51,10 @@ import java.util.regex.Pattern
  * （5000 次/小时）并兼容私有仓库场景。令牌仅作可选增强，缺失时不影响公开仓库检查。
  *
  * 为防止【单边不可达】（如网络/区域限制导致 GitHub 无法连接），
- * 在 GitHub（令牌 → 匿名 → 镜像兜底）全部失败后，追加 CNB（cnb.cool）作为兜底数据源。
- * CNB 同样支持公开仓库匿名访问；若配置了 BuildConfig.CNB_TOKEN 则带令牌请求。
+ * GitHub（令牌 → 匿名 → 镜像兜底）与 CNB 两路并行查询，任一成功即可返回。
  *
- * 请求顺序：GitHub 令牌 → GitHub 匿名 → GitHub 镜像 → CNB（可选令牌）。
+ * 参考 MiMarketPurify 的 UpdateChecker：结果采用密封三态、按设备 ABI 挑选 APK、
+ * 版本号比较忽略预发布/构建元数据、发布说明不截断。
  */
 object UpdateChecker {
 
@@ -38,12 +62,7 @@ object UpdateChecker {
     private const val REPO_OWNER = "moonbai"
     private const val REPO_NAME = "overtime-miuix"
 
-    // 可选令牌：编译期经 BuildConfig.GITHUB_TOKEN 注入（源码无明文）。
-    // 公开仓库下可留空，更新检查仍能正常工作。
     private val GITHUB_TOKEN: String = BuildConfig.GITHUB_TOKEN
-
-    // 可选令牌：编译期经 BuildConfig.CNB_TOKEN 注入（源码无明文）。
-    // CNB 作为 GitHub 的兜底数据源；公开仓库可匿名访问，配置后支持更高限额/私有仓库。
     private val CNB_TOKEN: String = BuildConfig.CNB_TOKEN
 
     private val RELEASES_URL =
@@ -52,8 +71,6 @@ object UpdateChecker {
     // CNB 侧仓库路径与 GitHub 不同：CNB 托管在 ismartis 组织下，切勿复用 GitHub 的 owner/name。
     private const val CNB_REPO_SLUG = "ismartis/Overtime"
 
-    // CNB（cnb.cool）兜底数据源：字段结构与 GitHub releases/latest 兼容（tag_name / body / assets）。
-    // 公开仓库支持匿名访问（无需令牌），有令牌时优先使用以获得更高限额。
     private val CNB_RELEASES_URL =
         "https://api.cnb.cool/$CNB_REPO_SLUG/-/releases/latest"
 
@@ -78,9 +95,19 @@ object UpdateChecker {
         Pattern.CASE_INSENSITIVE
     )
 
-    /** 最近一次检查失败的原因（供 UI 展示更精确的提示）。 */
-    var lastError: String? = null
-        private set
+    // 复用同一个客户端：一次检查最多 6 个请求，旧实现每个请求都新建并销毁 HttpClient，
+    // 会反复创建 OkHttp 连接池与线程池。
+    private val client: HttpClient by lazy {
+        HttpClient(OkHttp) {
+            engine {
+                config {
+                    connectTimeout(8, TimeUnit.SECONDS)
+                    readTimeout(8, TimeUnit.SECONDS)
+                    writeTimeout(8, TimeUnit.SECONDS)
+                }
+            }
+        }
+    }
 
     /** 是否已配置更新令牌（仅用于更高限额 / 私有仓库，公开仓库可无）。 */
     fun isTokenConfigured(): Boolean = GITHUB_TOKEN.isNotBlank()
@@ -92,14 +119,12 @@ object UpdateChecker {
         val releaseNotes: String,
         val releaseUrl: String,
         val expectedSha256: String?,
-        val source: String = ""
+        val source: String = "",
+        /** 选中 APK 的文件名，用于 UI 展示 */
+        val apkName: String = "",
+        /** 选中 APK 的字节数，0 表示未知 */
+        val sizeBytes: Long = 0L
     )
-
-    /** 两个数据源（GitHub / CNB）返回的版本是否不一致（用于提示版本可能未同步）。 */
-    var sourceMismatch: Boolean = false
-        private set
-
-    private var cachedInfo: UpdateInfo? = null
 
     fun getInstalledApkSha256(context: Context): String? {
         return try {
@@ -122,50 +147,59 @@ object UpdateChecker {
     }
 
     /**
-     * 比较版本号字符串（支持 "1.0.4" / "1.0.10" 多段格式）。
+     * 比较版本号字符串（支持多段、v 前缀、预发布与构建元数据）。
+     * 例如 "1.1.5" / "v1.2.0-rc1" / "1.2.0+build7" 都只按数字段比较，
+     * 避免把 "5-beta" 解析成 0 而误判版本高低。
      * @return 正数表示 latest 更新，0 相等，负数 latest 更旧。
      */
     fun compareVersion(current: String, latest: String): Int {
-        val c = current.removePrefix("v").split(".").map { it.toIntOrNull() ?: 0 }
-        val l = latest.removePrefix("v").split(".").map { it.toIntOrNull() ?: 0 }
-        val maxLen = maxOf(c.size, l.size)
-        for (i in 0 until maxLen) {
-            val cv = c.getOrElse(i) { 0 }
-            val lv = l.getOrElse(i) { 0 }
-            if (cv != lv) return lv - cv
+        val c = numericSegments(current)
+        val l = numericSegments(latest)
+        for (i in 0 until maxOf(c.size, l.size)) {
+            val diff = l.getOrElse(i) { 0 } - c.getOrElse(i) { 0 }
+            if (diff != 0) return diff
         }
         return 0
     }
 
+    private fun numericSegments(value: String): List<Int> = value
+        .trim()
+        .removePrefix("v").removePrefix("V")
+        .substringBefore('+')
+        .substringBefore('-')
+        .split('.')
+        .mapNotNull(String::toIntOrNull)
+
+    /** 归一化版本键，用于判断两个数据源是否指向同一版本 */
+    private fun versionKey(value: String): String = numericSegments(value).joinToString(".")
+
     /**
-     * 是否有更新：同时比对 versionCode 与 versionName。
-     * - 远端 versionCode 大于本地 → 有更新；
-     * - 或远端 versionName 严格大于本地 → 有更新。
+     * 是否有更新：versionCode 是 Android 的权威版本依据，发布说明里能解析到时以它为准；
+     * 缺失时才退回 versionName 比较。旧实现用 `codeNewer || nameNewer`，
+     * 当发布说明里的 versionCode 与 tag 不一致时会误报更新。
      */
     fun hasUpdate(currentVersion: String, currentVersionCode: Int, info: UpdateInfo): Boolean {
-        val codeNewer = info.versionCode != null && info.versionCode > currentVersionCode
-        val nameNewer = compareVersion(currentVersion, info.latestVersion) > 0
-        return codeNewer || nameNewer
+        val remoteCode = info.versionCode
+        return if (remoteCode != null) {
+            remoteCode > currentVersionCode
+        } else {
+            compareVersion(currentVersion, info.latestVersion) > 0
+        }
     }
 
     /**
      * 检查更新（GitHub 与 CNB 双源并行查询）。
      *
-     * - 两源同时发起请求；任意一源成功即可返回信息（防止单边不可达导致无结果）。
-     * - 汇总两源结果：取版本更高者（先比 versionCode，再比 versionName）；
-     *   若两源返回的版本不一致，置位 [sourceMismatch] 供 UI 提示仓库可能未同步。
-     * - 全部失败时返回 null，可通过 [lastError] 获取原因。
-     *
-     * @return 成功返回 [UpdateInfo]，失败返回 null。
+     * - 两源同时发起请求；任意一源成功即可返回（防止单边不可达导致无结果）。
+     * - 两源都成功时按归一化版本号判断是否同步；取版本更高者作为最终信息。
+     * - 结果自带「是否有更新」判定与失败原因，不再依赖 object 全局状态。
      */
-    suspend fun check(currentVersion: String): UpdateInfo? {
-        lastError = null
-        sourceMismatch = false
-        val errors = mutableListOf<String>()
-        return withContext(Dispatchers.IO) {
+    suspend fun check(currentVersion: String, currentVersionCode: Int): UpdateCheckResult =
+        withContext(Dispatchers.IO) {
+            // 两个 async 会并发写入错误列表，必须用线程安全容器
+            val errors = Collections.synchronizedList(mutableListOf<String>())
             try {
                 coroutineScope {
-                    // 两源并行查询
                     val githubDeferred = async { tryGithub(errors) }
                     val cnbDeferred = async { tryCnb(errors) }
                     val githubInfo = githubDeferred.await()
@@ -173,34 +207,36 @@ object UpdateChecker {
 
                     val results = listOfNotNull(githubInfo, cnbInfo)
                     if (results.isEmpty()) {
-                        lastError = if (errors.isNotEmpty()) {
-                            errors.joinToString("；")
-                        } else {
-                            "更新检查失败，请检查网络连接或稍后重试"
+                        val reason = errors.toList().joinToString("；")
+                            .ifBlank { "更新检查失败，请检查网络连接或稍后重试" }
+                        Log.w(TAG, "更新检查失败: $reason")
+                        return@coroutineScope UpdateCheckResult.Failure(reason)
+                    }
+
+                    // 旧实现比较 `versionCode ?: latestVersion`（Int 与 String 混用），
+                    // 一边解析出 code、一边没有时必然判定为「版本不一致」。
+                    val mismatch = githubInfo != null && cnbInfo != null &&
+                            versionKey(githubInfo.latestVersion) != versionKey(cnbInfo.latestVersion)
+
+                    val best = results.maxWithOrNull(
+                        Comparator { a, b ->
+                            val codeCmp = (a.versionCode ?: -1).compareTo(b.versionCode ?: -1)
+                            if (codeCmp != 0) codeCmp else compareVersion(b.latestVersion, a.latestVersion)
                         }
-                        Log.e(TAG, "更新检查失败: $lastError")
-                        return@coroutineScope null
-                    }
+                    ) ?: results.first()
 
-                    // 两源都成功时，校验版本是否一致（versionCode 优先，否则 versionName）
-                    if (githubInfo != null && cnbInfo != null) {
-                        val ghKey = githubInfo.versionCode ?: githubInfo.latestVersion
-                        val cnKey = cnbInfo.versionCode ?: cnbInfo.latestVersion
-                        if (ghKey != cnKey) sourceMismatch = true
-                    }
-
-                    // 取版本更高者
-                    results.maxWithOrNull(compareByDescending<UpdateInfo> { it.versionCode ?: Int.MIN_VALUE }
-                        .thenByDescending { compareVersion(currentVersion, it.latestVersion) > 0 })
-                        ?: results.first()
+                    UpdateCheckResult.Success(
+                        info = best,
+                        hasUpdate = hasUpdate(currentVersion, currentVersionCode, best),
+                        sourceMismatch = mismatch
+                    )
                 }
             } catch (e: Exception) {
-                lastError = "检查过程异常：${e.javaClass.simpleName}"
+                val reason = "检查过程异常：${e.javaClass.simpleName}"
                 Log.e(TAG, "check() 异常", e)
-                null
+                UpdateCheckResult.Failure(reason)
             }
         }
-    }
 
     /** GitHub 源：令牌 → 匿名 → 公开镜像兜底，命中即返回。 */
     private suspend fun tryGithub(errors: MutableList<String>): UpdateInfo? {
@@ -214,28 +250,16 @@ object UpdateChecker {
         return null
     }
 
-    /** CNB 源：兜底数据源，公开仓库支持匿名访问。有令牌时优先使用令牌。 */
+    /** CNB 源：公开仓库支持匿名访问；有令牌时优先使用令牌。 */
     private suspend fun tryCnb(errors: MutableList<String>): UpdateInfo? {
         if (CNB_TOKEN.isNotBlank()) {
             tryFetch(CNB_RELEASES_URL, CNB_TOKEN, "CNB", ACCEPT_CNB, errors)?.let { return it }
         }
-        // 公开仓库也支持匿名访问，作为最后兜底
         return tryFetch(CNB_RELEASES_URL, null, "CNB", ACCEPT_CNB, errors)
     }
 
-    private fun createClient(): HttpClient = HttpClient(OkHttp) {
-        engine {
-            config {
-                connectTimeout(15, TimeUnit.SECONDS)
-                readTimeout(15, TimeUnit.SECONDS)
-                writeTimeout(15, TimeUnit.SECONDS)
-            }
-        }
-    }
-
     /**
-     * 通用请求：请求 [url]，[token] 非空时附带 Bearer 鉴权，[source] 仅用于错误提示标注来源，
-     * [accept] 为该数据源要求的 Accept 头（GitHub 与 CNB 取值不同，混用会被 CNB 判为 406）。
+     * 通用请求：[source] 仅用于错误提示标注来源，[accept] 为该数据源要求的 Accept 头。
      * CNB 与 GitHub 的 releases/latest 响应字段结构兼容，复用同一解析逻辑。
      */
     private suspend fun tryFetch(
@@ -246,42 +270,42 @@ object UpdateChecker {
         errors: MutableList<String>
     ): UpdateInfo? {
         return try {
-            createClient().use { client ->
-                val response = client.get(url) {
-                    headers.append(HttpHeaders.Accept, accept)
-                    if (!token.isNullOrBlank()) {
-                        headers.append(HttpHeaders.Authorization, "Bearer $token")
-                    }
+            val response = client.get(url) {
+                headers.append(HttpHeaders.Accept, accept)
+                if (!token.isNullOrBlank()) {
+                    headers.append(HttpHeaders.Authorization, "Bearer $token")
                 }
-                val status = response.status.value
-                val body = response.bodyAsText()
+            }
+            val status = response.status.value
+            val body = response.bodyAsText()
 
-                when (status) {
-                    200 -> parseRelease(body, source)
-                    401, 403 -> {
-                        val err = if (!token.isNullOrBlank()) {
-                            "$source：令牌无效或无权限访问该仓库"
-                        } else if (body.contains("rate limit", ignoreCase = true)) {
-                            "$source：API 请求频率超限，请稍后重试"
-                        } else {
-                            "$source：访问受限（可能需要配置令牌）"
-                        }
-                        errors.add(err)
-                        Log.w(TAG, "$source API 返回 $status: $err")
-                        null
+            when (status) {
+                200 -> parseRelease(body, source) ?: run {
+                    errors.add("$source：发布信息解析失败")
+                    null
+                }
+                401, 403 -> {
+                    val err = if (!token.isNullOrBlank()) {
+                        "$source：令牌无效或无权限访问该仓库"
+                    } else if (body.contains("rate limit", ignoreCase = true)) {
+                        "$source：API 请求频率超限，请稍后重试"
+                    } else {
+                        "$source：访问受限（可能需要配置令牌）"
                     }
-                    404 -> {
-                        val err = "$source：未找到发布版本"
-                        errors.add(err)
-                        Log.w(TAG, "$source API 返回 404")
-                        null
-                    }
-                    else -> {
-                        val err = "$source API 返回异常状态码 $status"
-                        errors.add(err)
-                        Log.w(TAG, "$source API 返回 $status: ${body.take(200)}")
-                        null
-                    }
+                    errors.add(err)
+                    Log.w(TAG, "$source API 返回 $status: $err")
+                    null
+                }
+                404 -> {
+                    errors.add("$source：未找到发布版本")
+                    Log.w(TAG, "$source API 返回 404")
+                    null
+                }
+                else -> {
+                    val err = "$source API 返回异常状态码 $status"
+                    errors.add(err)
+                    Log.w(TAG, "$source API 返回 $status: ${body.take(200)}")
+                    null
                 }
             }
         } catch (e: Exception) {
@@ -294,39 +318,74 @@ object UpdateChecker {
 
     private fun parseRelease(body: String, source: String): UpdateInfo? {
         return try {
-            val json = com.google.gson.JsonParser.parseString(body).asJsonObject
-            val tagName = json.get("tag_name")?.asString?.removePrefix("v") ?: return null
-            val htmlUrl = json.get("html_url")?.asString ?: ""
-            val bodyText = json.get("body")?.asString ?: ""
-            val assets = json.getAsJsonArray("assets")
-            val downloadUrl = if (assets != null) {
-                val apkAsset = assets.firstOrNull { el ->
-                    el.asJsonObject.get("name")?.asString?.endsWith(".apk") == true
-                }
-                apkAsset?.asJsonObject?.get("browser_download_url")?.asString ?: ""
-            } else ""
+            val json = JsonParser.parseString(body).asJsonObject
+            val tagName = json.optString("tag_name").removePrefix("v").removePrefix("V")
+            if (tagName.isBlank()) return null
+            val htmlUrl = json.optString("html_url")
+            // 发布说明保留完整内容，由 UI 决定展示长度；旧实现在这里硬截断到 300 字
+            val bodyText = json.optString("body")
+            val apkAsset = pickApkAsset(json.getAsJsonArray("assets"))
             val expectedSha256 = SHA256_PATTERN.matcher(bodyText).let { m ->
                 if (m.find()) m.group(1)?.lowercase() else null
             }
-            // 从发布说明解析 versionCode（兼容 "versionCode: 12" 写法）
             val versionCode = VERSIONCODE_PATTERN.matcher(bodyText).let { m ->
                 if (m.find()) m.group(1)?.toIntOrNull() else null
             }
-            val info = UpdateInfo(
+            UpdateInfo(
                 latestVersion = tagName,
                 versionCode = versionCode,
-                downloadUrl = downloadUrl,
-                releaseNotes = bodyText.take(300),
+                downloadUrl = apkAsset?.optString("browser_download_url").orEmpty(),
+                releaseNotes = bodyText,
                 releaseUrl = htmlUrl,
                 expectedSha256 = expectedSha256,
-                source = source
+                source = source,
+                apkName = apkAsset?.optString("name").orEmpty(),
+                sizeBytes = apkAsset?.optLong("size") ?: 0L
             )
-            cachedInfo = info
-            info
         } catch (e: Exception) {
-            lastError = "解析发布信息失败"
-            Log.w(TAG, "解析异常: ${e.message}")
+            Log.w(TAG, "解析发布信息失败: ${e.message}")
             null
         }
     }
+
+    /**
+     * 从发布资源里挑一个可安装的 APK：优先设备 ABI 精确匹配，其次按架构优先级
+     * （arm64 > armeabi-v7a > x86_64 > x86），再退到 universal/all，最后取第一个 release 包。
+     * 同时排除 debug / unsigned 包，避免误把 CI 的调试产物当作正式更新。
+     */
+    private fun pickApkAsset(assets: JsonArray?): JsonObject? {
+        if (assets == null) return null
+        val preferredAbi = Build.SUPPORTED_ABIS.firstOrNull().orEmpty().lowercase()
+        val apks = assets.mapNotNull { element ->
+            element.takeIf { it.isJsonObject }?.asJsonObject
+        }.filter { asset ->
+            val name = asset.optString("name")
+            name.endsWith(".apk", ignoreCase = true) &&
+                    !name.contains("debug", ignoreCase = true) &&
+                    !name.contains("unsigned", ignoreCase = true)
+        }
+        if (apks.isEmpty()) return null
+
+        fun rank(asset: JsonObject): Int {
+            val name = asset.optString("name").lowercase()
+            if (preferredAbi.isNotEmpty() && name.contains(preferredAbi)) return 100
+            return when {
+                name.contains("arm64") -> 40
+                name.contains("armeabi") || name.contains("v7a") -> 30
+                name.contains("x86_64") || name.contains("x86-64") -> 20
+                name.contains("x86") -> 10
+                name.contains("universal") || name.contains("all") -> 5
+                else -> 1
+            }
+        }
+        return apks.maxByOrNull { rank(it) }
+    }
+
+    private fun JsonObject.optString(name: String): String = runCatching {
+        get(name)?.takeIf { it.isJsonPrimitive }?.asString
+    }.getOrNull().orEmpty()
+
+    private fun JsonObject.optLong(name: String): Long = runCatching {
+        get(name)?.takeIf { it.isJsonPrimitive }?.asLong
+    }.getOrNull() ?: 0L
 }

@@ -12,6 +12,8 @@ import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,13 +32,24 @@ import androidx.navigation.NavHostController
 import com.overtime.miuix.BuildConfig
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import com.overtime.miuix.ui.snackbar.showCustomToast
+import com.overtime.miuix.util.UpdateCheckResult
 import com.overtime.miuix.util.UpdateChecker
 import kotlinx.coroutines.launch
+import java.util.Locale
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+private const val RELEASE_PAGE_URL =
+    "https://github.com/moonbai/overtime-miuix/releases/latest"
+
+private fun formatApkSize(bytes: Long): String = if (bytes >= 1024 * 1024) {
+    "%.1f MB".format(Locale.US, bytes / 1024.0 / 1024.0)
+} else {
+    "%.0f KB".format(Locale.US, bytes / 1024.0)
+}
 
 @Composable
 fun AboutPage(navController: NavHostController) {
@@ -219,27 +232,38 @@ fun AboutPage(navController: NavHostController) {
                             checking = true
                             scope.launch {
                                 try {
-                                    val info = UpdateChecker.check(versionName)
-                                    if (info == null) {
-                                        snackbarHostState.showCustomToast(
-                                            UpdateChecker.lastError ?: "检查失败，请检查网络连接"
+                                    // 检查结果自带「是否有更新」「双源是否同步」「失败原因」，
+                                    // UI 不再读取检查器的全局状态
+                                    when (
+                                        val result = UpdateChecker.check(
+                                            versionName, BuildConfig.VERSION_CODE
                                         )
-                                    } else if (UpdateChecker.hasUpdate(versionName, BuildConfig.VERSION_CODE, info)) {
-                                        updateInfo = info
-                                        showUpdateDialog = true
-                                    } else {
-                                        val localSha = UpdateChecker.getInstalledApkSha256(context)
-                                        val consistent = UpdateChecker.isLocalConsistent(info, localSha)
-                                        if (consistent == false) {
-                                            updateInfo = info
-                                            showConsistencyDialog = true
-                                        } else {
-                                            val msg = if (UpdateChecker.sourceMismatch) {
-                                                "已是最新版本（GitHub 与 CNB 版本可能未同步）"
+                                    ) {
+                                        is UpdateCheckResult.Failure -> {
+                                            snackbarHostState.showCustomToast(result.reason)
+                                        }
+                                        is UpdateCheckResult.Success -> {
+                                            if (result.hasUpdate) {
+                                                updateInfo = result.info
+                                                showUpdateDialog = true
                                             } else {
-                                                "已是最新版本"
+                                                val localSha =
+                                                    UpdateChecker.getInstalledApkSha256(context)
+                                                if (UpdateChecker.isLocalConsistent(
+                                                        result.info, localSha
+                                                    ) == false
+                                                ) {
+                                                    updateInfo = result.info
+                                                    showConsistencyDialog = true
+                                                } else {
+                                                    val msg = if (result.sourceMismatch) {
+                                                        "已是最新版本（GitHub 与 CNB 版本可能未同步）"
+                                                    } else {
+                                                        "已是最新版本"
+                                                    }
+                                                    snackbarHostState.showCustomToast(msg)
+                                                }
                                             }
-                                            snackbarHostState.showCustomToast(msg)
                                         }
                                     }
                                 } catch (e: Exception) {
@@ -275,33 +299,58 @@ fun AboutPage(navController: NavHostController) {
     // 更新对话框
     if (showUpdateDialog && updateInfo != null) {
         val info = updateInfo!!
+        val apkSummary = if (info.sizeBytes > 0) {
+            "\n安装包：${info.apkName.ifBlank { "APK" }}（${formatApkSize(info.sizeBytes)}）"
+        } else ""
         OverlayDialog(
             show = true,
             title = "发现新版本",
-            summary = "当前版本：$versionName\n最新版本：${info.latestVersion}",
+            summary = "当前版本：$versionName\n最新版本：${info.latestVersion}$apkSummary",
             onDismissRequest = { showUpdateDialog = false }
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 if (info.releaseNotes.isNotBlank()) {
+                    // 发布说明保留完整内容，限高后可滚动，避免长更新日志撑开对话框
                     Text(
                         text = info.releaseNotes,
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .heightIn(max = 200.dp)
+                            .verticalScroll(rememberScrollState())
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
+                // 优先直达 APK 直链；解析不到资源时退回发布页
                 Button(
                     onClick = {
-                        val intent = Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse(info.releaseUrl.ifBlank { "https://github.com/moonbai/overtime-miuix/releases/latest" })
-                        )
-                        context.startActivity(intent)
+                        val target = info.downloadUrl.ifBlank {
+                            info.releaseUrl.ifBlank { RELEASE_PAGE_URL }
+                        }
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
                         showUpdateDialog = false
                     },
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("前往下载") }
+                ) {
+                    Text(if (info.downloadUrl.isNotBlank()) "下载 APK" else "前往发布页")
+                }
+                if (info.downloadUrl.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(
+                        text = "查看发布页",
+                        onClick = {
+                            context.startActivity(
+                                Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse(info.releaseUrl.ifBlank { RELEASE_PAGE_URL })
+                                )
+                            )
+                            showUpdateDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 TextButton(
                     text = "稍后再说",
@@ -326,7 +375,7 @@ fun AboutPage(navController: NavHostController) {
                     onClick = {
                         val intent = Intent(
                             Intent.ACTION_VIEW,
-                            Uri.parse(info.releaseUrl.ifBlank { "https://github.com/moonbai/overtime-miuix/releases/latest" })
+                            Uri.parse(info.releaseUrl.ifBlank { RELEASE_PAGE_URL })
                         )
                         context.startActivity(intent)
                         showConsistencyDialog = false
