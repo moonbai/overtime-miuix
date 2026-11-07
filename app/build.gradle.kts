@@ -24,7 +24,8 @@ android {
 
     defaultConfig {
         applicationId = "com.overtime.miuix"
-        minSdk = 26
+        // minSdk 33（Android 13）：与 miuix-blur AAR minSdk 对齐，甩掉存储/通知旧权限模型（2026-11 提升）
+        minSdk = 33
         targetSdk = 37
         versionCode = 16
         versionName = "1.1.2"
@@ -66,6 +67,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            // 公平内存/体积优化：debug 也启用 R8 代码+资源压缩（proguard 已保留
+            // 源文件与行号，断点、logcat 行号正常映射）。主要收益：
+            // 未压缩 debug 包体积大、类全量加载推高 PSS；压缩后两者同步下降。
+            isMinifyEnabled = true
+            isShrinkResources = true
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -147,7 +155,7 @@ dependencies {
     // Gson
     implementation(libs.gson)
 
-    // MIUIX 0.9.3（Compose Multiplatform 库，传递依赖 JetBrains Compose 1.11.1）
+    // MIUIX 0.9.4（Compose Multiplatform 库，传递依赖 JetBrains Compose 1.12.0）
     // JetBrains Compose AAR 中重打包了 AndroidX Compose 类，与 BOM 提供的 AndroidX 库冲突。
     // 策略：排除所有 org.jetbrains.compose.* 传递依赖，统一由 AndroidX BOM 管理版本。
     // 保留 org.jetbrains.compose.material3（material3-window-size-class 为 miuix 运行时依赖）。
@@ -185,22 +193,22 @@ dependencies {
 }
 
 // 强制统一 Compose Foundation/Runtime/UI 版本：
-// miuix 0.9.3 通过 JetBrains Compose 传递依赖 androidx.compose.*:1.11.2，
-// exclude 后由 BOM 2026.04.01 统一管理（同样提供 1.11.2）。
+// miuix 0.9.4 通过 JetBrains Compose 传递依赖 androidx.compose.*:1.12.0，
+// exclude 后由 BOM 2026.09.00 统一管理（提供 1.12.1）。
 // force 确保所有传递依赖使用同一版本，消除版本冲突警告。
 configurations.all {
     resolutionStrategy {
-        force("androidx.compose.foundation:foundation:1.11.2")
-        force("androidx.compose.foundation:foundation-layout:1.11.2")
-        force("androidx.compose.runtime:runtime:1.11.2")
-        force("androidx.compose.runtime:runtime-saveable:1.11.2")
-        force("androidx.compose.ui:ui:1.11.2")
-        force("androidx.compose.ui:ui-geometry:1.11.2")
-        force("androidx.compose.ui:ui-graphics:1.11.2")
-        force("androidx.compose.ui:ui-text:1.11.2")
-        force("androidx.compose.ui:ui-unit:1.11.2")
-        force("androidx.compose.ui:ui-util:1.11.2")
-        force("androidx.compose.animation:animation:1.11.2")
-        force("androidx.compose.animation:animation-core:1.11.2")
+        force("androidx.compose.foundation:foundation:1.12.1")
+        force("androidx.compose.foundation:foundation-layout:1.12.1")
+        force("androidx.compose.runtime:runtime:1.12.1")
+        force("androidx.compose.runtime:runtime-saveable:1.12.1")
+        force("androidx.compose.ui:ui:1.12.1")
+        force("androidx.compose.ui:ui-geometry:1.12.1")
+        force("androidx.compose.ui:ui-graphics:1.12.1")
+        force("androidx.compose.ui:ui-text:1.12.1")
+        force("androidx.compose.ui:ui-unit:1.12.1")
+        force("androidx.compose.ui:ui-util:1.12.1")
+        force("androidx.compose.animation:animation:1.12.1")
+        force("androidx.compose.animation:animation-core:1.12.1")
     }
 }

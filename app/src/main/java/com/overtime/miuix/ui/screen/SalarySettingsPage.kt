@@ -25,6 +25,8 @@ fun SalarySettingsPage(
     val workdayRate by settingsRepository.workdayRate.collectAsState(initial = 1.5)
     val weekendRate by settingsRepository.weekendRate.collectAsState(initial = 2.0)
     val holidayRate by settingsRepository.holidayRate.collectAsState(initial = 3.0)
+    // 删除二次确认开关状态（默认开启），关闭后首页点删除立即移除并提供撤销
+    val deleteConfirmEnabled by settingsRepository.deleteConfirmEnabled.collectAsState(initial = true)
 
     var salaryText by remember { mutableStateOf(baseSalary.toString()) }
     var workdayText by remember { mutableStateOf(workdayRate.toString()) }
@@ -90,6 +92,28 @@ fun SalarySettingsPage(
                     onValueChange = { holidayText = it },
                     label = "节假日倍率",
                     modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            item {
+                SmallTitle(text = "交互")
+            }
+            item {
+                BasicComponent(
+                    title = "删除二次确认",
+                    summary = if (deleteConfirmEnabled) {
+                        "删除前弹窗确认，防止误删"
+                    } else {
+                        "已关闭：点删除立即移除，6 秒内可撤销"
+                    },
+                    endActions = {
+                        Switch(
+                            checked = deleteConfirmEnabled,
+                            onCheckedChange = { enabled ->
+                                scope.launch { settingsRepository.setDeleteConfirmEnabled(enabled) }
+                            }
+                        )
+                    }
                 )
             }
 

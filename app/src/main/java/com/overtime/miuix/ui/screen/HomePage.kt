@@ -6,7 +6,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,6 +54,30 @@ fun HomePage(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var selectedRecord by remember { mutableStateOf<OvertimeRecord?>(null) }
 
+    // 删除二次确认开关：设置页可关闭；关闭后点删除立即执行（同样提供撤销）
+    val deleteConfirmEnabled by settingsRepository.deleteConfirmEnabled.collectAsState(initial = true)
+    // 待撤销记录：非空时底部显示「撤销」通知条，6 秒后自动收起
+    var pendingUndo by remember { mutableStateOf<OvertimeRecord?>(null) }
+    // 通知条文案快照：退出动画期间 pendingUndo 已置空，用快照避免文案闪成 "null"
+    var undoMessage by remember { mutableStateOf("") }
+
+    /** 执行删除并弹出可撤销通知条（对话框确认路径与直接删除路径共用）。 */
+    fun deleteRecord(record: OvertimeRecord) {
+        scope.launch { repository.delete(record) }
+        undoMessage = "已删除 " + SimpleDateFormat("MM-dd", Locale.getDefault()).format(Date(record.date)) + " 记录"
+        pendingUndo = record
+    }
+
+    // 撤销条自动收起计时：pendingUndo 变化（新删除/已撤销）时重启或取消
+    LaunchedEffect(pendingUndo) {
+        if (pendingUndo != null) {
+            delay(6_000)
+            pendingUndo = null
+        }
+    }
+
+    // Box 包裹：内容列表 + 底部撤销通知条叠层（Kotlin 不受缩进影响，内部保持原缩进）
+    Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -126,12 +157,50 @@ fun HomePage(
                     typeColorHoliday = typeColorHoliday,
                     onClick = { navController.navigate("edit_record/${record.id}") },
                     onDelete = {
-                        selectedRecord = record
-                        showDeleteDialog = true
+                        if (deleteConfirmEnabled) {
+                            selectedRecord = record
+                            showDeleteDialog = true
+                        } else {
+                            deleteRecord(record)
+                        }
                     }
                 )
             }
         }
+    }
+
+    // 删除撤销通知条：小通知条 + 撤销按钮，6 秒自动消失；
+    // 撤销=按原 id 重插（dao 为 REPLACE，恢复后 id/内容完全一致）
+    AnimatedVisibility(
+        visible = pendingUndo != null,
+        enter = slideInVertically(animationSpec = tween(320)) { it / 2 } + fadeIn(tween(320)),
+        exit = slideOutVertically(animationSpec = tween(240)) { it / 2 } + fadeOut(tween(240)),
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = bottomReserve + 72.dp)
+    ) {
+        Card(cornerRadius = 24.dp) {
+            Row(
+                modifier = Modifier.padding(start = 16.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = undoMessage,
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                TextButton(
+                    text = "撤销",
+                    onClick = {
+                        val record = pendingUndo
+                        pendingUndo = null
+                        if (record != null) scope.launch { repository.insert(record) }
+                    }
+                )
+            }
+        }
+    }
     }
 
     OverlayDialog(
@@ -153,9 +222,7 @@ fun HomePage(
             TextButton(
                 text = "删除",
                 onClick = {
-                    scope.launch {
-                        selectedRecord?.let { repository.delete(it) }
-                    }
+                    selectedRecord?.let { deleteRecord(it) }
                     showDeleteDialog = false
                 },
                 modifier = Modifier.weight(1f)
