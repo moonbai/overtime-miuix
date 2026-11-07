@@ -32,9 +32,7 @@ android {
         // GitHub Token：从环境变量注入 BuildConfig（避免硬编码到源码被 Push Protection 拦截）
         // CI/本地构建时需设置 GITHUB_TOKEN 环境变量
         buildConfigField("String", "GITHUB_TOKEN", "\"${signProp("GITHUB_TOKEN") ?: ""}\"")
-        // CNB Token：作为 GitHub 的兜底更新数据源（cnb.cool），可选；公开仓库可匿名访问
-        // CI/本地构建时可设置 CNB_TOKEN 环境变量以提升限额 / 访问私有仓库
-        buildConfigField("String", "CNB_TOKEN", "\"${signProp("CNB_TOKEN") ?: ""}\"")
+        // 更新检查已收敛为 GitHub 单源，不再需要 CNB_TOKEN
     }
 
     // 签名配置：环境变量优先（CI），local.properties 回退（本地，已 gitignore）

@@ -18,12 +18,11 @@
   GRADLE_OPTS: -Dorg.gradle.daemon=false -Dfile.encoding=UTF-8
   GRADLE_USER_HOME: /root/.gradle
   # 更新检查令牌：默认留空，APK 内不写入任何凭证。
-  # 若需启用带令牌的更新检查，在密钥仓库中定义 GH_UPDATE_TOKEN / CNB_UPDATE_TOKEN，
-  # 构建阶段会映射为 BuildConfig 所需的 GITHUB_TOKEN / CNB_TOKEN。
-  # 安全提示：严禁直接使用 CNB 内置的流水线令牌 CNB_TOKEN——它是只读注入的临时凭证，
-  # 若被 build.gradle.kts 读入 BuildConfig，会随 APK 分发出去。构建前必须显式覆盖。
+  # 若需启用带令牌的更新检查，在密钥仓库中定义 GH_UPDATE_TOKEN，
+  # 构建阶段会映射为 BuildConfig.GITHUB_TOKEN（GitHub 单源）。
+  # 安全提示：严禁把 CNB 内置的临时流水线令牌 CNB_TOKEN 写入 BuildConfig；
+  # 应用已不再读取该变量，构建前统一显式覆盖 GITHUB_TOKEN。
   GH_UPDATE_TOKEN: ""
-  CNB_UPDATE_TOKEN: ""
 
 .prepare-sdk: &prepare-sdk
   name: 准备 Android SDK 37 构建环境
@@ -127,7 +126,6 @@
     # 关键：用显式声明的更新令牌覆盖 CNB 内置的临时流水线令牌，
     # 避免 buildConfigField 把 CI 凭证固化进 APK。未配置时即为空字符串。
     export GITHUB_TOKEN="${GH_UPDATE_TOKEN:-}"
-    export CNB_TOKEN="${CNB_UPDATE_TOKEN:-}"
     if [ "${SIGNING_SKIP:-0}" = "1" ]; then
       echo "==> 签名密钥缺失，构建 Debug APK（验证编译通过）"
       ./gradlew assembleDebug --no-daemon --stacktrace
@@ -229,7 +227,6 @@ main:
             set -e
             chmod +x ./gradlew
             export GITHUB_TOKEN=""
-            export CNB_TOKEN=""
             ./gradlew assembleDebug --no-daemon --stacktrace
             echo "==> Debug 包构建通过，依赖与编译链路正常"
             ls -lh app/build/outputs/apk/debug/

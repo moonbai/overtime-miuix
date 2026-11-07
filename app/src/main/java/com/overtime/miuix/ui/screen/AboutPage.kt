@@ -44,6 +44,21 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val RELEASE_PAGE_URL =
     "https://github.com/moonbai/overtime-miuix/releases/latest"
+private const val REPO_URL = "https://github.com/moonbai/overtime-miuix"
+private const val WEIBO_PROFILE_URL = "https://weibo.com/u/3963594403"
+
+/**
+ * 统一的外链打开入口：设备上没有可处理 http 链接的浏览器 / 应用时
+ * （如极简 ROM、工作资料隔离），startActivity 会抛 ActivityNotFoundException，
+ * 这里降级为提示而不是让应用崩溃。
+ */
+private fun openExternalLink(context: Context, url: String, onUnavailable: () -> Unit) {
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    } catch (_: Exception) {
+        onUnavailable()
+    }
+}
 
 private fun formatApkSize(bytes: Long): String = if (bytes >= 1024 * 1024) {
     "%.1f MB".format(Locale.US, bytes / 1024.0 / 1024.0)
@@ -63,6 +78,14 @@ fun AboutPage(navController: NavHostController) {
     var updateInfo by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showConsistencyDialog by remember { mutableStateOf(false) }
+
+    // 所有外链共用同一套「打不开就提示」的兜底逻辑
+    val onLinkUnavailable = {
+        scope.launch { snackbarHostState.showCustomToast("未找到可打开该链接的应用") }
+    }
+    val openLink: (String) -> Unit = { url ->
+        openExternalLink(context, url, onLinkUnavailable)
+    }
 
     Scaffold(
         topBar = {
@@ -193,7 +216,16 @@ fun AboutPage(navController: NavHostController) {
                     BasicComponent(
                         title = "作者",
                         summary = "Mars",
-                        startAction = { Icon(MiuixIcons.Info, contentDescription = null) }
+                        startAction = { Icon(MiuixIcons.Info, contentDescription = null) },
+                        endActions = {
+                            Icon(
+                                imageVector = MiuixIcons.ChevronForward,
+                                contentDescription = "打开微博主页",
+                                tint = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        onClick = { openLink(WEIBO_PROFILE_URL) }
                     )
                     BasicComponent(
                         title = "开源仓库",
@@ -202,22 +234,16 @@ fun AboutPage(navController: NavHostController) {
                         endActions = {
                             Icon(
                                 imageVector = MiuixIcons.ChevronForward,
-                                contentDescription = "打开链接",
+                                contentDescription = "打开仓库主页",
                                 tint = MiuixTheme.colorScheme.primary,
                                 modifier = Modifier.size(16.dp)
                             )
                         },
-                        onClick = {
-                            val intent = Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse("https://github.com/moonbai/overtime-miuix")
-                            )
-                            context.startActivity(intent)
-                        }
+                        onClick = { openLink(REPO_URL) }
                     )
                     BasicComponent(
                         title = "检查更新",
-                        summary = if (checking) "正在检查…" else "查询 GitHub / CNB 最新版本",
+                        summary = if (checking) "正在检查…" else "查询 GitHub 发布的最新版本",
                         startAction = { Icon(MiuixIcons.Update, contentDescription = null) },
                         endActions = {
                             Icon(
@@ -232,7 +258,7 @@ fun AboutPage(navController: NavHostController) {
                             checking = true
                             scope.launch {
                                 try {
-                                    // 检查结果自带「是否有更新」「双源是否同步」「失败原因」，
+                                    // 检查结果自带「是否有更新」与「失败原因」，
                                     // UI 不再读取检查器的全局状态
                                     when (
                                         val result = UpdateChecker.check(
@@ -256,12 +282,7 @@ fun AboutPage(navController: NavHostController) {
                                                     updateInfo = result.info
                                                     showConsistencyDialog = true
                                                 } else {
-                                                    val msg = if (result.sourceMismatch) {
-                                                        "已是最新版本（GitHub 与 CNB 版本可能未同步）"
-                                                    } else {
-                                                        "已是最新版本"
-                                                    }
-                                                    snackbarHostState.showCustomToast(msg)
+                                                    snackbarHostState.showCustomToast("已是最新版本")
                                                 }
                                             }
                                         }
@@ -328,7 +349,7 @@ fun AboutPage(navController: NavHostController) {
                         val target = info.downloadUrl.ifBlank {
                             info.releaseUrl.ifBlank { RELEASE_PAGE_URL }
                         }
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                        openLink(target)
                         showUpdateDialog = false
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -340,12 +361,7 @@ fun AboutPage(navController: NavHostController) {
                     TextButton(
                         text = "查看发布页",
                         onClick = {
-                            context.startActivity(
-                                Intent(
-                                    Intent.ACTION_VIEW,
-                                    Uri.parse(info.releaseUrl.ifBlank { RELEASE_PAGE_URL })
-                                )
-                            )
+                            openLink(info.releaseUrl.ifBlank { RELEASE_PAGE_URL })
                             showUpdateDialog = false
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -373,11 +389,7 @@ fun AboutPage(navController: NavHostController) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Button(
                     onClick = {
-                        val intent = Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse(info.releaseUrl.ifBlank { RELEASE_PAGE_URL })
-                        )
-                        context.startActivity(intent)
+                        openLink(info.releaseUrl.ifBlank { RELEASE_PAGE_URL })
                         showConsistencyDialog = false
                     },
                     modifier = Modifier.fillMaxWidth()

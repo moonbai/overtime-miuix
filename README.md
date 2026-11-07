@@ -31,7 +31,7 @@
 - **主题切换** — 跟随系统 / 浅色 / 深色 / Monet 取色四种模式
 - **底栏样式** — 普通 / 悬浮两种样式，均支持高斯模糊毛玻璃效果
 - **类型配色** — 工作日/周末/节假日加班可自定义标识颜色
-- **更新检查** — GitHub + CNB 双源检测，支持匿名访问与一致性校验
+- **更新检查** — GitHub Releases 单源检测，支持匿名访问、APK 直链与一致性校验
 
 ## 技术栈
 
@@ -80,19 +80,6 @@
 > 因此 debug 不再开启压缩；`proguard-rules.pro` 仅服务于 release（Gson 备份模型
 > keep、行号与泛型签名保留、Ktor JVM-only 类放行）。
 
-### 签名配置
-
-Release 签名通过环境变量注入（CI 走 GitHub Secrets，本地回退 `local.properties`，均已 gitignore）：
-
-| 变量 | 说明 |
-|------|------|
-| `KEYSTORE_BASE64` | Mars keystore 的 Base64 |
-| `KEYSTORE_PASSWORD` | keystore 密码 |
-| `KEY_ALIAS` | 别名（`Mars`） |
-| `KEY_PASSWORD` | 密钥密码 |
-
-> ⚠️ 签名文件与密码禁止提交仓库。
-
 ### CI 自动发版
 
 `.github/workflows/android.yml` 在**每次 `main` 推送**都构建签名 Release 包，执行产物门禁（签名、元信息、体积、SHA256 写入构建摘要）并上传 artifact；`v*` 标签推送额外自动发布 GitHub Release。CNB 流水线（`.cnb.yml`）同样以 `assembleRelease` 为默认产物，两侧行为对齐。
@@ -103,9 +90,9 @@ Release 签名通过环境变量注入（CI 走 GitHub Secrets，本地回退 `l
 
 入口：设置 → 关于 → 检查更新
 
-- **数据源**：GitHub Releases API（优先）→ CNB Releases API（兜底）
+- **数据源**：GitHub Releases API 单源（直连失败时回退公开镜像代理，仍为同一份 Release 数据）
 - **鉴权**：公开仓库可匿名访问；注入 PAT 后提升限额
-- **对比**：逐段比较 `versionName`，有新版本弹窗引导下载
+- **对比**：优先按发布说明中的 `versionCode` 比较，缺失时逐段比较 `versionName`；有新版本弹窗引导下载 APK 直链
 - **校验**：版本相同但 SHA256 不一致时提示"安装包校验不一致"
 
 ## 项目结构
@@ -141,7 +128,7 @@ app/src/main/java/com/overtime/miuix/
 │   ├── HolidayManager.kt             # 节假日管理（多数据源）
 │   ├── BackupManager.kt              # 备份管理（ZIP 导入导出）
 │   ├── RecordSyncHelper.kt           # 记录同步（推送 + 日历 + 备份）
-│   ├── UpdateChecker.kt              # 更新检查（GitHub + CNB 双源）
+│   ├── UpdateChecker.kt              # 更新检查（GitHub 单源）
 │   ├── WebDavManager.kt              # WebDAV 管理
 │   └── DataMigrationUtil.kt          # 数据迁移工具
 ├── push/

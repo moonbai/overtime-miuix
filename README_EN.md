@@ -33,7 +33,7 @@
 - **Theme** — Follow system / Light / Dark / Monet (dynamic color) four modes
 - **Nav Bar Style** — Normal / Floating styles, both with Gaussian blur frosted-glass effects
 - **Type Colors** — Customizable indicator colors for workday / weekend / holiday overtime
-- **Update Check** — GitHub + CNB dual-source detection with anonymous access and consistency verification
+- **Update Check** — GitHub Releases single source with anonymous access, APK direct link and consistency verification
 
 ## Tech Stack
 
@@ -83,18 +83,6 @@
 > `proguard-rules.pro` serves release only (Gson backup model keep rules,
 > line-number/generic-signature retention, Ktor JVM-only class allowances).
 
-### Signing Configuration
-
-Release signing is injected via environment variables (CI uses GitHub Secrets; local falls back to `local.properties`, both gitignored):
-
-| Variable | Description |
-|----------|-------------|
-| `KEYSTORE_BASE64` | Base64 of the Mars keystore |
-| `KEYSTORE_PASSWORD` | Keystore password |
-| `KEY_ALIAS` | Alias (`Mars`) |
-| `KEY_PASSWORD` | Key password |
-
-> ⚠️ Keystore files and passwords must not be committed.
 
 ### CI Auto-Release
 
@@ -106,9 +94,9 @@ Configure signing Secrets and the optional `GH_PAT` (long-lived read-only PAT fo
 
 Entry point: Settings → About → Check for Updates
 
-- **Data sources**: GitHub Releases API (primary) → CNB Releases API (fallback)
+- **Data source**: GitHub Releases API only (public mirror proxy fallback when direct access fails)
 - **Auth**: Public repos work anonymously; PAT injection raises rate limits
-- **Comparison**: Segment-by-segment `versionName` comparison; dialog prompts when a newer version is found
+- **Comparison**: `versionCode` from release notes takes priority, falling back to segment-by-segment `versionName`; the dialog links straight to the APK
 - **Verification**: SHA256 consistency check warns if the local APK doesn't match the official release
 
 ## Project Structure
@@ -144,7 +132,7 @@ app/src/main/java/com/overtime/miuix/
 │   ├── HolidayManager.kt             # Holiday management (multi-source)
 │   ├── BackupManager.kt              # Backup management (ZIP import/export)
 │   ├── RecordSyncHelper.kt           # Record sync (push + calendar + backup)
-│   ├── UpdateChecker.kt              # Update check (GitHub + CNB dual-source)
+│   ├── UpdateChecker.kt              # Update check (GitHub only)
 │   ├── WebDavManager.kt              # WebDAV management
 │   └── DataMigrationUtil.kt          # Data migration utilities
 ├── push/
