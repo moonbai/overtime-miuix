@@ -55,6 +55,8 @@ fun HomePage(
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
     val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
     val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
+    // 「删除二次确认」设置项：关闭时直接删除，仅靠 Snackbar 撤销
+    val deleteConfirmEnabled by settingsRepository.deleteConfirmEnabled.collectAsState(initial = true)
 
     // 搜索与筛选
     var searchQuery by remember { mutableStateOf("") }
@@ -63,6 +65,27 @@ fun HomePage(
     // 删除确认对话框
     var showDeleteDialog by remember { mutableStateOf(false) }
     var selectedRecord by remember { mutableStateOf<OvertimeRecord?>(null) }
+
+    /**
+     * 删除并给出 4 秒撤销窗口。确认删除与「关闭二次确认」后的直接删除共用此逻辑，
+     * 保证两种路径的撤销行为完全一致。
+     */
+    fun performDelete(record: OvertimeRecord) {
+        scope.launch {
+            repository.delete(record)
+            // 撤销由 MIUIX 原生 Snackbar 承载：Scaffold 的 SnackbarHost 统一渲染，
+            // 避免自绘 Surface 的 shadowElevation 在 Android 17 上被绘制成底部黑块。
+            val result = snackbarHostState.showSnackbar(
+                message = "已删除记录",
+                actionLabel = "撤销",
+                duration = SnackbarDuration.Custom(4000)
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                repository.insert(record.copy(id = 0))
+                snackbarHostState.showCustomToast("已撤销删除")
+            }
+        }
+    }
 
     // 过滤 + 按月分组（倒序）
     val monthFormatter = remember { SimpleDateFormat("yyyy-MM", Locale.getDefault()) }
@@ -221,8 +244,12 @@ fun HomePage(
                             typeColorHoliday = typeColorHoliday,
                             onClick = { navController.navigate("edit_record/${record.id}") },
                             onDelete = {
-                                selectedRecord = record
-                                showDeleteDialog = true
+                                if (deleteConfirmEnabled) {
+                                    selectedRecord = record
+                                    showDeleteDialog = true
+                                } else {
+                                    performDelete(record)
+                                }
                             }
                         )
                     }
@@ -252,23 +279,7 @@ fun HomePage(
                 onClick = {
                     val rec = selectedRecord
                     showDeleteDialog = false
-                    rec?.let { record ->
-                        scope.launch {
-                            repository.delete(record)
-                            // 撤销改由 MIUIX 原生 Snackbar 承载：Scaffold 的 SnackbarHost
-                            // 统一渲染，避免自绘 Surface 的 shadowElevation 在 Android 17
-                            // 上被绘制成底部黑块；同时获得框架标准的配色与动效。
-                            val result = snackbarHostState.showSnackbar(
-                                message = "已删除记录",
-                                actionLabel = "撤销",
-                                duration = SnackbarDuration.Custom(4000)
-                            )
-                            if (result == SnackbarResult.ActionPerformed) {
-                                repository.insert(record.copy(id = 0))
-                                snackbarHostState.showCustomToast("已撤销删除")
-                            }
-                        }
-                    }
+                    rec?.let { performDelete(it) }
                 },
                 modifier = Modifier.weight(1f)
             )

@@ -3,13 +3,8 @@ package com.overtime.miuix.ui.screen
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import java.net.Inet4Address
 import java.net.NetworkInterface
@@ -18,10 +13,6 @@ import com.overtime.miuix.mcp.McpHostService
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import com.overtime.miuix.ui.snackbar.showCustomToast
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.*
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun McpSettingsPage(
@@ -68,153 +59,77 @@ fun McpSettingsPage(
         clipboard.setPrimaryClip(clip)
         scope.launch { snackbarHostState.showCustomToast("${label}已复制到剪贴板") }
     }
-    
-    Scaffold(
-        topBar = {
-            SmallTopAppBar(
-                title = "MCP 服务",
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
+
+    SettingsScreen(
+        title = "MCP 服务",
+        onBack = { navController.popBackStack() },
+        snackbarHostState = snackbarHostState
+    ) {
+        item {
+            SettingsGroup(title = "服务") {
+                SettingsNote(text = "Model Context Protocol 服务允许 AI 助手通过标准协议读取加班记录；仅建议在可信网络下开启。")
+                SettingsSwitchItem(
+                    title = "启用 MCP 服务",
+                    summary = "开启后可通过本地网络访问",
+                    checked = mcpEnabled,
+                    onCheckedChange = { enabled ->
+                        scope.launch {
+                            settingsRepository.setMcpEnabled(enabled)
+                            if (enabled) {
+                                McpHostService.start(context, mcpPort)
+                            } else {
+                                McpHostService.stop(context)
+                            }
+                        }
+                    }
+                )
+                SettingsTextField(
+                    value = portText,
+                    onValueChange = { portText = it.filter { c -> c.isDigit() }.take(5) },
+                    label = "服务端口（1-65535）",
+                    enabled = !mcpEnabled
+                )
+                SettingsNote(text = "端口需在服务停止时修改并点击保存，服务运行中不可更改。")
+            }
+        }
+
+        item {
+            SettingsPrimaryButton(
+                text = "保存端口设置",
+                enabled = !mcpEnabled,
+                onClick = {
+                    val port = portText.toIntOrNull()?.takeIf { it in 1..65535 }
+                    if (port == null) {
+                        scope.launch { snackbarHostState.showCustomToast("端口需为 1-65535 的整数") }
+                    } else {
+                        scope.launch {
+                            settingsRepository.setMcpPort(port)
+                            snackbarHostState.showCustomToast("端口已保存：$port")
+                        }
                     }
                 }
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                Text(
-                    text = "Model Context Protocol (MCP) 服务允许 AI 助手通过标准协议访问您的加班记录数据。",
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
-            }
-            
-            item {
-                BasicComponent(
-                    title = "启用 MCP 服务",
-                    summary = "开启后可通过本地网络访问",
-                    endActions = {
-                        Switch(
-                            checked = mcpEnabled,
-                            onCheckedChange = { enabled ->
-                                scope.launch {
-                                    settingsRepository.setMcpEnabled(enabled)
-                                    if (enabled) {
-                                        McpHostService.start(context, mcpPort)
-                                    } else {
-                                        McpHostService.stop(context)
-                                    }
-                                }
-                            }
-                        )
-                    }
-                )
-            }
-            
-            item {
-                TextField(
-                    value = portText,
-                    onValueChange = { portText = it.filter { c -> c.isDigit() }.take(5) },
-                    label = "服务端口",
-                    enabled = !mcpEnabled,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            
-            item {
-                Button(
-                    onClick = {
-                        scope.launch {
-                            val port = portText.toIntOrNull() ?: 8080
-                            settingsRepository.setMcpPort(port)
-                        }
-                    },
-                    enabled = !mcpEnabled,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("保存端口设置")
-                }
-            }
-            
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 16.dp
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "可用工具",
-                            style = MiuixTheme.textStyles.title3,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("• add_overtime_record - 添加加班记录")
-                        Text("• query_overtime_records - 查询记录")
-                        Text("• get_monthly_stats - 获取月度统计")
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "访问地址: http://$deviceIp:$mcpPort/mcp",
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
+        }
 
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 16.dp
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "MCP 配置 JSON",
-                            style = MiuixTheme.textStyles.title3,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Button(
-                                onClick = { copyConfig("本机配置", localConfigJson) },
-                                modifier = Modifier.weight(1f)
-                            ) { Text("复制本机配置") }
-                            Button(
-                                onClick = { copyConfig("局域网配置", lanConfigJson) },
-                                modifier = Modifier.weight(1f)
-                            ) { Text("复制局域网配置") }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            cornerRadius = 12.dp
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = "本机配置：${localConfigJson.lines().find { it.contains("url") }?.trim() ?: ""}",
-                                    style = MiuixTheme.textStyles.footnote1,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "局域网配置：${lanConfigJson.lines().find { it.contains("url") }?.trim() ?: ""}",
-                                    style = MiuixTheme.textStyles.footnote1,
-                                    color = MiuixTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    }
-                }
+        item {
+            SettingsGroup(title = "接入信息") {
+                SettingsNote(text = "可用工具：add_overtime_record（添加记录）、query_overtime_records（查询记录）、get_monthly_stats（月度统计）。")
+                SettingsPreviewText(text = "访问地址：http://$deviceIp:$mcpPort/mcp")
+            }
+        }
+
+        item {
+            SettingsGroup(title = "配置 JSON") {
+                SettingsNote(text = "复制以下配置到 AI 客户端即可接入。")
+                SettingsButtonRow(
+                    firstText = "复制本机配置",
+                    onFirstClick = { copyConfig("本机配置", localConfigJson) },
+                    secondText = "复制局域网配置",
+                    onSecondClick = { copyConfig("局域网配置", lanConfigJson) }
+                )
+                SettingsPreviewText(
+                    text = "本机：http://127.0.0.1:$mcpPort/mcp\n局域网：http://$deviceIp:$mcpPort/mcp"
+                )
             }
         }
     }

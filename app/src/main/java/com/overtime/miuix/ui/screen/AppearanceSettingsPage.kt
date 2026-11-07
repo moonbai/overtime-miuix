@@ -3,7 +3,6 @@ package com.overtime.miuix.ui.screen
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.*
@@ -14,11 +13,8 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.model.BottomBarStyle
 import com.overtime.miuix.data.repository.SettingsRepository
-import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -37,7 +33,6 @@ fun AppearanceSettingsPage(
     settingsRepository: SettingsRepository
 ) {
     val scope = rememberCoroutineScope()
-    val snackbarHostState = LocalSnackbarHostState.current
     val themeMode by settingsRepository.themeMode.collectAsState(initial = "system")
     val bottomBarStyle by settingsRepository.bottomBarStyle.collectAsState(initial = "ICON_TEXT")
     val quickSubmit by settingsRepository.quickSubmit.collectAsState(initial = false)
@@ -47,13 +42,11 @@ fun AppearanceSettingsPage(
     val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
     val accentColor by settingsRepository.accentColor.collectAsState(initial = 0xFF3482FF.toInt())
 
-    // 主题 Dropdown
     val themeItems = remember { THEME_OPTIONS.map { DropdownItem(text = it.second) } }
     val themeSelected = remember(themeMode) {
         THEME_OPTIONS.indexOfFirst { it.first == themeMode }.coerceAtLeast(0)
     }
 
-    // 底栏样式 Dropdown
     val bottomBarItems = remember {
         BottomBarStyle.entries.map { DropdownItem(text = it.label) }
     }
@@ -61,125 +54,82 @@ fun AppearanceSettingsPage(
         BottomBarStyle.entries.indexOfFirst { it.name == bottomBarStyle }.coerceAtLeast(0)
     }
 
-    Scaffold(
-        topBar = {
-            SmallTopAppBar(
-                title = "外观设置",
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
+    SettingsScreen(
+        title = "外观设置",
+        onBack = { navController.popBackStack() }
+    ) {
+        item {
+            SettingsGroup(title = "主题") {
+                OverlaySpinnerPreference(
+                    items = themeItems,
+                    selectedIndex = themeSelected,
+                    title = "主题模式",
+                    summary = "跟随系统、浅色、深色及 Monet 取色浅色/深色",
+                    onSelectedIndexChange = { index ->
+                        val value = THEME_OPTIONS[index].first
+                        scope.launch {
+                            settingsRepository.setThemeMode(value)
+                            // 同步 monet_enabled 用于备份兼容与主题逻辑
+                            settingsRepository.setMonetEnabled(value.startsWith("monet_"))
+                        }
                     }
-                }
-            )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(vertical = 8.dp)
-        ) {
-            item {
-                SettingsGroup(title = "主题") {
-                    OverlaySpinnerPreference(
-                        items = themeItems,
-                        selectedIndex = themeSelected,
-                        title = "主题模式",
-                        summary = "包含系统跟随、浅色、深色及 Monet 取色浅色/深色",
-                        onSelectedIndexChange = { index ->
-                            val value = THEME_OPTIONS[index].first
-                            scope.launch {
-                                settingsRepository.setThemeMode(value)
-                                // 同步 monet_enabled 用于备份兼容与主题逻辑
-                                settingsRepository.setMonetEnabled(value.startsWith("monet_"))
-                            }
-                        }
-                    )
-                }
+                )
             }
+        }
 
-            item {
-                SettingsGroup(title = "底栏样式") {
-                    OverlaySpinnerPreference(
-                        items = bottomBarItems,
-                        selectedIndex = bottomBarSelected,
-                        title = "底栏样式",
-                        summary = "图标 + 文字 / 仅图标 / 仅文字",
-                        onSelectedIndexChange = { index ->
-                            scope.launch {
-                                settingsRepository.setBottomBarStyle(BottomBarStyle.entries[index].name)
-                            }
+        item {
+            // 底栏样式、悬浮底栏、快速提报都属于「首页操作方式」，合并为一组避免碎片分组
+            SettingsGroup(title = "导航与快捷操作") {
+                OverlaySpinnerPreference(
+                    items = bottomBarItems,
+                    selectedIndex = bottomBarSelected,
+                    title = "底栏样式",
+                    summary = BottomBarStyle.entries.joinToString(" / ") { it.label },
+                    onSelectedIndexChange = { index ->
+                        scope.launch {
+                            settingsRepository.setBottomBarStyle(BottomBarStyle.entries[index].name)
                         }
-                    )
-                    BasicComponent(
-                        title = "悬浮底栏",
-                        summary = "使用 FloatingNavigationBar 悬浮样式",
-                        endActions = {
-                            Switch(
-                                checked = useFloatingNav,
-                                onCheckedChange = { scope.launch { settingsRepository.setUseFloatingNav(it) } }
-                            )
-                        }
-                    )
-                }
+                    }
+                )
+                SettingsSwitchItem(
+                    title = "悬浮底栏",
+                    summary = "使用悬浮式导航栏与毛玻璃背景",
+                    checked = useFloatingNav,
+                    onCheckedChange = { scope.launch { settingsRepository.setUseFloatingNav(it) } }
+                )
+                SettingsSwitchItem(
+                    title = "快速提报模式",
+                    summary = "首页显示一键记录今天的快捷按钮",
+                    checked = quickSubmit,
+                    onCheckedChange = { scope.launch { settingsRepository.setQuickSubmit(it) } }
+                )
             }
+        }
 
-            item {
-                SettingsGroup(title = "快捷功能") {
-                    BasicComponent(
-                        title = "快速提报模式",
-                        summary = "首页显示快捷添加按钮",
-                        endActions = {
-                            Switch(
-                                checked = quickSubmit,
-                                onCheckedChange = { scope.launch { settingsRepository.setQuickSubmit(it) } }
-                            )
-                        }
-                    )
-                }
-            }
-
-            item {
-                SettingsGroup(title = "强调色") {
-                    Text(
-                        text = "用于按钮、选中态等全局强调元素",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                    ColorPickerRow(
-                        label = "全局强调色",
-                        selected = accentColor,
-                        onSelect = { scope.launch { settingsRepository.setAccentColor(it) } }
-                    )
-                }
-            }
-
-            item {
-                SettingsGroup(title = "加班类型颜色") {
-                    Text(
-                        text = "用于统计日历按类型区分颜色",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                    ColorPickerRow(
-                        label = "工作日加班",
-                        selected = typeColorWorkday,
-                        onSelect = { scope.launch { settingsRepository.setTypeColorWorkday(it) } }
-                    )
-                    ColorPickerRow(
-                        label = "周末加班",
-                        selected = typeColorWeekend,
-                        onSelect = { scope.launch { settingsRepository.setTypeColorWeekend(it) } }
-                    )
-                    ColorPickerRow(
-                        label = "节假日加班",
-                        selected = typeColorHoliday,
-                        onSelect = { scope.launch { settingsRepository.setTypeColorHoliday(it) } }
-                    )
-                }
+        item {
+            // 强调色与各类型颜色是同一类配置，合并为一组
+            SettingsGroup(title = "颜色") {
+                SettingsNote(text = "全局强调色用于按钮与选中态；类型颜色用于统计日历区分加班类型。")
+                ColorPickerRow(
+                    label = "全局强调色",
+                    selected = accentColor,
+                    onSelect = { scope.launch { settingsRepository.setAccentColor(it) } }
+                )
+                ColorPickerRow(
+                    label = "工作日加班",
+                    selected = typeColorWorkday,
+                    onSelect = { scope.launch { settingsRepository.setTypeColorWorkday(it) } }
+                )
+                ColorPickerRow(
+                    label = "休息日加班",
+                    selected = typeColorWeekend,
+                    onSelect = { scope.launch { settingsRepository.setTypeColorWeekend(it) } }
+                )
+                ColorPickerRow(
+                    label = "节假日加班",
+                    selected = typeColorHoliday,
+                    onSelect = { scope.launch { settingsRepository.setTypeColorHoliday(it) } }
+                )
             }
         }
     }
