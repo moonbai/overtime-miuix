@@ -11,6 +11,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -25,9 +26,12 @@ import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import com.overtime.miuix.data.database.AppDatabase
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
+import com.overtime.miuix.mcp.McpHostService
 import com.overtime.miuix.ui.screen.*
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import com.overtime.miuix.ui.theme.OvertimeTheme
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 
 class MainActivity : ComponentActivity() {
@@ -35,17 +39,28 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Android 17（API 37）：targetSdk >= 37 后，访问局域网设备（WebDAV 备份、MCP 局域网接入）
-        // 需要 ACCESS_LOCAL_NETWORK 运行时权限（dangerous），未授权时系统 BPF 层静默丢包（表现为超时）。
-        // 仅在 API 37+ 且尚未授权时请求一次；被永久拒绝后需到 系统设置→应用→权限 中手动开启。
+        // 运行时权限一次申请完：
+        // - Android 13+ POST_NOTIFICATIONS：MCP 前台服务的常驻通知需要才能显示；
+        // - Android 17（API 37）+ ACCESS_LOCAL_NETWORK：targetSdk >= 37 后访问局域网
+        //   （WebDAV 备份、MCP 局域网接入）必需，未授权时系统 BPF 层静默丢包（表现为超时）。
+        // 被永久拒绝后需到 系统设置→应用→权限 中手动开启。
+        val pendingPermissions = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingPermissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
         if (Build.VERSION.SDK_INT >= 37 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_LOCAL_NETWORK)
                 != PackageManager.PERMISSION_GRANTED
         ) {
+            pendingPermissions.add(Manifest.permission.ACCESS_LOCAL_NETWORK)
+        }
+        if (pendingPermissions.isNotEmpty()) {
             ActivityCompat.requestPermissions(
                 this,
-                arrayOf(Manifest.permission.ACCESS_LOCAL_NETWORK),
-                REQUEST_LOCAL_NETWORK
+                pendingPermissions.toTypedArray(),
+                REQUEST_PERMISSIONS
             )
         }
 
@@ -79,8 +94,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * 每次回到前台同步 MCP 服务状态：mcp_enabled 是持久化设置，但 Service 不会随
+     * 应用进程重启自动复活，也可能被系统回收。旧实现只在设置页点开关时启动，
+     * 冷启动后开关显示「已开启」而端口无人监听，是「MCP 服务无效」最典型的场景。
+     * 放在 onStart 而非 onCreate，确保此时 Activity 已处于前台，可合法启动前台服务。
+     */
+    override fun onStart() {
+        super.onStart()
+        lifecycleScope.launch {
+            val repo = SettingsRepository(this@MainActivity)
+            val enabled = repo.mcpEnabled.first()
+            if (enabled && !McpHostService.isRunning()) {
+                McpHostService.start(this@MainActivity, repo.mcpPort.first())
+            } else if (!enabled && McpHostService.isRunning()) {
+                McpHostService.stop(this@MainActivity)
+            }
+        }
+    }
+
     companion object {
-        private const val REQUEST_LOCAL_NETWORK = 1001
+        private const val REQUEST_PERMISSIONS = 1001
     }
 }
 

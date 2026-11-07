@@ -7,16 +7,20 @@
           未授权时系统 BPF 静默丢包；MainActivity 启动时运行时申请（仅 API 37+）
         - 删除 READ/WRITE_EXTERNAL_STORAGE：备份导入导出走 SAF（CreateDocument/OpenDocument），不需要存储权限；
           且 minSdk 33 下两者均已废弃
-        - 删除 POST_NOTIFICATIONS：全代码无任何 NotificationManager/notify 调用（推送为服务端通道，不发系统通知）
         - 删除 tools:overrideLibrary：minSdk 33 与 miuix-blur AAR minSdk 33 齐平，不再需要覆盖
         - 保留 READ/WRITE_CALENDAR：日历同步，CalendarSettingsPage 已有 RequestMultiplePermissions 运行时申请
         - 保留 REQUEST_INSTALL_PACKAGES：更新安装 APK（特殊权限，系统设置页授权）
-        - 注：<service> 的 foregroundServiceType="dataSync" 已移除——该服务用 startService 启动、从未 startForeground，
-          类型声明不生效；若将来改前台服务需同时补 FOREGROUND_SERVICE + FOREGROUND_SERVICE_DATA_SYNC_TYPE 权限
+        - MCP 服务改为前台服务（startForegroundService + startForeground）：普通后台服务在应用退后台后
+          会被系统/厂商省电策略快速回收，导致开关显示「已开启」但端口无人监听。
+          Android 14+ 要求声明 foregroundServiceType 与对应权限，POST_NOTIFICATIONS 用于显示常驻通知，
+          二者均在 MainActivity 随 ACCESS_LOCAL_NETWORK 一并申请。
     -->
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -41,7 +45,8 @@
 
         <service
             android:name=".mcp.McpHostService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 
 </manifest>

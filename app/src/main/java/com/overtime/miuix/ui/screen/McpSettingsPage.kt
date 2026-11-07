@@ -5,14 +5,18 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
-import java.net.Inet4Address
-import java.net.NetworkInterface
 import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.mcp.McpHostService
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import com.overtime.miuix.ui.snackbar.showCustomToast
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.net.Inet4Address
+import java.net.NetworkInterface
 
 @Composable
 fun McpSettingsPage(
@@ -27,7 +31,23 @@ fun McpSettingsPage(
     val mcpPort by settingsRepository.mcpPort.collectAsState(initial = 8080)
     var portText by remember { mutableStateOf(mcpPort.toString()) }
 
-    val deviceIp = remember { getLocalIpAddress() }
+    // 读取服务实际监听的端口，而不是只看 DataStore 里的开关：
+    // 端口占用、权限缺失、系统回收都会造成「开关已开启但端口无人监听」。
+    var runningPort by remember { mutableStateOf<Int?>(McpHostService.runningPortOrNull()) }
+    var deviceIp by remember { mutableStateOf(getLocalIpAddress()) }
+
+    // 页面回到前台时刷新运行状态与内网 IP（网络可能在离开页面期间切换）
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                runningPort = McpHostService.runningPortOrNull()
+                deviceIp = getLocalIpAddress()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val lanConfigJson = remember(deviceIp, mcpPort) {
         """
@@ -60,27 +80,67 @@ fun McpSettingsPage(
         scope.launch { snackbarHostState.showCustomToast("${label}已复制到剪贴板") }
     }
 
+    /** 启动请求发出后稍等片刻再读取真实状态，给服务 onStartCommand 留出绑定端口的时间。 */
+    fun startService() {
+        scope.launch {
+            val requested = McpHostService.start(context, mcpPort)
+            if (!requested) {
+                settingsRepository.setMcpEnabled(false)
+                snackbarHostState.showCustomToast("服务启动失败，请检查通知权限或更换端口")
+                return@launch
+            }
+            settingsRepository.setMcpEnabled(true)
+            delay(400)
+            runningPort = McpHostService.runningPortOrNull()
+            snackbarHostState.showCustomToast(
+                if (runningPort != null) "MCP 服务已启动，端口 $mcpPort"
+                else "服务未能监听端口，请更换端口后重试"
+            )
+        }
+    }
+
+    fun stopService() {
+        McpHostService.stop(context)
+        runningPort = null
+        scope.launch { settingsRepository.setMcpEnabled(false) }
+    }
+
     SettingsScreen(
         title = "MCP 服务",
         onBack = { navController.popBackStack() },
         snackbarHostState = snackbarHostState
     ) {
         item {
+            SettingsGroup(title = "运行状态") {
+                SettingsStatusText(
+                    insideCard = true,
+                    text = when (val port = runningPort) {
+                        null -> if (mcpEnabled) {
+                            "开关已开启，但服务未运行（可能启动失败或被回收），请点击下方重启"
+                        } else {
+                            "服务未运行"
+                        }
+                        else -> "服务运行中 · 监听端口 $port"
+                    }
+                )
+                SettingsNote(text = "服务以常驻通知方式运行。局域网访问需要「本地网络」与「通知」权限；若客户端连不上，先确认此处显示「运行中」。")
+                SettingsActionItem(
+                    title = if (runningPort == null) "启动服务" else "重启服务",
+                    summary = "按当前端口重新拉起并刷新状态",
+                    onClick = { startService() }
+                )
+            }
+        }
+
+        item {
             SettingsGroup(title = "服务") {
-                SettingsNote(text = "Model Context Protocol 服务允许 AI 助手通过标准协议读取加班记录；仅建议在可信网络下开启。")
+                SettingsNote(text = "Model Context Protocol 服务允许 AI 助手通过标准协议读写加班记录；仅建议在可信网络下开启。")
                 SettingsSwitchItem(
                     title = "启用 MCP 服务",
                     summary = "开启后可通过本地网络访问",
                     checked = mcpEnabled,
                     onCheckedChange = { enabled ->
-                        scope.launch {
-                            settingsRepository.setMcpEnabled(enabled)
-                            if (enabled) {
-                                McpHostService.start(context, mcpPort)
-                            } else {
-                                McpHostService.stop(context)
-                            }
-                        }
+                        if (enabled) startService() else stopService()
                     }
                 )
                 SettingsTextField(
@@ -113,14 +173,14 @@ fun McpSettingsPage(
 
         item {
             SettingsGroup(title = "接入信息") {
-                SettingsNote(text = "可用工具：add_overtime_record（添加记录）、query_overtime_records（查询记录）、get_monthly_stats（月度统计）。")
+                SettingsNote(text = "可用工具：add_overtime_record（添加加班/请假记录）、query_overtime_records（查询记录）、get_monthly_stats（月度统计）。")
                 SettingsPreviewText(text = "访问地址：http://$deviceIp:$mcpPort/mcp")
             }
         }
 
         item {
             SettingsGroup(title = "配置 JSON") {
-                SettingsNote(text = "复制以下配置到 AI 客户端即可接入。")
+                SettingsNote(text = "复制以下配置到 AI 客户端即可接入。手机与客户端需在同一局域网。")
                 SettingsButtonRow(
                     firstText = "复制本机配置",
                     onFirstClick = { copyConfig("本机配置", localConfigJson) },

@@ -4,8 +4,6 @@ import android.app.Application
 import android.content.ComponentCallbacks2
 import android.os.Debug
 import android.util.Log
-import com.overtime.miuix.OvertimeApplication
-import com.overtime.miuix.mcp.McpHostService
 import com.overtime.miuix.push.PushManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +36,7 @@ object FairMemoryManager {
      * 在**主线程**派发，必须立即返回。OkHttp 的 ConnectionPool.evictAll() 会同步关闭
      * 空闲 SSL 连接，close() 需发送 TLS close_notify（网络写），Android 17 / API 37 的
      * StrictMode 将其判定为网络操作并在主线程抛 NetworkOnMainThreadException。
-     * 因此 PSS 采集、连接池驱逐、缓存清理、MCP 停服全部投递到 IO 线程，
+     * 因此 PSS 采集、连接池驱逐与缓存清理全部投递到 IO 线程，
      * 主线程 onTrimMemory 不做任何 IO / binder 调用。
      */
     fun onTrimMemory(app: Application, level: Int) {
@@ -61,8 +59,9 @@ object FairMemoryManager {
                 Log.d(TAG, "onTrimMemory level=$level pss=%.1fMB full=$full".format(pssMb))
             }
             releaseCaches(full)
-            // 内存告急档停掉 MCP 本地服务（用户可随时在设置页重开），避免常驻服务顶到查杀线
-            if (full) stopMcpForMemory(app)
+            // 不再因内存压力主动停掉 MCP：旧实现在 TRIM_MEMORY_BACKGROUND（应用一退后台即触发）
+            // 就 stopService 并把 mcp_enabled 写成 false，用户切一次 App 服务就没了。
+            // 前台服务本就是为了常驻；释放缓存足以让出内存，服务生命周期交由用户开关管理。
         }
     }
 
@@ -77,13 +76,6 @@ object FairMemoryManager {
         WebDavManager.evictConnections()
         // holidayCache 自身为有界 LRU（上限见 HolidayManager），full 档直接清空
         HolidayManager.trimCache(keepCurrentYearOnly = !full)
-    }
-
-    private suspend fun stopMcpForMemory(app: Application) {
-        runCatching {
-            McpHostService.stop(app)
-            (app as? OvertimeApplication)?.settingsRepository?.setMcpEnabled(false)
-        }.onFailure { Log.w(TAG, "stop MCP on memory pressure failed: ${it.message}") }
     }
 
     /**
