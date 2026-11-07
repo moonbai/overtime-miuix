@@ -137,11 +137,15 @@
       ./gradlew assembleRelease --no-daemon --stacktrace
       echo "==> Release 构建产物："
       ls -lh app/build/outputs/apk/release/
-      # 校验 APK 内未混入 CI 凭证（BuildConfig 中的令牌应为空串）
       APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+      # 产物门禁：签名、包元信息、校验和统一输出，便于在流水线日志里直接验收
       echo "==> 产物签名信息："
       "$ANDROID_SDK_ROOT"/build-tools/37.0.0/apksigner verify --print-certs "$APK" 2>/dev/null | head -8 || \
         echo "（apksigner 校验跳过）"
+      echo "==> 包元信息："
+      "$ANDROID_SDK_ROOT"/build-tools/37.0.0/aapt dump badging "$APK" 2>/dev/null | head -3 || true
+      echo "==> SHA256："
+      sha256sum "$APK"
     fi
 
 main:

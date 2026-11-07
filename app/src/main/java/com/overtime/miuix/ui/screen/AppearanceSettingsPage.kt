@@ -1,8 +1,6 @@
 package com.overtime.miuix.ui.screen
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -222,17 +220,14 @@ private fun ColorPickerRow(
         ) {
             TYPE_COLOR_PALETTE.forEach { c ->
                 val isSelected = selected == c
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(Color(c), CircleShape)
-                        .border(
-                            width = if (isSelected) 3.dp else 0.dp,
-                            color = if (isSelected) MiuixTheme.colorScheme.onSurface else Color.Transparent,
-                            shape = CircleShape
-                        )
-                        .clickable { onSelect(c) }
-                )
+                // MIUIX Surface(onClick) 统一承载色块、选中描边与标准按压反馈
+                Surface(
+                    onClick = { onSelect(c) },
+                    color = Color(c),
+                    shape = CircleShape,
+                    border = if (isSelected) BorderStroke(3.dp, MiuixTheme.colorScheme.onSurface) else null,
+                    modifier = Modifier.size(32.dp)
+                ) {}
             }
         }
     }

@@ -78,11 +78,39 @@ jobs:
         CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
       run: ./gradlew assembleRelease --no-daemon --stacktrace --warning-mode all
 
+    # 构建产物门禁：签名、包元信息、体积、校验和统一校验并写入构建摘要。
+    # 任何一项失败立即中断，避免把未签名/压缩异常的包传到 Release。
+    - name: Verify release artifact
+      run: |
+        set -e
+        AAPT="$ANDROID_HOME/build-tools/37.0.0/aapt"
+        APKSIGNER="$ANDROID_HOME/build-tools/37.0.0/apksigner"
+        APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+        echo "==> 产物：$APK ($(du -h "$APK" | cut -f1))"
+        echo "==> 签名校验："
+        "$APKSIGNER" verify --print-certs "$APK" | head -8
+        echo "==> 包元信息："
+        "$AAPT" dump badging "$APK" | head -3
+        VERSION=$("$AAPT" dump badging "$APK" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1)
+        SHA=$(sha256sum "$APK" | cut -d' ' -f1)
+        {
+          echo "### Release 构建产物"
+          echo ""
+          echo "| 项 | 值 |"
+          echo "| --- | --- |"
+          echo "| 文件 | \`$(basename "$APK")\` |"
+          echo "| versionName | $VERSION |"
+          echo "| 体积 | $(du -h "$APK" | cut -f1) |"
+          echo "| SHA256 | \`$SHA\` |"
+        } >> "$GITHUB_STEP_SUMMARY"
+
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: app-release
         path: app/build/outputs/apk/release/*.apk
+        # 产物缺失必须失败，不能静默产出空 artifact 让下游误判构建成功
+        if-no-files-found: error
 
     - name: Publish GitHub Release
       if: startsWith(github.ref, 'refs/tags/v')

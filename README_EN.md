@@ -67,14 +67,21 @@
 ### Local Build
 
 ```bash
-# Debug package
+# Debug package (no R8 shrinking; faster builds, full debuggability)
 ./gradlew assembleDebug
 # Output: app/build/outputs/apk/debug/app-debug.apk
 
-# Release package (Mars signing)
-./gradlew assembleRelease
+# Release package (R8 code + resource shrinking, Mars signing, artifact verification)
+./scripts/build-release.sh
+# Equivalent: ./gradlew assembleRelease
+# The script additionally verifies the signature, package metadata and SHA256
 # Output: app/build/outputs/apk/release/Overtime-android-universal-<versionName>.apk
 ```
+
+> Size optimization applies to `release` only: AGP disables R8 optimization and
+> obfuscation for `debuggable` builds, so debug no longer enables shrinking.
+> `proguard-rules.pro` serves release only (Gson backup model keep rules,
+> line-number/generic-signature retention, Ktor JVM-only class allowances).
 
 ### Signing Configuration
 
@@ -91,7 +98,7 @@ Release signing is injected via environment variables (CI uses GitHub Secrets; l
 
 ### CI Auto-Release
 
-`.github/workflows/android.yml` listens for `v*` tag pushes, automatically building → signing → releasing → uploading APK.
+On **every `main` push**, `.github/workflows/android.yml` builds a signed Release APK, runs an artifact gate (signature, metadata, size, SHA256 written to the build summary) and uploads the artifact; `v*` tag pushes additionally publish a GitHub Release. The CNB pipeline (`.cnb.yml`) also targets `assembleRelease` by default, keeping both sides aligned.
 
 Configure signing Secrets and the optional `GH_PAT` (long-lived read-only PAT for in-app update checking) in the repo's `Settings → Secrets and variables → Actions`.
 

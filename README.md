@@ -65,14 +65,20 @@
 ### 本地构建
 
 ```bash
-# Debug 包（调试签名）
+# Debug 包（调试签名，不做 R8 压缩，保证编译速度与可调试性）
 ./gradlew assembleDebug
 # 输出：app/build/outputs/apk/debug/app-debug.apk
 
-# Release 包（Mars 签名）
-./gradlew assembleRelease
+# Release 包（正式发布：R8 代码压缩 + 资源压缩 + Mars 签名 + 产物校验）
+./scripts/build-release.sh
+# 等价命令：./gradlew assembleRelease
+# 脚本额外校验签名、包元信息并输出 SHA256
 # 输出：app/build/outputs/apk/release/Overtime-android-universal-<versionName>.apk
 ```
+
+> 体积优化只在 `release` 生效：AGP 在 `debuggable` 构建下会禁用 R8 优化与混淆，
+> 因此 debug 不再开启压缩；`proguard-rules.pro` 仅服务于 release（Gson 备份模型
+> keep、行号与泛型签名保留、Ktor JVM-only 类放行）。
 
 ### 签名配置
 
@@ -89,7 +95,7 @@ Release 签名通过环境变量注入（CI 走 GitHub Secrets，本地回退 `l
 
 ### CI 自动发版
 
-`.github/workflows/android.yml` 监听 `v*` 标签推送，自动编译 → 签名 → 发布 Release → 上传 APK。
+`.github/workflows/android.yml` 在**每次 `main` 推送**都构建签名 Release 包，执行产物门禁（签名、元信息、体积、SHA256 写入构建摘要）并上传 artifact；`v*` 标签推送额外自动发布 GitHub Release。CNB 流水线（`.cnb.yml`）同样以 `assembleRelease` 为默认产物，两侧行为对齐。
 
 需在仓库 `Settings → Secrets and variables → Actions` 配置签名相关 Secrets，以及可选的 `GH_PAT`（长效只读 PAT，供应用内更新检查使用）。
 

@@ -1,7 +1,6 @@
 package com.overtime.miuix.ui.screen
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -23,9 +22,9 @@ import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import com.overtime.miuix.ui.snackbar.showCustomToast
 import com.overtime.miuix.util.SalaryCalculator
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -64,15 +63,6 @@ fun HomePage(
     // 删除确认对话框
     var showDeleteDialog by remember { mutableStateOf(false) }
     var selectedRecord by remember { mutableStateOf<OvertimeRecord?>(null) }
-
-    // 撤销：确认删除后已写入数据库，暂存副本用于撤销重插；超时（4s）后彻底清除
-    var pendingUndo by remember { mutableStateOf<OvertimeRecord?>(null) }
-    LaunchedEffect(pendingUndo) {
-        if (pendingUndo != null) {
-            delay(4000)
-            pendingUndo = null
-        }
-    }
 
     // 过滤 + 按月分组（倒序）
     val monthFormatter = remember { SimpleDateFormat("yyyy-MM", Locale.getDefault()) }
@@ -125,29 +115,19 @@ fun HomePage(
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
-                    Surface(
-                        color = MiuixTheme.colorScheme.primary,
-                        shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.clickable { navController.navigate("add_record") }
+                    Button(
+                        onClick = { navController.navigate("add_record") },
+                        colors = ButtonDefaults.buttonColorsPrimary(),
+                        cornerRadius = 20.dp,
+                        insideMargin = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                        ) {
-                            Icon(
-                                MiuixIcons.Add,
-                                contentDescription = null,
-                                tint = MiuixTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                "添加",
-                                style = MiuixTheme.textStyles.button,
-                                color = MiuixTheme.colorScheme.onPrimary,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+                        Icon(
+                            MiuixIcons.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("添加", fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -249,47 +229,6 @@ fun HomePage(
                 }
             }
         }
-
-        // 撤销条：确认删除后展示，4 秒内可撤销
-        if (pendingUndo != null) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp, start = 16.dp, end = 16.dp)
-            ) {
-                Surface(
-                    color = MiuixTheme.colorScheme.surfaceContainer,
-                    shape = RoundedCornerShape(12.dp),
-                    shadowElevation = 4.dp
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "已删除记录",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        TextButton(
-                            text = "撤销",
-                            onClick = {
-                                val rec = pendingUndo
-                                pendingUndo = null
-                                rec?.let {
-                                    scope.launch {
-                                        repository.insert(it.copy(id = 0))
-                                        snackbarHostState.showCustomToast("已撤销删除")
-                                    }
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-        }
     }
 
     OverlayDialog(
@@ -313,9 +252,22 @@ fun HomePage(
                 onClick = {
                     val rec = selectedRecord
                     showDeleteDialog = false
-                    rec?.let {
-                        scope.launch { repository.delete(it) }
-                        pendingUndo = it
+                    rec?.let { record ->
+                        scope.launch {
+                            repository.delete(record)
+                            // 撤销改由 MIUIX 原生 Snackbar 承载：Scaffold 的 SnackbarHost
+                            // 统一渲染，避免自绘 Surface 的 shadowElevation 在 Android 17
+                            // 上被绘制成底部黑块；同时获得框架标准的配色与动效。
+                            val result = snackbarHostState.showSnackbar(
+                                message = "已删除记录",
+                                actionLabel = "撤销",
+                                duration = SnackbarDuration.Custom(4000)
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                repository.insert(record.copy(id = 0))
+                                snackbarHostState.showCustomToast("已撤销删除")
+                            }
+                        }
                     }
                 },
                 modifier = Modifier.weight(1f)
@@ -326,16 +278,18 @@ fun HomePage(
 
 @Composable
 private fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    // MIUIX 的 Surface(onClick) 重载自带标准按压反馈与内容色透传，
+    // 替代原先「Surface + clickable + 手写文字色」的组合
     Surface(
+        onClick = onClick,
         color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.secondaryContainer,
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.clickable(onClick = onClick)
+        contentColor = if (selected) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(16.dp)
     ) {
         Text(
             text = text,
             style = MiuixTheme.textStyles.footnote1,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSecondaryContainer,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
         )
     }
@@ -430,16 +384,18 @@ private fun RecordCard(
         }
     }
 
+    // MIUIX Card 的 onClick 重载提供标准涟漪 + 按下下沉反馈，
+    // 替代原先外挂 clickable（无视觉反馈、点击区域与卡片圆角不一致）
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        cornerRadius = 16.dp
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 16.dp,
+        insideMargin = PaddingValues(12.dp),
+        onClick = onClick,
+        showIndication = true,
+        pressFeedbackType = PressFeedbackType.Sink
     ) {
         Row(
-            modifier = Modifier
-                .padding(12.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(

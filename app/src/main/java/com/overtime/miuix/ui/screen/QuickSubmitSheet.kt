@@ -1,7 +1,6 @@
 package com.overtime.miuix.ui.screen
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -170,35 +169,29 @@ fun QuickSubmitSheet(
                 ) {
                     OvertimeType.entries.forEach { type ->
                         val selected = selectedType == type
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .selectable(
-                                    selected = selected,
-                                    onClick = {
-                                        selectedType = type
-                                        typeManuallyChanged = true
-                                    }
-                                )
+                        // MIUIX Surface(onClick) 自带标准按压反馈与内容色透传，
+                        // 替代原先「Box + selectable + 手写文字色」的组合
+                        Surface(
+                            onClick = {
+                                selectedType = type
+                                typeManuallyChanged = true
+                            },
+                            color = if (selected) MiuixTheme.colorScheme.primary
+                            else MiuixTheme.colorScheme.secondaryContainer,
+                            contentColor = if (selected) MiuixTheme.colorScheme.onPrimary
+                            else MiuixTheme.colorScheme.onSecondaryContainer,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Surface(
-                                color = if (selected) MiuixTheme.colorScheme.primary
-                                else MiuixTheme.colorScheme.secondaryContainer,
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = type.label.replace("加班", ""),
-                                    style = MiuixTheme.textStyles.body2,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (selected) MiuixTheme.colorScheme.onPrimary
-                                    else MiuixTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 10.dp),
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                            }
+                            Text(
+                                text = type.label.replace("加班", ""),
+                                style = MiuixTheme.textStyles.body2,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 10.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
                         }
                     }
                 }
@@ -220,19 +213,18 @@ fun QuickSubmitSheet(
                 durationOptions.forEach { h ->
                     val selected = currentDuration == h
                     Surface(
+                        onClick = { if (isLeave) leaveDuration = -h else durationHours = h },
                         color = if (selected) MiuixTheme.colorScheme.primary
                         else MiuixTheme.colorScheme.secondaryContainer,
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .selectable(selected = selected, onClick = { if (isLeave) leaveDuration = -h else durationHours = h })
+                        contentColor = if (selected) MiuixTheme.colorScheme.onPrimary
+                        else MiuixTheme.colorScheme.onSecondaryContainer,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
                         Text(
                             text = "${h.toInt()}h",
                             style = MiuixTheme.textStyles.body2,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selected) MiuixTheme.colorScheme.onPrimary
-                            else MiuixTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 10.dp),

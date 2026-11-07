@@ -25,12 +25,15 @@ object HolidayManager {
     private const val TIMOR_API_URL_TEMPLATE = "https://timor.tech/api/holiday/year/{year}"
     private const val MXNZP_API_URL_TEMPLATE = "https://www.mxnzp.com/api/holiday/list/year/{year}"
 
-    // 公平内存：有界 LRU（accessOrder），上限≈5.6 年全年日历，超限按最久未用淘汰，防止无界增长
+    // 公平内存：有界 LRU（accessOrder），上限≈5.6 年全年日历，超限按最久未用淘汰，防止无界增长。
+    // 读写分散在 IO 协程与内存预警清理线程，故用 synchronizedMap 保证并发安全。
     private const val HOLIDAY_CACHE_MAX = 2048
-    private val holidayCache = object : LinkedHashMap<String, HolidayInfo>(64, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, HolidayInfo>?): Boolean =
-            size > HOLIDAY_CACHE_MAX
-    }
+    private val holidayCache = Collections.synchronizedMap(
+        object : LinkedHashMap<String, HolidayInfo>(64, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, HolidayInfo>?): Boolean =
+                size > HOLIDAY_CACHE_MAX
+        }
+    )
 
     data class HolidayInfo(
         val date: String,
@@ -61,17 +64,30 @@ object HolidayManager {
 
     fun getDataSource(): HolidayDataSource = cachedDataSource ?: HolidayDataSource.TIMOR
 
-    /** 公平内存：驱逐 OkHttp 空闲连接（下次请求自动重建，无功能影响）。 */
-    fun evictConnections() { client.connectionPool.evictAll() }
+    /**
+     * 公平内存：驱逐 OkHttp 空闲连接（下次请求自动重建，无功能影响）。
+     *
+     * 必须异步：evictAll() 同步关闭 SSL socket 会发送 TLS close_notify（网络写），
+     * 主线程调用触发 StrictMode NetworkOnMainThreadException（Android 17 实测崩溃）。
+     * 借用 OkHttp dispatcher 的后台线程池，任何调用点都安全。
+     */
+    fun evictConnections() {
+        client.dispatcher.executorService.execute {
+            runCatching { client.connectionPool.evictAll() }
+        }
+    }
 
     /**
      * 公平内存：内存预警时清理日历缓存。
      * @param keepCurrentYearOnly 轻档预警只保留当年（次年起自动重建）；重档全清。
      */
     fun trimCache(keepCurrentYearOnly: Boolean) {
-        if (!keepCurrentYearOnly) { holidayCache.clear(); return }
-        val year = Calendar.getInstance().get(Calendar.YEAR).toString()
-        holidayCache.keys.retainAll { it.startsWith(year) }
+        // 迭代类操作（keys.retainAll）需在同步块内执行，避免与 IO 协程写入并发
+        synchronized(holidayCache) {
+            if (!keepCurrentYearOnly) { holidayCache.clear(); return }
+            val year = Calendar.getInstance().get(Calendar.YEAR).toString()
+            holidayCache.keys.retainAll { it.startsWith(year) }
+        }
     }
 
     private fun isWeekend(dateStr: String): Boolean {

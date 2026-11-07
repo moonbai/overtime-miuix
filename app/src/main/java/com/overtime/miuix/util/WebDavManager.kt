@@ -17,8 +17,19 @@ object WebDavManager {
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
-    /** 公平内存：驱逐 OkHttp 空闲连接（下次请求自动重建，无功能影响）。 */
-    fun evictConnections() { client.connectionPool.evictAll() }
+    /**
+     * 公平内存：驱逐 OkHttp 空闲连接（下次请求自动重建，无功能影响）。
+     *
+     * **v1.1.4 崩溃修复**：evictAll() 会同步关闭空闲 SSL socket，close() 需发送
+     * TLS close_notify（网络写）。Application.onTrimMemory 在主线程派发，此处若同步
+     * 执行会触发 StrictMode NetworkOnMainThreadException 导致闪退。
+     * 借用 OkHttp dispatcher 的后台线程池执行，任何调用点都安全。
+     */
+    fun evictConnections() {
+        client.dispatcher.executorService.execute {
+            runCatching { client.connectionPool.evictAll() }
+        }
+    }
 
     data class WebDavConfig(
         val baseUrl: String,

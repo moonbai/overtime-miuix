@@ -27,8 +27,8 @@ android {
         // minSdk 33（Android 13）：与 miuix-blur AAR minSdk 对齐，甩掉存储/通知旧权限模型（2026-11 提升）
         minSdk = 33
         targetSdk = 37
-        versionCode = 18
-        versionName = "1.1.4"
+        versionCode = 19
+        versionName = "1.1.5"
         // GitHub Token：从环境变量注入 BuildConfig（避免硬编码到源码被 Push Protection 拦截）
         // CI/本地构建时需设置 GITHUB_TOKEN 环境变量
         buildConfigField("String", "GITHUB_TOKEN", "\"${signProp("GITHUB_TOKEN") ?: ""}\"")
@@ -68,21 +68,21 @@ android {
 
     buildTypes {
         debug {
-            // 公平内存/体积优化：debug 也启用 R8 代码+资源压缩（proguard 已保留
-            // 源文件与行号，断点、logcat 行号正常映射）。主要收益：
-            // 未压缩 debug 包体积大、类全量加载推高 PSS；压缩后两者同步下降。
-            // 必须显式挂上 proguard-rules.pro：否则 AGP 只应用默认规则，项目内的
-            // Gson keep / LineNumberTable / Ktor dontwarn 全部不生效，R8 会直接编译失败。
+            // debug 保持 AGP 默认：debuggable 构建下 R8 优化与混淆会被禁用，
+            // 开启压缩收益有限（实测仅 25MB→22MB），却要维护整套 proguard 规则
+            // （Ktor 的 JVM-only 探测类需额外 -dontwarn 才能编译通过）。
+            // 体积优化统一落在 release，debug 以编译速度与可调试性优先。
+        }
+        release {
+            // 正式发布包：R8 代码压缩 + 资源压缩，是体积优化真正生效的构建类型。
+            // proguard-rules.pro 含 Gson 备份模型 keep、行号保留、Ktor JVM-only 放行，
+            // 必须显式挂载，否则 AGP 只应用默认规则，上述规则全部失效。
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-        }
-        release {
-            isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("release")
         }
     }

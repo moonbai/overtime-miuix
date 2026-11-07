@@ -25,8 +25,18 @@ object PushManager {
         .build()
     private val mediaType = "application/json; charset=utf-8".toMediaType()
 
-    /** 公平内存：驱逐 OkHttp 空闲连接（下次请求自动重建，无功能影响）。 */
-    fun evictConnections() { client.connectionPool.evictAll() }
+    /**
+     * 公平内存：驱逐 OkHttp 空闲连接（下次请求自动重建，无功能影响）。
+     *
+     * 必须异步：evictAll() 同步关闭 SSL socket 会发送 TLS close_notify（网络写），
+     * 主线程调用触发 StrictMode NetworkOnMainThreadException（Android 17 实测崩溃）。
+     * 借用 OkHttp dispatcher 的后台线程池，任何调用点都安全。
+     */
+    fun evictConnections() {
+        client.dispatcher.executorService.execute {
+            runCatching { client.connectionPool.evictAll() }
+        }
+    }
 
     private fun typeLabel(type: OvertimeType): String = when (type) {
         OvertimeType.WORKDAY -> "工作日"

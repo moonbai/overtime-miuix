@@ -1,7 +1,6 @@
 package com.overtime.miuix.ui.screen
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,6 +20,7 @@ import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.util.SalaryCalculator
 import top.yukonga.miuix.kmp.basic.*
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -229,32 +229,38 @@ fun StatisticsPage(
                         Icon(MiuixIcons.ChevronBackward, contentDescription = "上${if (viewMode == StatsViewMode.MONTH) "一月" else "一年"}")
                     }
 
-                    // 可点击的日期标题：切换月/年视图
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable {
-                                viewMode = if (viewMode == StatsViewMode.MONTH) StatsViewMode.YEAR else StatsViewMode.MONTH
-                            }
+                    // 可点击的日期标题：切换月/年视图。改用 MIUIX Surface(onClick)
+                    // 获得框架标准按压反馈，替代无反馈的裸 clickable
+                    Surface(
+                        onClick = {
+                            viewMode = if (viewMode == StatsViewMode.MONTH) StatsViewMode.YEAR else StatsViewMode.MONTH
+                        },
+                        modifier = Modifier.weight(1f),
+                        color = Color.Transparent,
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(
-                            text = if (viewMode == StatsViewMode.MONTH) {
-                                val parts = selectedMonth.split("-")
-                                "${parts[0]}年${parts[1]}月"
-                            } else {
-                                "${selectedYear}年"
-                            },
-                            style = MiuixTheme.textStyles.title3,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = if (viewMode == StatsViewMode.MONTH) "点击切换年度视图" else "点击切换月度视图",
-                            style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (viewMode == StatsViewMode.MONTH) {
+                                    val parts = selectedMonth.split("-")
+                                    "${parts[0]}年${parts[1]}月"
+                                } else {
+                                    "${selectedYear}年"
+                                },
+                                style = MiuixTheme.textStyles.title3,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = if (viewMode == StatsViewMode.MONTH) "点击切换年度视图" else "点击切换月度视图",
+                                style = MiuixTheme.textStyles.footnote1,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            )
+                        }
                     }
 
                     IconButton(onClick = {
@@ -395,14 +401,15 @@ fun StatisticsPage(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable { navController.navigate("edit_record/${record.id}") },
-                            cornerRadius = 16.dp
+                                .padding(vertical = 4.dp),
+                            cornerRadius = 16.dp,
+                            insideMargin = PaddingValues(12.dp),
+                            onClick = { navController.navigate("edit_record/${record.id}") },
+                            showIndication = true,
+                            pressFeedbackType = PressFeedbackType.Sink
                         ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(
@@ -678,40 +685,43 @@ private fun CalendarCard(
                             } else {
                                 val agg = dayAgg[day]
                                 val isToday = isCurrentMonth && day == todayDay
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(
-                                            if (isToday) MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                            else Color.Transparent,
-                                            RoundedCornerShape(8.dp)
-                                        )
-                                        // 每一天都可点击查看当日明细：无记录时弹窗展示空态，
-                                        // 避免用户误以为该日期无法查看
-                                        .clickable { onDayClick(day) }
-                                        .padding(vertical = 4.dp)
+                                // 每一天都可点击查看当日明细：无记录时弹窗展示空态，
+                                // 避免用户误以为该日期无法查看。MIUIX Surface(onClick)
+                                // 统一承载今日高亮底色与框架标准按压反馈
+                                Surface(
+                                    onClick = { onDayClick(day) },
+                                    color = if (isToday) MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                    else Color.Transparent,
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = day.toString(),
-                                        style = MiuixTheme.textStyles.footnote1,
-                                        fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isToday) MiuixTheme.colorScheme.primary
-                                        else MiuixTheme.colorScheme.onSurface
-                                    )
-                                    if (agg != null && agg.maxAbs > 0) {
-                                        // 展示当天净时长：加班为正、请假为负（如 -2h）
-                                        // 净时长为负时用错误色（请假占主导），否则用类型色
-                                        val net = agg.netHours
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                    ) {
                                         Text(
-                                            text = compactHours(net),
+                                            text = day.toString(),
                                             style = MiuixTheme.textStyles.footnote1,
-                                            fontWeight = FontWeight.Medium,
-                                            color = if (net < 0) MiuixTheme.colorScheme.error
-                                            else typeColor(agg.type)
+                                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isToday) MiuixTheme.colorScheme.primary
+                                            else MiuixTheme.colorScheme.onSurface
                                         )
-                                    } else {
-                                        Spacer(modifier = Modifier.height(16.dp))
+                                        if (agg != null && agg.maxAbs > 0) {
+                                            // 展示当天净时长：加班为正、请假为负（如 -2h）
+                                            // 净时长为负时用错误色（请假占主导），否则用类型色
+                                            val net = agg.netHours
+                                            Text(
+                                                text = compactHours(net),
+                                                style = MiuixTheme.textStyles.footnote1,
+                                                fontWeight = FontWeight.Medium,
+                                                color = if (net < 0) MiuixTheme.colorScheme.error
+                                                else typeColor(agg.type)
+                                            )
+                                        } else {
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                        }
                                     }
                                 }
                             }
