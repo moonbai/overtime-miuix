@@ -1,8 +1,8 @@
 # OvertimeMiuix 加班记
 
-> 简洁实用的加班记录与薪资计算工具，基于 MIUIX 0.9.3 Compose 框架开发。
+> 简洁实用的加班记录与薪资计算工具，基于 MIUIX 0.9.4 Compose 框架开发。
 
-[![MIUIX](https://img.shields.io/badge/MIUIX-0.9.3-blue)](https://github.com/moonbai/miuix)
+[![MIUIX](https://img.shields.io/badge/MIUIX-0.9.4-blue)](https://github.com/moonbai/miuix)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.0-purple)](https://kotlinlang.org)
 [![AGP](https://img.shields.io/badge/AGP-9.1.1-green)](https://developer.android.com/build)
 [![Gradle](https://img.shields.io/badge/Gradle-9.3.1-02303A)](https://gradle.org)
@@ -37,7 +37,7 @@
 
 | 类别 | 技术 | 版本 |
 |------|------|------|
-| UI 框架 | MIUIX Compose（miuix-ui + miuix-icons + miuix-blur） | 0.9.3 |
+| UI 框架 | MIUIX Compose（miuix-ui + miuix-icons + miuix-blur） | 0.9.4 |
 | 构建 | Android Gradle Plugin | 9.1.1 |
 | 构建 | Gradle | 9.3.1 |
 | 语言 | Kotlin | 2.4.0 |
@@ -56,7 +56,7 @@
 | 配置项 | 值 |
 |--------|-----|
 | compileSdk / targetSdk | 37 |
-| minSdk | 26 |
+| minSdk | 33 |
 | JVM Target | 17 |
 | Source Compatibility | Java 17 |
 
