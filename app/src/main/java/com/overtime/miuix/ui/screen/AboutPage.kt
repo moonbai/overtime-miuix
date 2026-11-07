@@ -80,7 +80,9 @@ fun AboutPage(navController: NavHostController) {
     var showConsistencyDialog by remember { mutableStateOf(false) }
 
     // 所有外链共用同一套「打不开就提示」的兜底逻辑
-    val onLinkUnavailable = {
+    // 显式声明 () -> Unit：lambda 体返回 Job（scope.launch），
+    // 不标注类型会被推断为 () -> Job，传给 openExternalLink 的 () -> Unit 参数时编译失败
+    val onLinkUnavailable: () -> Unit = {
         scope.launch { snackbarHostState.showCustomToast("未找到可打开该链接的应用") }
     }
     val openLink: (String) -> Unit = { url ->
