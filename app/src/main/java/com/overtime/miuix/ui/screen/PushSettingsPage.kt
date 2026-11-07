@@ -1,11 +1,6 @@
 package com.overtime.miuix.ui.screen
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.database.OvertimeRecord
 import com.overtime.miuix.data.model.OvertimeType
@@ -13,23 +8,22 @@ import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.push.PushManager
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import com.overtime.miuix.ui.snackbar.showCustomToast
+import com.overtime.miuix.util.SalaryCalculator
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import java.util.*
 
 @Composable
 fun PushSettingsPage(
     navController: NavHostController,
     settingsRepository: SettingsRepository
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = LocalSnackbarHostState.current
     val pushChannel by settingsRepository.pushChannel.collectAsState(initial = "none")
+    // 预览与测试推送使用用户当前配置，字段数值才有参考意义
+    val baseSalary by settingsRepository.baseSalary.collectAsState(initial = 2200.0)
+    val weekendRate by settingsRepository.weekendRate.collectAsState(initial = 2.0)
 
     val dingtalk by settingsRepository.pushDingTalk.collectAsState(initial = "")
     val dingtalkSecret by settingsRepository.pushDingTalkSecret.collectAsState(initial = "")
@@ -73,7 +67,7 @@ fun PushSettingsPage(
     LaunchedEffect(custom) { customText = custom }
     LaunchedEffect(customHeaders) { customHeadersText = customHeaders }
 
-    // 推送渠道选项：第一项为“关闭推送”（对应 none），不选即默认关闭
+    // 选项第一项即「关闭推送」，选中后同时关闭推送总开关
     val channelOptions = listOf(
         "none" to "关闭推送",
         "dingtalk" to "钉钉",
@@ -107,63 +101,56 @@ fun PushSettingsPage(
         "push_custom_headers" to customHeadersText
     )
 
+    /** 与真实推送走同一套载荷构造，保证预览即所得 */
     fun sampleRecord(): OvertimeRecord {
-        val now = System.currentTimeMillis()
+        val hours = 2.0
         return OvertimeRecord(
             id = 0,
-            date = now,
-            type = OvertimeType.WORKDAY,
-            durationHours = 2.0,
-            baseSalary = 2200.0,
-            rate = 1.5,
-            amount = 0.0,
+            date = System.currentTimeMillis(),
+            type = OvertimeType.WEEKEND,
+            durationHours = hours,
+            baseSalary = baseSalary,
+            rate = weekendRate,
+            amount = SalaryCalculator.calculateOvertimeAmount(
+                baseSalary, OvertimeType.WEEKEND, weekendRate, hours
+            ),
             note = "测试推送",
             isLeave = false
         )
     }
 
-    Scaffold(
-        topBar = {
-            SmallTopAppBar(
-                title = "推送设置",
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
-                    }
-                }
-            )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(vertical = 8.dp)
-        ) {
-            item {
-                SettingsGroup(title = "推送渠道") {
-                    // 使用 SpinnerPref(O)：直接选择渠道，不选（关闭推送）默认关闭推送功能
-                    OverlaySpinnerPreference(
-                        items = channelItems,
-                        selectedIndex = selectedIndex,
-                        title = "推送渠道",
-                        summary = "不选则默认关闭推送",
-                        onSelectedIndexChange = { index ->
-                            val key = channelOptions[index].first
-                            scope.launch {
-                                settingsRepository.setPushChannel(key)
-                                settingsRepository.setPushEnabled(key != "none")
-                            }
-                        }
-                    )
-                }
-            }
+    val previewText = remember(baseSalary, weekendRate) {
+        PushManager.buildText(sampleRecord())
+    }
 
-            if (pushChannel != "none") {
-                item {
-                    SettingsGroup(title = "${channelOptions.first { it.first == pushChannel }.second} 配置") {
-                        when (pushChannel) {
+    SettingsScreen(
+        title = "推送设置",
+        onBack = { navController.popBackStack() },
+        snackbarHostState = snackbarHostState
+    ) {
+        item {
+            SettingsGroup(title = "推送渠道") {
+                OverlaySpinnerPreference(
+                    items = channelItems,
+                    selectedIndex = selectedIndex,
+                    title = "推送渠道",
+                    summary = "选择渠道后自动开启；选择「关闭推送」即停用",
+                    onSelectedIndexChange = { index ->
+                        val key = channelOptions[index].first
+                        scope.launch {
+                            settingsRepository.setPushChannel(key)
+                            settingsRepository.setPushEnabled(key != "none")
+                        }
+                    }
+                )
+                SettingsNote(text = "保存加班记录后自动推送，配置修改立即生效，无需手动保存。")
+            }
+        }
+
+        if (pushChannel != "none") {
+            item {
+                SettingsGroup(title = "${channelOptions.first { it.first == pushChannel }.second} 配置") {
+                    when (pushChannel) {
                         "dingtalk" -> PushConfigFields(
                             listOf(
                                 TextFieldState("Webhook 地址", dingtalkText) { dingtalkText = it; scope.launch { settingsRepository.setPushDingTalk(it) } },
@@ -205,37 +192,38 @@ fun PushSettingsPage(
                                 TextFieldState("自定义请求头(每行 Header: Value)", customHeadersText) { customHeadersText = it; scope.launch { settingsRepository.setPushCustomHeaders(it) } }
                             )
                         )
-                        }
-                    }
-                }
-            } else {
-                item {
-                    Box(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "未选择推送渠道，推送功能已关闭。点击上方选择一种渠道以开启。",
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        )
                     }
                 }
             }
-
+        } else {
             item {
-                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                if (pushChannel == "none") {
-                                    snackbarHostState.showCustomToast("请先选择推送渠道")
-                                    return@launch
-                                }
-                                val ok = PushManager.sendToSelectedChannel(pushChannel, buildConfigMap(), sampleRecord())
-                                snackbarHostState.showCustomToast(if (ok) "测试推送成功" else "测试推送失败")
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("测试推送") }
+                SettingsGroup(title = "当前状态") {
+                    SettingsNote(text = "未选择推送渠道，推送功能已关闭。在上方选择一种渠道即可开启。")
                 }
             }
+        }
+
+        item {
+            SettingsGroup(title = "消息内容") {
+                SettingsNote(text = "所有渠道使用同一份字段。自定义 WebHook 默认发送结构化 JSON（含以下字段与 text 纯文本副本）；请求头显式声明 Content-Type: text/plain 时改为发送纯文本。")
+                SettingsPreviewText(text = previewText)
+            }
+        }
+
+        item {
+            SettingsPrimaryButton(
+                text = "发送测试推送",
+                onClick = {
+                    scope.launch {
+                        if (pushChannel == "none") {
+                            snackbarHostState.showCustomToast("请先选择推送渠道")
+                            return@launch
+                        }
+                        val ok = PushManager.sendToSelectedChannel(pushChannel, buildConfigMap(), sampleRecord())
+                        snackbarHostState.showCustomToast(if (ok) "测试推送成功" else "测试推送失败")
+                    }
+                }
+            )
         }
     }
 }
@@ -248,16 +236,11 @@ private data class TextFieldState(
 
 @Composable
 private fun PushConfigFields(fields: List<TextFieldState>) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        fields.forEach { state ->
-            TextField(
-                value = state.value,
-                onValueChange = state.onValueChange,
-                label = state.label,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-            )
-        }
+    fields.forEach { state ->
+        SettingsTextField(
+            value = state.value,
+            onValueChange = state.onValueChange,
+            label = state.label
+        )
     }
 }

@@ -216,6 +216,10 @@ object HolidayManager {
     }
 
     suspend fun getOvertimeType(dateStr: String): OvertimeType = withContext(Dispatchers.IO) {
+        // 忽略节假日：只按周末判定，不读取节假日规则、也不发起网络请求
+        if (cachedIgnoreHoliday == true) {
+            return@withContext if (isWeekend(dateStr)) OvertimeType.WEEKEND else OvertimeType.WORKDAY
+        }
         holidayCache[dateStr]?.let { info ->
             return@withContext infoToType(info)
         }
@@ -288,6 +292,7 @@ object HolidayManager {
     fun isHoliday(date: Date): Boolean {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val key = sdf.format(date)
+        if (cachedIgnoreHoliday == true) return isWeekend(key)
         holidayCache[key]?.let { return it.isHoliday }
         return isWeekend(key)
     }
@@ -303,6 +308,12 @@ object HolidayManager {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         return holidayCache[sdf.format(date)]?.name
     }
+
+    /**
+     * 读取缓存中的日期信息（含节假日名称与类型），无缓存时返回 null。
+     * 供推送载荷判断调休等场景使用；同步读缓存，不触发网络请求。
+     */
+    fun getDayInfo(dateStr: String): HolidayInfo? = holidayCache[dateStr]
 
     suspend fun fetchHolidays(year: String): Boolean = withContext(Dispatchers.IO) {
         try {

@@ -3,7 +3,6 @@ package com.overtime.miuix.push
 import android.util.Base64
 import android.util.Log
 import com.overtime.miuix.data.database.OvertimeRecord
-import com.overtime.miuix.data.model.OvertimeType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -12,9 +11,6 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -38,22 +34,14 @@ object PushManager {
         }
     }
 
-    private fun typeLabel(type: OvertimeType): String = when (type) {
-        OvertimeType.WORKDAY -> "工作日"
-        OvertimeType.WEEKEND -> "周末"
-        OvertimeType.HOLIDAY -> "节假日"
-    }
+    /**
+     * 所有文本渠道共用的消息正文。字段口径集中在 [PushPayload]，
+     * 单一来源保证钉钉 / 飞书 / 企业微信 / WxPusher / Telegram / Discord 内容一致。
+     */
+    fun buildText(record: OvertimeRecord): String = PushPayload.from(record).toText()
 
-    fun buildText(record: OvertimeRecord): String {
-        val typeStr = typeLabel(record.type)
-        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(record.date))
-        val reason = record.note.takeIf { it.isNotBlank() } ?: "无"
-        return """日期: $dateStr
-类型: $typeStr
-时长: ${"%.2f".format(record.durationHours)}小时
-金额: ¥${"%.2f".format(record.amount)}
-事由: $reason""".trimIndent()
-    }
+    /** 自定义 WebHook 的结构化 JSON 载荷：全部字段 + text 纯文本副本 */
+    fun buildJson(record: OvertimeRecord): String = PushPayload.from(record).toJson()
 
     /**
      * 生成 HMAC-SHA256 签名
@@ -239,18 +227,34 @@ object PushManager {
 
     suspend fun sendCustom(url: String, headers: String, record: OvertimeRecord): Boolean = withContext(Dispatchers.IO) {
         val text = buildText(record)
+        val json = buildJson(record)
         try {
-            val body = text.toRequestBody("text/plain; charset=utf-8".toMediaType())
+            // 默认发送结构化 JSON（便于 WebHook 直接解析字段）；
+            // 用户显式声明 Content-Type: text/plain 时回退纯文本，兼容既有配置。
+            val declaredContentType = headers.lines()
+                .map { it.trim() }
+                .firstOrNull { it.startsWith("Content-Type", ignoreCase = true) }
+                ?.substringAfter(':', "")
+                ?.trim()
+                .orEmpty()
+            val sendPlainText = declaredContentType.contains("text/plain", ignoreCase = true)
+            val contentType = if (sendPlainText) {
+                "text/plain; charset=utf-8"
+            } else {
+                "application/json; charset=utf-8"
+            }
+            val body = (if (sendPlainText) text else json).toRequestBody(contentType.toMediaType())
             val reqBuilder = Request.Builder()
                 .url(url)
                 .post(body)
             // 解析自定义请求头，每行格式：HeaderName: HeaderValue
+            // Content-Type 由载荷类型统一决定，跳过用户声明以免与实际 body 冲突
             if (headers.isNotBlank()) {
                 headers.lines().forEach { line ->
                     val trimmed = line.trim()
                     if (trimmed.contains(":")) {
                         val parts = trimmed.split(":", limit = 2)
-                        if (parts.size == 2) {
+                        if (parts.size == 2 && !parts[0].trim().equals("Content-Type", ignoreCase = true)) {
                             reqBuilder.header(parts[0].trim(), parts[1].trim())
                         }
                     }

@@ -9,6 +9,13 @@ object SalaryCalculator {
     private const val WORKING_DAYS_PER_MONTH = 21.75
     private const val HOURS_PER_DAY = 8.0
     
+    /**
+     * 标准小时薪资口径：月基础薪资 / 21.75 天 / 8 小时。
+     * 抽成公共方法，供金额计算与推送内容展示共用，避免两处公式漂移。
+     */
+    fun hourlySalary(baseSalary: Double): Double =
+        baseSalary / WORKING_DAYS_PER_MONTH / HOURS_PER_DAY
+
     fun calculateOvertimeAmount(
         baseSalary: Double,
         type: OvertimeType,
@@ -18,10 +25,7 @@ object SalaryCalculator {
         // 防御：基础薪资、倍率、时长任一非正均为非法输入，返回 0 避免脏数据
         if (baseSalary <= 0 || rate <= 0 || durationHours <= 0) return 0.0
 
-        val dailySalary = baseSalary / WORKING_DAYS_PER_MONTH
-        val hourlySalary = dailySalary / HOURS_PER_DAY
-
-        return hourlySalary * rate * durationHours
+        return hourlySalary(baseSalary) * rate * durationHours
     }
 
     /**
