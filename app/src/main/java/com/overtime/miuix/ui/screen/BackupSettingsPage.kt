@@ -308,7 +308,6 @@ fun BackupSettingsPage(
                     onCheckedChange = { scope.launch { settingsRepository.setWebdavEnabled(it) } }
                 )
                 if (webdavEnabled) {
-                    SettingsNote(text = "服务器配置修改后立即生效，无需手动保存。")
                     SettingsTextField(
                         value = webdavUrlText,
                         onValueChange = {

@@ -109,7 +109,6 @@ fun AppearanceSettingsPage(
         item {
             // 强调色与各类型颜色是同一类配置，合并为一组
             SettingsGroup(title = "颜色") {
-                SettingsNote(text = "全局强调色用于按钮与选中态；类型颜色用于统计日历区分加班类型。")
                 ColorPickerRow(
                     label = "全局强调色",
                     selected = accentColor,

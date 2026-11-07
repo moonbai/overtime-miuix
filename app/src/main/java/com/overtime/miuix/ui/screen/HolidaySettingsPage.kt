@@ -91,7 +91,6 @@ fun HolidaySettingsPage(
                         }
                     }
                 )
-                SettingsNote(text = "配置修改后立即生效，无需手动保存。")
             }
         }
 
