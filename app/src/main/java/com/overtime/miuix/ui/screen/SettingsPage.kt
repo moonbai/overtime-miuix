@@ -2,6 +2,7 @@ package com.overtime.miuix.ui.screen
 
 import android.content.Context
 import android.content.pm.PackageManager
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
