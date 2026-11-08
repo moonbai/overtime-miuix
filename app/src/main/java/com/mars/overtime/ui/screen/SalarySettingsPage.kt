@@ -218,8 +218,10 @@ fun SalarySettingsPage(
         }
     }
 
-    // 系统返回键同样走二次确认
-    BackHandler(enabled = true) { tryExit() }
+    // 仅在存在未保存修改时拦截返回走二次确认。常驻启用的 BackHandler 会一直抢占
+    // OnBackPressedDispatcher / OnBackInvokedCallback，使 NavHost 收不到预测性返回的
+    // 手势进度，本页的横向跟随会退化成「松手后播动画」，与其余页面表现不一致。
+    BackHandler(enabled = isDirty) { tryExit() }
 }
 
 private data class PreviewResult(

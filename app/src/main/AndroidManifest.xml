@@ -2,18 +2,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-        权限梳理（2026-11-07，minSdk 26→33 + Android 17 适配套件）：
-        - 新增 ACCESS_LOCAL_NETWORK：Android 17（targetSdk≥37）访问局域网（WebDAV 备份 / MCP 局域网接入）必需，
-          未授权时系统 BPF 静默丢包；MainActivity 启动时运行时申请（仅 API 37+）
-        - 删除 READ/WRITE_EXTERNAL_STORAGE：备份导入导出走 SAF（CreateDocument/OpenDocument），不需要存储权限；
-          且 minSdk 33 下两者均已废弃
-        - 删除 tools:overrideLibrary：minSdk 33 与 miuix-blur AAR minSdk 33 齐平，不再需要覆盖
-        - 保留 READ/WRITE_CALENDAR：日历同步，CalendarSettingsPage 已有 RequestMultiplePermissions 运行时申请
+        权限梳理（minSdk 33 + Android 17 适配套件）：
+        - 启动时一律不申请运行时权限：POST_NOTIFICATIONS / ACCESS_LOCAL_NETWORK 只在用户
+          主动启用 MCP 服务、WebDAV 云端备份等对应功能开关的那一刻按需请求，见
+          FeaturePermissions.kt 与各功能设置页。未开启相关功能时启动流程零弹窗。
+        - ACCESS_LOCAL_NETWORK：Android 17（targetSdk≥37）访问局域网（WebDAV 备份 / MCP
+          局域网接入）必需，未授权时系统 BPF 静默丢包；仅 API 37+ 请求
+        - 删除 READ/WRITE_EXTERNAL_STORAGE：备份导入导出走 SAF（CreateDocument/OpenDocument），
+          不需要存储权限；且 minSdk 33 下两者均已废弃
+        - 保留 READ/WRITE_CALENDAR：日历同步，CalendarSettingsPage 已有 RequestMultiplePermissions
+          运行时申请，同样只在启用日历同步时触发
         - 保留 REQUEST_INSTALL_PACKAGES：更新安装 APK（特殊权限，系统设置页授权）
-        - MCP 服务改为前台服务（startForegroundService + startForeground）：普通后台服务在应用退后台后
-          会被系统/厂商省电策略快速回收，导致开关显示「已开启」但端口无人监听。
-          Android 14+ 要求声明 foregroundServiceType 与对应权限，POST_NOTIFICATIONS 用于显示常驻通知，
-          二者均在 MainActivity 随 ACCESS_LOCAL_NETWORK 一并申请。
+        - MCP 服务为前台服务（startForegroundService + startForeground），Android 14+ 要求声明
+          foregroundServiceType 与对应权限，POST_NOTIFICATIONS 用于显示常驻通知
     -->
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -28,6 +29,7 @@
     <application
         android:name=".OvertimeApplication"
         android:allowBackup="true"
+        android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

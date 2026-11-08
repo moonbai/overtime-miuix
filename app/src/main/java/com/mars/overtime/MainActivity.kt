@@ -1,7 +1,5 @@
 package com.mars.overtime
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -14,11 +12,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -46,11 +42,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigationevent.NavigationEvent
-import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.OnBackInvokedOverlayInput
 import com.mars.overtime.ui.theme.OvertimeTheme
 import com.mars.overtime.util.SalaryCalculator
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
@@ -63,38 +57,21 @@ class MainActivity : ComponentActivity() {
      * 恢复 NavHost 原生预测性返回后，页面级返回手势不再经过 App 自建的
      * NavigationEventDispatcher（那个 dispatcher 只在弹窗打开时收到事件），
      * 因此这里改由 Activity 层采集，见 [dispatchTouchEvent] 与 [registerBackObserver]。
+     * 手势开始后方向即冻结，seek 期间不再改写，避免转场规格被重建。
      */
     private val backSwipeEdge = mutableIntStateOf(NavigationEvent.EDGE_LEFT)
+
+    /** 系统预测性返回手势的实时进度（0..1），仅 API 36+ 的非消费型观察者能读到。 */
+    private val backProgress = mutableFloatStateOf(0f)
     private var backObserver: OnBackAnimationCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // 运行时权限一次申请完：
-        // - Android 13+ POST_NOTIFICATIONS：MCP 前台服务的常驻通知需要才能显示；
-        // - Android 17（API 37）+ ACCESS_LOCAL_NETWORK：targetSdk >= 37 后访问局域网
-        //   （WebDAV 备份、MCP 局域网接入）必需，未授权时系统 BPF 层静默丢包（表现为超时）。
-        // 被永久拒绝后需到 系统设置→应用→权限 中手动开启。
-        val pendingPermissions = mutableListOf<String>()
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            pendingPermissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        if (Build.VERSION.SDK_INT >= 37 &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_LOCAL_NETWORK)
-                != PackageManager.PERMISSION_GRANTED
-        ) {
-            pendingPermissions.add(Manifest.permission.ACCESS_LOCAL_NETWORK)
-        }
-        if (pendingPermissions.isNotEmpty()) {
-            ActivityCompat.requestPermissions(
-                this,
-                pendingPermissions.toTypedArray(),
-                REQUEST_PERMISSIONS
-            )
-        }
+        // 启动流程不申请任何运行时权限：POST_NOTIFICATIONS / ACCESS_LOCAL_NETWORK
+        // 只在用户主动启用 MCP 服务、WebDAV 云端备份等开关那一刻按需请求，
+        // 见 FeaturePermissions 与各功能设置页。此处保持零弹窗。
 
         val database = AppDatabase.getDatabase(this)
         val repository = OvertimeRepository(database)
@@ -139,22 +116,38 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Android 16（API 36）起系统提供「非消费型」返回观察者优先级：
-     * 注册后可在不拦截、不消费返回事件的前提下收到 onBackStarted 的 swipeEdge，
-     * NavHost 的返回处理完全不受影响。这是「跟随手势」最准确的来源。
-     * 少数 ROM 的实现可能拒绝该优先级，失败时静默降级到 [dispatchTouchEvent]。
+     * 注册后可在不拦截、不消费返回事件的前提下收到完整的 started / progressed /
+     * cancelled 序列，NavHost 的返回处理完全不受影响。这里用它同时采集 swipeEdge
+     * 与 progress，是「跟随手势」最准确的来源；少数 ROM 拒绝该优先级时静默降级到
+     * [dispatchTouchEvent] 的边缘推断。
      */
     private fun registerBackObserver() {
         if (Build.VERSION.SDK_INT < 36) return
         try {
             val observer = object : OnBackAnimationCallback {
                 override fun onBackStarted(backEvent: BackEvent) {
-                    val edge = backEvent.swipeEdge
-                    if (edge == BackEvent.EDGE_LEFT || edge == BackEvent.EDGE_RIGHT) {
-                        backSwipeEdge.intValue = edge
+                    backProgress.floatValue = backEvent.progress
+                    applyBackEdge(backEvent.swipeEdge)
+                }
+
+                override fun onBackProgressed(backEvent: BackEvent) {
+                    val previous = backProgress.floatValue
+                    // 首次进度回调再校准一次边缘（部分 ROM 只在 progressed 给出正确值），
+                    // 之后整段 seek 期间方向保持冻结，避免 popEnter / popExit 规格重建。
+                    if (previous <= 0f) applyBackEdge(backEvent.swipeEdge)
+                    // 只接受单调递增的进度，过滤 ROM 回传的抖动值
+                    if (backEvent.progress >= previous) {
+                        backProgress.floatValue = backEvent.progress
                     }
                 }
 
-                override fun onBackInvoked() {}
+                override fun onBackCancelled() {
+                    backProgress.floatValue = 0f
+                }
+
+                override fun onBackInvoked() {
+                    backProgress.floatValue = 0f
+                }
             }
             onBackInvokedDispatcher.registerOnBackInvokedCallback(
                 OnBackInvokedDispatcher.PRIORITY_SYSTEM_NAVIGATION_OBSERVER,
@@ -166,13 +159,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** 把平台 BackEvent 的边缘常量显式映射到 navigationevent 常量，不假定两套常量值一致。 */
+    private fun applyBackEdge(edge: Int) {
+        backSwipeEdge.intValue = when (edge) {
+            BackEvent.EDGE_RIGHT -> NavigationEvent.EDGE_RIGHT
+            BackEvent.EDGE_LEFT -> NavigationEvent.EDGE_LEFT
+            else -> return
+        }
+    }
+
     /**
      * API 33~35 没有非消费型返回观察者：从边缘起手的 ACTION_DOWN 推断来源。
      * 系统识别返回手势前窗口已收到这次 DOWN（随后才收到 CANCEL），因此可据此定向；
      * 只记录左右各 15% 边缘区域，普通点击不会误改方向。API 36+ 上观察者随后覆盖。
+     * 每次 DOWN 同时清掉上一次手势的进度，避免 commit 后状态残留影响下一次识别。
      */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            backProgress.floatValue = 0f
             val width = resources.displayMetrics.widthPixels
             val zone = width * 0.15f
             when {
@@ -199,6 +203,8 @@ class MainActivity : ComponentActivity() {
      * 应用进程重启自动复活，也可能被系统回收。旧实现只在设置页点开关时启动，
      * 冷启动后开关显示「已开启」而端口无人监听，是「MCP 服务无效」最典型的场景。
      * 放在 onStart 而非 onCreate，确保此时 Activity 已处于前台，可合法启动前台服务。
+     * 这里只恢复已开启的服务，绝不补申请权限：即使权限被用户在系统设置中撤销，
+     * 启动流程也保持零弹窗，需要时由用户在 MCP 设置页再次触发启用动作。
      */
     override fun onStart() {
         super.onStart()
@@ -212,10 +218,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    companion object {
-        private const val REQUEST_PERMISSIONS = 1001
-    }
 }
 
 /** 未识别的持久化值回退到默认动画，避免旧备份写入未知字符串后转场失效。 */
@@ -223,15 +225,18 @@ private fun resolveBackTransition(mode: String): BackTransition =
     BackTransition.entries.firstOrNull { it.name == mode } ?: BackTransition.SCALE_FADE
 
 /**
- * 返回转场的落定（settle）曲线：200ms + 强 ease-in（0.2,0,0,1）。
- * 手势预览期间进度由系统跟手驱动，本规格只作用于松手 commit / 程序化返回的收尾，
- * 让落定更干脆；取消回弹由 NavHost 按手势进度反向驱动，不受此规格影响。
+ * 返回转场的动画规格必须保持线性。
+ *
+ * Navigation Compose 在预测性返回手势期间会按系统 progress 直接 seek 这组
+ * popEnter / popExit 动画，spec 的 easing 同样作用于 seek：旧的强 ease-in
+ * (0.2,0,0,1) 让前 80% 的手势几乎没有位移，是「横向跟随不生效」的直接原因。
+ * 线性规格保证位移与手指一一对应，松手后的 200ms 收尾也干脆；取消回弹由
+ * NavHost 按进度反向驱动。
  */
-private val BACK_SETTLE_EASING = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 private fun backTween(): androidx.compose.animation.core.FiniteAnimationSpec<Float> =
-    tween(200, easing = BACK_SETTLE_EASING)
+    tween(200, easing = LinearEasing)
 private fun backTweenOffset(): androidx.compose.animation.core.FiniteAnimationSpec<androidx.compose.ui.unit.IntOffset> =
-    tween(200, easing = BACK_SETTLE_EASING)
+    tween(200, easing = LinearEasing)
 
 /** 未识别的退出方向值回退到跟随手势，兼容旧备份与未知字符串。 */
 private fun resolveExitDirection(direction: String): String =
@@ -264,20 +269,25 @@ private fun backEnter(mode: String, edge: Int, exitDirection: String): EnterTran
     else -> scaleIn(animationSpec = backTween(), initialScale = 0.92f) + fadeIn(backTween())
 }
 
+/**
+ * 退出动画是「跟手」的主体：当前页按整屏宽位移，seek 到 50% 就移出半屏，
+ * 与手指位置一致。旧实现只有 1/4 屏宽，拖动全程几乎看不出横向跟随。
+ * 1/4 的视差只保留在 [backEnter]（上一页从侧边轻微移入），既露出上一页又不喧宾夺主。
+ */
 private fun backExit(mode: String, edge: Int, exitDirection: String): ExitTransition = when (resolveBackTransition(mode)) {
     BackTransition.SLIDE_HORIZONTAL -> when (resolveExitDirection(exitDirection)) {
-        // 恒定向左退出：当前页向左收束
-        "ALWAYS_LEFT" -> slideOutHorizontally(animationSpec = backTweenOffset()) { -it / 4 } + fadeOut(backTween())
-        // 恒定向右退出：当前页向右收束
-        "ALWAYS_RIGHT" -> slideOutHorizontally(animationSpec = backTweenOffset()) { it / 4 } + fadeOut(backTween())
-        // 跟随手势：右边缘手势当前页向左收束；左边缘向右收束
+        // 恒定向左退出：当前页向左滑出
+        "ALWAYS_LEFT" -> slideOutHorizontally(animationSpec = backTweenOffset()) { -it } + fadeOut(backTween())
+        // 恒定向右退出：当前页向右滑出
+        "ALWAYS_RIGHT" -> slideOutHorizontally(animationSpec = backTweenOffset()) { it } + fadeOut(backTween())
+        // 跟随手势：右边缘手势当前页向左滑出；左边缘向右滑出
         else ->
             if (edge == NavigationEvent.EDGE_RIGHT)
-                slideOutHorizontally(animationSpec = backTweenOffset()) { -it / 4 } + fadeOut(backTween())
+                slideOutHorizontally(animationSpec = backTweenOffset()) { -it } + fadeOut(backTween())
             else
-                slideOutHorizontally(animationSpec = backTweenOffset()) { it / 4 } + fadeOut(backTween())
+                slideOutHorizontally(animationSpec = backTweenOffset()) { it } + fadeOut(backTween())
     }
-    BackTransition.SLIDE_VERTICAL -> slideOutVertically(animationSpec = backTweenOffset()) { it / 4 } + fadeOut(backTween())
+    BackTransition.SLIDE_VERTICAL -> slideOutVertically(animationSpec = backTweenOffset()) { it } + fadeOut(backTween())
     BackTransition.FADE -> fadeOut(backTween())
     BackTransition.NONE -> ExitTransition.None
     else -> scaleOut(animationSpec = backTween(), targetScale = 0.88f) + fadeOut(backTween())
@@ -332,20 +342,10 @@ fun MainNavHost(
         onDispose { input?.let { dispatcher.removeInput(it) } }
     }
 
-    // 页面级返回手势由 Activity 采集（非消费型观察者 + 边缘触摸兜底），
-    // 见 MainActivity.backSwipeEdge。此处仅补采「弹窗返回」手势的边缘：
-    // OverlayInput 只在弹窗打开（树中存在消费型 handler）时注册系统回调，
-    // 所以 dispatcher 里流过的事件只可能是弹窗返回，不会覆盖页面返回的定向结果。
-    LaunchedEffect(dispatcher) {
-        dispatcher.transitionState.collect { state ->
-            if (state is NavigationEventTransitionState.InProgress) {
-                val edge = state.latestEvent.swipeEdge
-                if (edge == NavigationEvent.EDGE_LEFT || edge == NavigationEvent.EDGE_RIGHT) {
-                    backSwipeEdge.intValue = edge
-                }
-            }
-        }
-    }
+    // 弹窗返回（OverlayDialog → NavigationBackHandler）走的是 App 自建的 dispatcher，
+    // 与页面返回不是同一条链路。旧实现在这里把弹窗手势的 swipeEdge 写回
+    // backSwipeEdge，会让「跟随手势」在关掉弹窗后被上一次弹窗的边缘污染，
+    // 出现同一侧返回却忽左忽右。页面方向统一由 Activity 层采集，此处不再改写。
 
     // 返回动画可在「外观设置 → 页面转场」中切换；预测性返回手势预览复用同一组规格
     val backTransition by settingsRepository.predictiveBackTransition
@@ -356,16 +356,25 @@ fun MainNavHost(
     // 横向返回的退出方向（跟随手势 / 恒定向右 / 恒定向左）
     val backExitDirection by settingsRepository.backExitDirection
         .collectAsState(initial = "FOLLOW_GESTURE")
+    val edge = backSwipeEdge.intValue
     // 直接交由 NavHost 的「原生预测性返回」驱动 popEnter / popExit：
     // 手势进行中 NavHost 会同时组合上一页（popEnter）与当前页（popExit），
-    // 并将转场进度绑定到手势进度——既「跟手」又能在当前页滑出时露出上一页内容。
-    // 之前用手写整页平移 + gesturePop 抑制 NavHost 转场，会导致上一页不显示（白屏/背景）。
-    val popEnter: EnterTransition =
-        if (predictiveBackEnabled) backEnter(backTransition, backSwipeEdge.intValue, backExitDirection)
+    // 并把转场进度 seek 到系统 progress——既跟手又能露出上一页内容。
+    // 转场对象必须稳定：seek 期间若因重组重建 EnterTransition / ExitTransition，
+    // AnimatedContent 会重新配置动画，跟手位移会被打断。用 remember 把规格只与
+    // 「设置项 + 本次手势边缘」绑定；手势开始后边缘已冻结，这些 key 不再变化。
+    val popEnter: EnterTransition = remember(
+        predictiveBackEnabled, backTransition, backExitDirection, edge
+    ) {
+        if (predictiveBackEnabled) backEnter(backTransition, edge, backExitDirection)
         else EnterTransition.None
-    val popExit: ExitTransition =
-        if (predictiveBackEnabled) backExit(backTransition, backSwipeEdge.intValue, backExitDirection)
+    }
+    val popExit: ExitTransition = remember(
+        predictiveBackEnabled, backTransition, backExitDirection, edge
+    ) {
+        if (predictiveBackEnabled) backExit(backTransition, edge, backExitDirection)
         else ExitTransition.None
+    }
 
     CompositionLocalProvider(
         LocalNavigationEventDispatcherOwner provides dispatcherOwner,

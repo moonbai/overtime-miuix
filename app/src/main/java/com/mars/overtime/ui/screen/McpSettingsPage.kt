@@ -3,6 +3,8 @@ package com.mars.overtime.ui.screen
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
@@ -13,6 +15,7 @@ import com.mars.overtime.data.repository.SettingsRepository
 import com.mars.overtime.mcp.McpHostService
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.snackbar.showCustomToast
+import com.mars.overtime.util.FeaturePermissions
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.net.Inet4Address
@@ -99,6 +102,31 @@ fun McpSettingsPage(
         }
     }
 
+    /**
+     * 权限只在用户主动启用 MCP 服务（开关 / 启动按钮）的那一刻按需申请：
+     * 应用启动流程不会弹出任何权限对话框。权限被拒绝也不回滚开关，服务仍按用户意图启动，
+     * 只提示影响（常驻通知不显示 / Android 17+ 局域网被系统丢包）。
+     */
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        // 结果为空表示用户直接取消了权限请求，视为放弃本次启用，不再拉起服务
+        if (result.isEmpty()) return@rememberLauncherForActivityResult
+        if (result.values.any { !it }) {
+            scope.launch {
+                snackbarHostState.showCustomToast(
+                    "未授予通知 / 本地网络权限，常驻通知可能不显示、局域网可能无法连接"
+                )
+            }
+        }
+        startService()
+    }
+
+    fun enableMcpService() {
+        val missing = FeaturePermissions.missing(context, FeaturePermissions.forMcpService())
+        if (missing.isEmpty()) startService() else permissionLauncher.launch(missing)
+    }
+
     fun stopService() {
         McpHostService.stop(context)
         runningPort = null
@@ -123,11 +151,11 @@ fun McpSettingsPage(
                         else -> "服务运行中 · 监听端口 $port"
                     }
                 )
-                SettingsNote(text = "服务以常驻通知方式运行。局域网访问需要「本地网络」与「通知」权限；\n若客户端连不上，先确认此处显示「运行中」。")
+                SettingsNote(text = "服务以常驻通知方式运行。首次启用时会按需申请「通知」与「本地网络」权限；\n若客户端连不上，先确认此处显示「运行中」。")
                 SettingsActionItem(
                     title = if (runningPort == null) "启动服务" else "重启服务",
                     summary = "按当前端口重新拉起并刷新状态",
-                    onClick = { startService() }
+                    onClick = { enableMcpService() }
                 )
             }
         }
@@ -140,7 +168,7 @@ fun McpSettingsPage(
                     summary = "开启后可通过本地网络访问",
                     checked = mcpEnabled,
                     onCheckedChange = { enabled ->
-                        if (enabled) startService() else stopService()
+                        if (enabled) enableMcpService() else stopService()
                     }
                 )
                 SettingsTextField(

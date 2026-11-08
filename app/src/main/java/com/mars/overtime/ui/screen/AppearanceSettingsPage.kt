@@ -250,9 +250,12 @@ fun AppearanceSettingsPage(
                             }
                         )
                     }
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    SettingsNote(
+                        text = "选择「横向滑动」+「跟随手势」后，从屏幕左 / 右边缘返回会按对应方向跟手退出"
+                    )
+                    if (Build.VERSION.SDK_INT < 35) {
                         SettingsNote(
-                            text = "Android 14 及以上支持手势实时预览；当前系统将在松手后播放动画"
+                            text = "Android 13/14 需在「开发者选项 → 预测性返回动画」中开启后才支持实时预览"
                         )
                     }
                 } else {

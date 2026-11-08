@@ -18,6 +18,7 @@ import com.mars.overtime.ui.snackbar.showCustomToast
 import com.mars.overtime.util.BackupData
 import com.mars.overtime.util.BackupManager
 import com.mars.overtime.util.DataMigrationUtil
+import com.mars.overtime.util.FeaturePermissions
 import com.mars.overtime.util.WebDavManager
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -76,6 +77,23 @@ fun BackupSettingsPage(
     suspend fun showToast(msg: String) {
         status = msg
         snackbarHostState.showCustomToast(msg)
+    }
+
+    /**
+     * 本地网络权限只在用户启用 WebDAV / 云端备份那一刻按需申请；启动流程不弹权限框。
+     * API < 37 或权限已授予时 missing 为空，直接跳过请求。
+     */
+    val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        if (result.values.any { !it }) {
+            scope.launch { showToast("未授予本地网络权限，局域网 WebDAV 可能无法连接") }
+        }
+    }
+
+    fun ensureLocalNetworkPermission() {
+        val missing = FeaturePermissions.missing(context, FeaturePermissions.forLocalNetwork())
+        if (missing.isNotEmpty()) localNetworkPermissionLauncher.launch(missing)
     }
 
     fun buildWebDavConfig(): WebDavManager.WebDavConfig = WebDavManager.WebDavConfig(
@@ -275,7 +293,10 @@ fun BackupSettingsPage(
                     title = "启用自动备份",
                     summary = "新增记录时自动保存到本地或云端",
                     checked = autoBackupEnabled,
-                    onCheckedChange = { scope.launch { settingsRepository.setAutoBackupEnabled(it) } }
+                    onCheckedChange = { enabled ->
+                        scope.launch { settingsRepository.setAutoBackupEnabled(enabled) }
+                        if (enabled && autoBackupLocation == "cloud") ensureLocalNetworkPermission()
+                    }
                 )
                 if (autoBackupEnabled) {
                     val locationItems = remember {
@@ -296,6 +317,7 @@ fun BackupSettingsPage(
                             scope.launch {
                                 settingsRepository.setAutoBackupLocation(if (index == 1) "cloud" else "local")
                             }
+                            if (index == 1) ensureLocalNetworkPermission()
                         }
                     )
                 }
@@ -308,7 +330,10 @@ fun BackupSettingsPage(
                     title = "启用 WebDAV",
                     summary = "配置 WebDAV 服务器进行备份同步",
                     checked = webdavEnabled,
-                    onCheckedChange = { scope.launch { settingsRepository.setWebdavEnabled(it) } }
+                    onCheckedChange = { enabled ->
+                        scope.launch { settingsRepository.setWebdavEnabled(enabled) }
+                        if (enabled) ensureLocalNetworkPermission()
+                    }
                 )
                 if (webdavEnabled) {
                     SettingsTextField(
