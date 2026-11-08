@@ -64,16 +64,6 @@ jobs:
         restore-keys: |
           gradle-deps-${{ runner.os }}-
 
-    # 仓库默认分发地址指向腾讯云镜像（供 CNB 国内流水线加速）。
-    # GitHub-hosted runner 位于海外，跨境拉取该镜像偶发读超时，
-    # 因此仅在本工作流内切到官方 CDN；CNB 侧配置不受影响。
-    # 注意实际地址是 mirrors.cloud.tencent.com —— 旧写法 mirrors.tencent.com
-    # 匹配不到，会让本步骤静默变成空操作（CI 日志仍显示从腾讯镜像下载）。
-    - name: Use official Gradle distribution on GitHub runners
-      run: |
-        sed -i 's#mirrors\.cloud\.tencent\.com/gradle/#services.gradle.org/distributions/#' gradle/wrapper/gradle-wrapper.properties
-        grep '^distributionUrl' gradle/wrapper/gradle-wrapper.properties
-
     # kotlin-compiler-embeddable（约 60MB）从 repo.maven.apache.org 拉取时偶发被
     # 导向 GitHub Release 资产的未鉴权下载，返回 504 使 compileReleaseKotlin 失败
     # （堆栈顶层的 ClasspathEntrySnapshotTransform 只是表象）。
@@ -84,8 +74,10 @@ jobs:
         sed -i 's#^\([[:space:]]*\)mavenCentral()#\1maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2") }\n\1mavenCentral()#' settings.gradle.kts
         grep -n 'storage-download.googleapis.com' settings.gradle.kts
 
-    # 预热 wrapper 缓存：CDN 偶发抖动时重试；官方 CDN 三次都失败则回退腾讯云镜像，
-    # 避免把「下载分发版」这一点网络抖动升级成整条流水线失败。
+    # 仓库默认分发地址指向腾讯云镜像（供 CNB 国内流水线加速）。
+    # 实测 GitHub-hosted runner 上该镜像稳定可用，而 services.gradle.org 官方 CDN
+    # 连续 3 次 10s 读超时（见 run #134 日志），因此保持仓库默认值不动，
+    # 把官方 CDN 作为「镜像失败时」的兜底，避免每次构建先白等 30 秒。
     - name: Warm Gradle wrapper (retry on CDN timeout)
       run: |
         for attempt in 1 2 3; do
@@ -93,8 +85,8 @@ jobs:
           echo "::warning::Gradle download failed (attempt ${attempt}/3), retrying"
           rm -f "${GRADLE_USER_HOME:-$HOME/.gradle}"/wrapper/dists/gradle-9.8.2-bin/*/*.part
         done
-        echo "::warning::官方 CDN 三次均失败，回退腾讯云镜像"
-        sed -i 's#services.gradle.org/distributions/#mirrors.cloud.tencent.com/gradle/#' gradle/wrapper/gradle-wrapper.properties
+        echo "::warning::腾讯云镜像三次均失败，回退官方 Gradle CDN"
+        sed -i 's#mirrors\.cloud\.tencent\.com/gradle/#services.gradle.org/distributions/#' gradle/wrapper/gradle-wrapper.properties
         ./gradlew --version
 
     - name: Sync version from tag
