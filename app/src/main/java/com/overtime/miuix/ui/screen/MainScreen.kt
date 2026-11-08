@@ -258,22 +258,23 @@ fun MainScreen(
                     )
                 }
             }
+
+            // 快速提报对话框：必须位于 Scaffold 内容（fillMaxSize Box）内作为 descendant，
+            // 否则 OverlayDialog 默认 renderInRootScaffold 在兄弟层级找不到根 Scaffold，弹窗不渲染
+            QuickSubmitSheet(
+                show = showQuickSubmit,
+                repository = repository,
+                settingsRepository = settingsRepository,
+                context = context,
+                onDismiss = { showQuickSubmit = false },
+                onSaved = { message ->
+                    quickScope.launch {
+                        snackbarHostStateForQuick.showCustomToast(message)
+                    }
+                }
+            )
         }
     }
-
-    // 快速提报对话框
-    QuickSubmitSheet(
-        show = showQuickSubmit,
-        repository = repository,
-        settingsRepository = settingsRepository,
-        context = context,
-        onDismiss = { showQuickSubmit = false },
-        onSaved = { message ->
-            quickScope.launch {
-                snackbarHostStateForQuick.showCustomToast(message)
-            }
-        }
-    )
 }
 
 /** 悬浮胶囊底栏固定高度：内容留白、FAB、Snackbar 位置都据此联动。 */
