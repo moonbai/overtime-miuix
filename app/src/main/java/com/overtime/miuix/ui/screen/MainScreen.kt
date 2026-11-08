@@ -6,8 +6,6 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -20,8 +18,12 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
+import com.overtime.miuix.ui.component.AppFab
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import com.overtime.miuix.ui.snackbar.showCustomToast
+import com.overtime.miuix.ui.theme.AppDimens
+import com.overtime.miuix.ui.theme.AppIconSize
+import com.overtime.miuix.ui.theme.AppShapes
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
@@ -81,15 +83,15 @@ fun MainScreen(
     // 悬浮底栏：与屏幕底部的距离由外观设置控制（0..64dp），胶囊自身高度固定。
     // 以下留白 / FAB / Snackbar 位置全部基于这两个值联动，调节后整体不会错位。
     val floatingBarOffset = floatingNavBottomOffset.dp
-    val floatingBarHeight = FloatingBarHeight
+    val floatingBarHeight = AppDimens.navBarHeight
     // 悬浮底栏「彻底悬浮」时，各页面列表需补充的底部留白（离底间距 + 估算高度 + 余量），
     // 保证末项（如「关于」）可滚动至悬浮底栏之上，不被遮挡。
-    val floatingBottomReserve = floatingBarOffset + floatingBarHeight + 8.dp
+    val floatingBottomReserve = floatingBarOffset + AppDimens.navBarHeight + AppDimens.navBarBottomReserve
 
     // FAB 的水平/垂直留白与首页、统计、设置页的卡片边距统一（16dp），
     // 避免右下角按钮与列表卡片右边缘错开。
     val floatingFabBottom = navBarInset + floatingBarOffset + floatingBarHeight +
-        SettingsDimens.PageVertical
+        AppDimens.pageVertical
     // 普通模式的底部距离改为在 content 内用 Scaffold 实测的 bottomBar 高度计算：
     // 旧实现硬编码「64dp 底栏 + 24dp 间距」，在图标+文字底栏 / 大字体 / 不同 ROM 上
     // 会与底栏重叠或悬得过高。
@@ -97,7 +99,7 @@ fun MainScreen(
     // Snackbar 默认贴在底栏上方，正好覆盖右下角 FAB 并拦截触摸：保存记录后
     // 必须等提示消失才能再次点「添加」。把提示整体抬到 FAB 顶部之上，
     // 悬浮底栏模式下 FAB 更高，额外叠加底栏高度与离底间距。
-    val snackbarLift = SettingsDimens.PageVertical + FabSize + 16.dp +
+    val snackbarLift = AppDimens.pageVertical + AppDimens.fabSize + AppDimens.fabReserve +
         (if (useFloatingNav) navBarInset + floatingBarOffset + floatingBarHeight else 0.dp)
 
     Scaffold(
@@ -125,7 +127,7 @@ fun MainScreen(
                         .fillMaxWidth()
                         .textureBlur(
                             backdrop = navBackdrop,
-                            shape = RoundedCornerShape(0.dp),
+                            shape = AppShapes.radiusZero,
                             blurRadius = 40f,
                             enabled = blurSupported
                         )
@@ -163,7 +165,7 @@ fun MainScreen(
     ) { paddingValues ->
         // 普通底栏模式：FAB 底部偏移取 Scaffold 实测的底栏高度 + 统一间距
         val normalFabBottom = paddingValues.calculateBottomPadding() +
-            SettingsDimens.PageVertical
+            AppDimens.pageVertical
 
         // 内容底部留白：
         // - 普通底栏：Scaffold 已为其预留空间（paddingValues 含底栏高度），内容自然不被遮挡；
@@ -233,9 +235,9 @@ fun MainScreen(
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(end = SettingsDimens.PageHorizontal, bottom = floatingFabBottom)
+                            .padding(end = AppDimens.pageHorizontal, bottom = floatingFabBottom)
                     ) {
-                        HomeFab(
+                        AppFab(
                             quickSubmit = quickSubmit,
                             onAddRecord = { navController.navigate("add_record") },
                             onQuickSubmit = { showQuickSubmit = true }
@@ -249,9 +251,9 @@ fun MainScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(end = SettingsDimens.PageHorizontal, bottom = normalFabBottom)
+                        .padding(end = AppDimens.pageHorizontal, bottom = normalFabBottom)
                 ) {
-                    HomeFab(
+                    AppFab(
                         quickSubmit = quickSubmit,
                         onAddRecord = { navController.navigate("add_record") },
                         onQuickSubmit = { showQuickSubmit = true }
@@ -277,93 +279,6 @@ fun MainScreen(
     }
 }
 
-/** 悬浮胶囊底栏固定高度：内容留白、FAB、Snackbar 位置都据此联动。 */
-private val FloatingBarHeight = 64.dp
-
-/** 悬浮胶囊与液态选中指示器的圆角。 */
-private val FloatingBarShape = RoundedCornerShape(28.dp)
-private val LiquidIndicatorShape = RoundedCornerShape(20.dp)
-
-/** MIUIX 标准 FAB 尺寸：单层实心强调色圆，不再叠加毛玻璃外层。 */
-private val FabSize = 56.dp
-
-/** 扩展型「快速提报」按钮的圆角。 */
-private val FabExtendedShape = RoundedCornerShape(28.dp)
-
-/**
- * 首页悬浮操作按钮：快速提报模式下提供「添加 / 快速提报」两个按钮，
- * 否则为单个强调色圆形按钮。
- *
- * 旧实现在 FAB 外套了一层 CircleShape 毛玻璃，与 MIUIX FAB 默认的多边形容器
- * 叠加成「半透明大圆 + 深色多边形」的双层脏效果，0.55 透明度也让强调色发灰。
- * 现在统一为单层实心强调色，形状显式指定，图标前景色按容器对比度取值。
- */
-@Composable
-private fun HomeFab(
-    quickSubmit: Boolean,
-    onAddRecord: () -> Unit,
-    onQuickSubmit: () -> Unit
-) {
-    if (quickSubmit) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            FloatingActionButton(
-                onClick = onAddRecord,
-                shape = CircleShape,
-                containerColor = MiuixTheme.colorScheme.secondaryContainer,
-                modifier = Modifier.size(FabSize)
-            ) {
-                Icon(
-                    MiuixIcons.Add,
-                    contentDescription = "添加记录",
-                    tint = MiuixTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            FloatingActionButton(
-                onClick = onQuickSubmit,
-                shape = FabExtendedShape,
-                containerColor = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.height(FabSize)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 18.dp)
-                ) {
-                    Icon(
-                        MiuixIcons.Ok,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "快速提报",
-                        color = MiuixTheme.colorScheme.onPrimary,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                    )
-                }
-            }
-        }
-    } else {
-        FloatingActionButton(
-            onClick = onAddRecord,
-            shape = CircleShape,
-            containerColor = MiuixTheme.colorScheme.primary,
-            modifier = Modifier.size(FabSize)
-        ) {
-            Icon(
-                MiuixIcons.Add,
-                contentDescription = "添加记录",
-                tint = MiuixTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-    }
-}
-
 /**
  * 悬浮胶囊底栏：MIUIX 0.9.4 的 FloatingNavigationBarItem 仅对选中 icon 着色，
  * 这里补上 HyperOS 风格的「液态」选中指示器 —— 两层圆角胶囊以不同刚度的
@@ -371,6 +286,7 @@ private fun HomeFab(
  *
  * 胶囊本体仍使用 MIUIX 的 textureBlur 毛玻璃与 MiuixTheme 配色，图标取自
  * MIUIX / AppIcons，视觉与框架设计语言保持一致。
+ * 尺寸与圆角统一取自令牌层（AppDimens / AppShapes）。
  */
 @Composable
 private fun LiquidFloatingNavBar(
@@ -391,16 +307,16 @@ private fun LiquidFloatingNavBar(
     Box(
         modifier = modifier
             .padding(bottom = navBarInset + bottomOffset)
-            .padding(horizontal = SettingsDimens.PageHorizontal * 2)
+            .padding(horizontal = AppDimens.pageHorizontal * 2)
             .fillMaxWidth()
-            .height(FloatingBarHeight)
+            .height(AppDimens.navBarHeight)
             .textureBlur(
                 backdrop = backdrop,
-                shape = FloatingBarShape,
+                shape = AppShapes.navBar,
                 blurRadius = 40f,
                 enabled = blurSupported
             )
-            .clip(FloatingBarShape)
+            .clip(AppShapes.navBar)
             .background(
                 if (blurSupported) MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.3f)
                 else MiuixTheme.colorScheme.surfaceContainer
@@ -433,9 +349,9 @@ private fun LiquidFloatingNavBar(
                 modifier = Modifier
                     .offset(x = trailX)
                     .width(itemWidth)
-                    .height(FloatingBarHeight)
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                    .clip(LiquidIndicatorShape)
+                    .height(AppDimens.navBarHeight)
+                    .padding(horizontal = AppDimens.spaceSm, vertical = AppDimens.spaceXs)
+                    .clip(AppShapes.indicator)
                     .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.08f))
             )
             // 主体：快、实
@@ -443,9 +359,9 @@ private fun LiquidFloatingNavBar(
                 modifier = Modifier
                     .offset(x = leadX)
                     .width(itemWidth)
-                    .height(FloatingBarHeight)
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                    .clip(LiquidIndicatorShape)
+                    .height(AppDimens.navBarHeight)
+                    .padding(horizontal = AppDimens.spaceSm, vertical = AppDimens.spaceXs)
+                    .clip(AppShapes.indicator)
                     .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.18f))
             )
         }
@@ -455,7 +371,7 @@ private fun LiquidFloatingNavBar(
                 Surface(
                     onClick = { onTabSelected(index) },
                     color = Color.Transparent,
-                    shape = LiquidIndicatorShape,
+                    shape = AppShapes.indicator,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -470,7 +386,7 @@ private fun LiquidFloatingNavBar(
                             contentDescription = label,
                             tint = if (selectedTab == index) MiuixTheme.colorScheme.primary
                             else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.size(26.dp)
+                            modifier = Modifier.size(AppIconSize.lg)
                         )
                     }
                 }

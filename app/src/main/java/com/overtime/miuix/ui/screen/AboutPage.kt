@@ -1,4 +1,6 @@
 package com.overtime.miuix.ui.screen
+import com.overtime.miuix.ui.theme.AppDimens
+import com.overtime.miuix.ui.theme.AppShapes
 
 import android.content.Context
 import android.content.Intent
@@ -15,7 +17,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -99,7 +100,7 @@ fun AboutPage(navController: NavHostController) {
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                cornerRadius = SettingsDimens.CardCorner,
+                cornerRadius = AppDimens.cardCorner,
                 insideMargin = PaddingValues(28.dp)
             ) {
                 Column(
@@ -109,7 +110,7 @@ fun AboutPage(navController: NavHostController) {
                     Box(
                         modifier = Modifier
                             .size(88.dp)
-                            .clip(RoundedCornerShape(24.dp))
+                            .clip(AppShapes.radiusXxl)
                             .background(MiuixTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
@@ -160,7 +161,7 @@ fun AboutPage(navController: NavHostController) {
             }
         }
 
-        item { Spacer(modifier = Modifier.height(SettingsDimens.GroupSpacing)) }
+        item { Spacer(modifier = Modifier.height(AppDimens.groupSpacing)) }
 
         // 应用简介：归入标准分组容器，标题与卡片由 SettingsGroup 统一定义
         item {
@@ -170,14 +171,14 @@ fun AboutPage(navController: NavHostController) {
                     style = MiuixTheme.textStyles.body2,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.padding(
-                        horizontal = SettingsDimens.ItemHorizontal,
+                        horizontal = AppDimens.itemHorizontal,
                         vertical = 12.dp
                     )
                 )
             }
         }
 
-        item { Spacer(modifier = Modifier.height(SettingsDimens.GroupSpacing)) }
+        item { Spacer(modifier = Modifier.height(AppDimens.groupSpacing)) }
 
         // 主要功能：保留网格概览，但去掉「卡片套卡片」的嵌套，
         // 直接以图标 + 文字铺在分组卡片内，与全局卡片规范一致。
@@ -187,7 +188,7 @@ fun AboutPage(navController: NavHostController) {
             }
         }
 
-        item { Spacer(modifier = Modifier.height(SettingsDimens.GroupSpacing)) }
+        item { Spacer(modifier = Modifier.height(AppDimens.groupSpacing)) }
 
         // 开发者 & 操作：与设置首页一致的 SettingsActionItem 跳转行
         item {
@@ -255,7 +256,7 @@ fun AboutPage(navController: NavHostController) {
             }
         }
 
-        item { Spacer(modifier = Modifier.height(SettingsDimens.GroupSpacing)) }
+        item { Spacer(modifier = Modifier.height(AppDimens.groupSpacing)) }
 
         // 版权
         item {
@@ -268,7 +269,7 @@ fun AboutPage(navController: NavHostController) {
             )
         }
 
-        item { Spacer(modifier = Modifier.height(SettingsDimens.GroupSpacing)) }
+        item { Spacer(modifier = Modifier.height(AppDimens.groupSpacing)) }
     }
 
     // 更新对话框

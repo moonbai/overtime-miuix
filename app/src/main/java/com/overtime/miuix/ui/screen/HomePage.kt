@@ -36,6 +36,13 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.overtime.miuix.ui.theme.AppBody1Medium
+import com.overtime.miuix.ui.theme.AppBody1Semibold
+import com.overtime.miuix.ui.theme.AppDimens
+import com.overtime.miuix.ui.theme.AppIconSize
+import com.overtime.miuix.ui.theme.AppShapes
+import com.overtime.miuix.ui.theme.AppTitle3Bold
+import com.overtime.miuix.ui.theme.AppTitle3Semibold
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -157,12 +164,12 @@ fun HomePage(
             modifier = Modifier.fillMaxSize(),
             state = listState,
             contentPadding = PaddingValues(
-                start = SettingsDimens.PageHorizontal,
-                top = SettingsDimens.PageVertical,
-                end = SettingsDimens.PageHorizontal,
-                bottom = SettingsDimens.PageVertical + bottomReserve
+                start = AppDimens.pageHorizontal,
+                top = AppDimens.pageVertical,
+                end = AppDimens.pageHorizontal,
+                bottom = AppDimens.pageVertical + bottomReserve
             ),
-            verticalArrangement = Arrangement.spacedBy(SettingsDimens.GroupSpacing)
+            verticalArrangement = Arrangement.spacedBy(AppDimens.groupSpacing)
         ) {
             item {
                 MonthlyOverviewCard(repository, currentMonth, records)
@@ -186,13 +193,13 @@ fun HomePage(
                     Button(
                         onClick = { navController.navigate("add_record") },
                         colors = ButtonDefaults.buttonColorsPrimary(),
-                        cornerRadius = 20.dp,
+                        cornerRadius = AppDimens.controlCorner,
                         insideMargin = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) {
                         Icon(
                             MiuixIcons.Add,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(AppIconSize.xs)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("添加", fontWeight = FontWeight.Medium)
@@ -268,8 +275,7 @@ fun HomePage(
                             ) {
                                 Text(
                                     text = "${parts[0]}年${parts[1]}月",
-                                    style = MiuixTheme.textStyles.title3,
-                                    fontWeight = FontWeight.SemiBold,
+                                    style = AppTitle3Semibold(),
                                     color = MiuixTheme.colorScheme.primary
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -341,7 +347,7 @@ private fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit) {
         onClick = onClick,
         color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.secondaryContainer,
         contentColor = if (selected) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSecondaryContainer,
-        shape = RoundedCornerShape(16.dp)
+        shape = AppShapes.radiusLg
     ) {
         Text(
             text = text,
@@ -369,15 +375,14 @@ private fun MonthlyOverviewCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 4.dp),
-        cornerRadius = 16.dp
+        cornerRadius = AppDimens.cardCorner
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
                 text = "$month 概览",
-                style = MiuixTheme.textStyles.title3,
-                fontWeight = FontWeight.SemiBold,
+                style = AppTitle3Semibold(),
                 color = MiuixTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -404,8 +409,7 @@ private fun StatItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value,
-            style = MiuixTheme.textStyles.title3,
-            fontWeight = FontWeight.Bold,
+            style = AppTitle3Bold(),
             color = MiuixTheme.colorScheme.primary
         )
         Text(
@@ -445,7 +449,7 @@ private fun RecordCard(
     // 替代原先外挂 clickable（无视觉反馈、点击区域与卡片圆角不一致）
     Card(
         modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 16.dp,
+        cornerRadius = AppDimens.cardCorner,
         insideMargin = PaddingValues(12.dp),
         onClick = onClick,
         showIndication = true,
@@ -457,9 +461,9 @@ private fun RecordCard(
         ) {
             Box(
                 modifier = Modifier
-                    .width(4.dp)
+                    .width(AppDimens.typeBarWidth)
                     .height(40.dp)
-                    .background(typeColor, RoundedCornerShape(2.dp))
+                    .background(typeColor, RoundedCornerShape(AppDimens.chartBarRadius))
             )
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -468,8 +472,7 @@ private fun RecordCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = dateStr,
-                        style = MiuixTheme.textStyles.body1,
-                        fontWeight = FontWeight.Medium,
+                        style = AppBody1Medium(),
                         color = MiuixTheme.colorScheme.onSurface
                     )
                 }
@@ -483,7 +486,7 @@ private fun RecordCard(
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
                             color = MiuixTheme.colorScheme.error.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(4.dp)
+                            shape = AppShapes.radiusSm
                         ) {
                             Text(
                                 text = "扣薪",
@@ -508,8 +511,7 @@ private fun RecordCard(
                 // 请假金额为负扣减，用错误色突出
                 Text(
                     text = SalaryCalculator.formatAmount(record.amount),
-                    style = MiuixTheme.textStyles.body1,
-                    fontWeight = FontWeight.SemiBold,
+                    style = AppBody1Semibold(),
                     color = if (record.isLeave) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary
                 )
                 Text(

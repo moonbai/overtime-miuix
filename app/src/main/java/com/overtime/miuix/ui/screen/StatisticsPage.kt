@@ -26,6 +26,8 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.overtime.miuix.ui.theme.AppDimens
+import com.overtime.miuix.ui.theme.AppShapes
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
@@ -204,18 +206,18 @@ fun StatisticsPage(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = SettingsDimens.PageHorizontal,
-            top = SettingsDimens.PageVertical,
-            end = SettingsDimens.PageHorizontal,
-            bottom = SettingsDimens.PageVertical + bottomReserve
+            start = AppDimens.pageHorizontal,
+            top = AppDimens.pageVertical,
+            end = AppDimens.pageHorizontal,
+            bottom = AppDimens.pageVertical + bottomReserve
         ),
-        verticalArrangement = Arrangement.spacedBy(SettingsDimens.GroupSpacing)
+        verticalArrangement = Arrangement.spacedBy(AppDimens.groupSpacing)
     ) {
         // 顶部日期导航（点击切换月/年视图）
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                cornerRadius = 16.dp
+                cornerRadius = AppDimens.cardCorner
             ) {
                 Row(
                     modifier = Modifier
@@ -238,7 +240,7 @@ fun StatisticsPage(
                         },
                         modifier = Modifier.weight(1f),
                         color = Color.Transparent,
-                        shape = RoundedCornerShape(12.dp)
+                        shape = AppShapes.radiusMd
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -404,7 +406,7 @@ fun StatisticsPage(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp),
-                            cornerRadius = 16.dp,
+                            cornerRadius = AppDimens.cardCorner,
                             insideMargin = PaddingValues(12.dp),
                             onClick = { navController.navigate("edit_record/${record.id}") },
                             showIndication = true,
@@ -418,7 +420,7 @@ fun StatisticsPage(
                                     modifier = Modifier
                                         .width(4.dp)
                                         .height(40.dp)
-                                        .background(recColor, RoundedCornerShape(2.dp))
+                                        .background(recColor, RoundedCornerShape(AppDimens.chartBarRadius))
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column(modifier = Modifier.weight(1f)) {
@@ -433,7 +435,7 @@ fun StatisticsPage(
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Surface(
                                                 color = MiuixTheme.colorScheme.error.copy(alpha = 0.1f),
-                                                shape = RoundedCornerShape(4.dp)
+                                                shape = AppShapes.radiusSm
                                             ) {
                                                 Text(
                                                     text = "扣薪",
@@ -503,7 +505,7 @@ private fun LegendItem(color: Color, label: String) {
         Box(
             modifier = Modifier
                 .size(10.dp)
-                .background(color, RoundedCornerShape(2.dp))
+                .background(color, RoundedCornerShape(AppDimens.chartBarRadius))
         )
         Spacer(modifier = Modifier.width(4.dp))
         Text(
@@ -516,7 +518,7 @@ private fun LegendItem(color: Color, label: String) {
 
 @Composable
 private fun YearTrendCard(yearTrend: List<Pair<Int, Double>>) {
-    Card(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
+    Card(modifier = Modifier.fillMaxWidth(), cornerRadius = AppDimens.cardCorner) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = "按月趋势（净时长）",
@@ -542,7 +544,7 @@ private fun YearTrendCard(yearTrend: List<Pair<Int, Double>>) {
                         modifier = Modifier
                             .weight(1f)
                             .height(14.dp)
-                            .background(MiuixTheme.colorScheme.secondaryContainer, RoundedCornerShape(4.dp))
+                            .background(MiuixTheme.colorScheme.secondaryContainer, AppShapes.radiusSm)
                     ) {
                         if (maxAbs > 0) {
                             val fraction = (abs(hours) / maxAbs).toFloat().coerceIn(0f, 1f)
@@ -552,7 +554,7 @@ private fun YearTrendCard(yearTrend: List<Pair<Int, Double>>) {
                                     .height(14.dp)
                                     .background(
                                         if (hours < 0) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary,
-                                        RoundedCornerShape(4.dp)
+                                        AppShapes.radiusSm
                                     )
                             )
                         }
@@ -579,7 +581,7 @@ private fun TypeRatioCard(
     typeColor: (OvertimeType) -> Color
 ) {
     val total = workday + weekend + holiday
-    Card(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
+    Card(modifier = Modifier.fillMaxWidth(), cornerRadius = AppDimens.cardCorner) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = "类型占比（加班时长）",
@@ -657,7 +659,7 @@ private fun CalendarCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 16.dp
+        cornerRadius = AppDimens.cardCorner
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             val weekdays = listOf("日", "一", "二", "三", "四", "五", "六")
@@ -694,7 +696,7 @@ private fun CalendarCard(
                                     onClick = { onDayClick(day) },
                                     color = if (isToday) MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
                                     else Color.Transparent,
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = AppShapes.radiusSm,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(
@@ -752,7 +754,7 @@ private fun compactHours(hours: Double): String {
 private fun StatsCard(title: String, items: List<Pair<String, String>>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 16.dp
+        cornerRadius = AppDimens.cardCorner
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(

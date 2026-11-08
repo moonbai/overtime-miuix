@@ -14,3 +14,4 @@ outputs/
 # 签名密钥
 *.jks
 release-keystore.jks
+.workbuddy/

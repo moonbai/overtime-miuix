@@ -1,9 +1,9 @@
 package com.overtime.miuix.ui.screen
+import com.overtime.miuix.ui.theme.AppShapes
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -237,7 +237,7 @@ private fun SalaryPreviewCard(preview: PreviewResult?) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(AppShapes.radiusMd)
             .background(MiuixTheme.colorScheme.surfaceContainer)
             .padding(12.dp)
     ) {

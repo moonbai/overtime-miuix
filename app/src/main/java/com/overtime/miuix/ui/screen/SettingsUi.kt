@@ -12,8 +12,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
+import com.overtime.miuix.ui.theme.AppDimens
+import com.overtime.miuix.ui.theme.AppIconSize
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
@@ -29,28 +30,34 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * - 需要校验的一组数值（薪资倍率、MCP 端口）才使用显式「保存」按钮，
  *   其余开关、下拉、单字段一律即改即存，避免同一套设置里出现三种保存语义。
  */
+/**
+ * 设置模块间距令牌。
+ *
+ * 已统一收敛到全局 [AppDimens]（ui/theme 包）：下方全部委托过去，避免两处各自维护同一组值。
+ * 设置页代码仍可继续引用 [SettingsDimens.xxx]，无需逐处改动。
+ */
 object SettingsDimens {
     /** LazyColumn 中各分组卡片的间距 */
-    val GroupSpacing = 12.dp
+    val GroupSpacing get() = AppDimens.groupSpacing
 
     /**
      * 页面左右留白：与 HomePage / StatisticsPage 的 LazyColumn 统一为 16dp。
      * 设置页此前没有水平 contentPadding，卡片是贴着屏幕边缘的，
      * 与首页、统计页并排切换时视觉上明显不齐。
      */
-    val PageHorizontal = 16.dp
+    val PageHorizontal get() = AppDimens.pageHorizontal
 
     /** 页面上下留白，与首页 / 统计页一致 */
-    val PageVertical = 16.dp
+    val PageVertical get() = AppDimens.pageVertical
 
     /** 卡片圆角，与 [SettingsGroup] 保持一致 */
-    val CardCorner = 16.dp
+    val CardCorner get() = AppDimens.spaceMd
 
     /** 卡片内输入框、说明文字的水平内边距 */
-    val ItemHorizontal = 16.dp
+    val ItemHorizontal get() = AppDimens.itemHorizontal
 
     /** 卡片内输入框的纵向内边距 */
-    val ItemVertical = 4.dp
+    val ItemVertical get() = AppDimens.itemVertical
 }
 
 /**
@@ -60,18 +67,18 @@ object SettingsDimens {
 @Composable
 fun SettingsList(
     modifier: Modifier = Modifier,
-    bottomReserve: Dp = 0.dp,
+    bottomReserve: Dp = AppDimens.zero,
     content: LazyListScope.() -> Unit
 ) {
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(
-            start = SettingsDimens.PageHorizontal,
-            top = SettingsDimens.PageVertical,
-            end = SettingsDimens.PageHorizontal,
-            bottom = SettingsDimens.PageVertical + bottomReserve
+            start = AppDimens.pageHorizontal,
+            top = AppDimens.pageVertical,
+            end = AppDimens.pageHorizontal,
+            bottom = AppDimens.pageVertical + bottomReserve
         ),
-        verticalArrangement = Arrangement.spacedBy(SettingsDimens.GroupSpacing),
+        verticalArrangement = Arrangement.spacedBy(AppDimens.groupSpacing),
         content = content
     )
 }
@@ -88,7 +95,7 @@ fun SettingsList(
 fun SettingsScreen(
     title: String,
     onBack: () -> Unit,
-    bottomReserve: Dp = 0.dp,
+    bottomReserve: Dp = AppDimens.zero,
     snackbarHostState: SnackbarHostState = LocalSnackbarHostState.current,
     dialogs: @Composable () -> Unit = {},
     content: LazyListScope.() -> Unit
@@ -176,8 +183,8 @@ fun SettingsTextField(
         modifier = modifier
             .fillMaxWidth()
             .padding(
-                horizontal = SettingsDimens.ItemHorizontal,
-                vertical = SettingsDimens.ItemVertical
+                horizontal = AppDimens.itemHorizontal,
+                vertical = AppDimens.itemVertical
             ),
         visualTransformation =
             if (isPassword && !passwordVisible.value) PasswordVisualTransformation()
@@ -194,7 +201,7 @@ fun SettingsTextField(
                         imageVector = if (passwordVisible.value) MiuixIcons.Hide else MiuixIcons.Show,
                         contentDescription = if (passwordVisible.value) "隐藏密码" else "显示密码",
                         tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(AppIconSize.sm)
                     )
                 }
             }
@@ -217,8 +224,8 @@ fun SettingsNote(
             MiuixTheme.colorScheme.onSurfaceVariantSummary
         },
         modifier = Modifier.padding(
-            horizontal = SettingsDimens.ItemHorizontal,
-            vertical = SettingsDimens.ItemVertical
+            horizontal = AppDimens.itemHorizontal,
+            vertical = AppDimens.itemVertical
         )
     )
 }
@@ -236,7 +243,7 @@ fun SettingsStatusText(text: String, insideCard: Boolean = false) {
         style = MiuixTheme.textStyles.footnote1,
         color = MiuixTheme.colorScheme.primary,
         modifier = Modifier.padding(
-            horizontal = if (insideCard) SettingsDimens.ItemHorizontal else 0.dp
+            horizontal = if (insideCard) AppDimens.itemHorizontal else AppDimens.zero
         )
     )
 }
@@ -249,8 +256,8 @@ fun SettingsPreviewText(text: String) {
         style = MiuixTheme.textStyles.footnote1,
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         modifier = Modifier.padding(
-            horizontal = SettingsDimens.ItemHorizontal,
-            vertical = 8.dp
+            horizontal = AppDimens.itemHorizontal,
+            vertical = AppDimens.spaceXs
         )
     )
 }
@@ -288,10 +295,10 @@ fun SettingsButtonRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(
-                horizontal = SettingsDimens.ItemHorizontal,
-                vertical = SettingsDimens.ItemVertical
+                horizontal = AppDimens.itemHorizontal,
+                vertical = AppDimens.itemVertical
             ),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(AppDimens.buttonRowSpacing)
     ) {
         Button(
             onClick = onFirstClick,

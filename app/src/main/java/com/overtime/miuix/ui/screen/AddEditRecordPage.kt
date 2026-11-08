@@ -27,6 +27,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.overtime.miuix.ui.theme.AppDimens
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToLong
@@ -243,7 +244,7 @@ fun AddEditRecordPage(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 16.dp
+                    cornerRadius = AppDimens.cardCorner
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),

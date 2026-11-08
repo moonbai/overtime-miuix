@@ -1,4 +1,5 @@
 package com.overtime.miuix.ui.screen
+import com.overtime.miuix.ui.theme.AppDimens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
@@ -22,7 +23,7 @@ fun SettingsGroup(
         }
         Card(
             modifier = Modifier.fillMaxWidth(),
-            cornerRadius = SettingsDimens.CardCorner
+            cornerRadius = AppDimens.cardCorner
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 content()

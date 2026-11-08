@@ -1,7 +1,7 @@
 package com.overtime.miuix.ui.screen
+import com.overtime.miuix.ui.theme.AppShapes
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -132,7 +132,7 @@ fun QuickSubmitSheet(
             if (todayRecords.isNotEmpty()) {
                 Surface(
                     color = MiuixTheme.colorScheme.secondaryContainer,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = AppShapes.radiusMd,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 4.dp)
@@ -191,7 +191,7 @@ fun QuickSubmitSheet(
                             else MiuixTheme.colorScheme.secondaryContainer,
                             contentColor = if (selected) MiuixTheme.colorScheme.onPrimary
                             else MiuixTheme.colorScheme.onSecondaryContainer,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = AppShapes.radiusMd,
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
@@ -229,7 +229,7 @@ fun QuickSubmitSheet(
                         else MiuixTheme.colorScheme.secondaryContainer,
                         contentColor = if (selected) MiuixTheme.colorScheme.onPrimary
                         else MiuixTheme.colorScheme.onSecondaryContainer,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = AppShapes.radiusMd,
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
