@@ -91,7 +91,7 @@ jobs:
         # GitHub 官方 releases.atom 订阅源（不受 REST API 配额限制），不再请求第三方镜像。
         GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         # 更新检查只使用 GitHub 官方数据源，无需再注入 CNB_TOKEN
-      run: ./gradlew assembleRelease --no-daemon --stacktrace --warning-mode all
+      run: ./gradlew assembleRelease --no-daemon --stacktrace --refresh-dependencies --warning-mode all
 
     # 构建产物门禁：签名、包元信息、体积、校验和统一校验并写入构建摘要。
     # 任何一项失败立即中断，避免把未签名/压缩异常的包传到 Release。
