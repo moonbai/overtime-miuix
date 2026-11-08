@@ -1,6 +1,7 @@
 package com.overtime.miuix.ui.screen
 
 import androidx.compose.foundation.layout.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -345,6 +346,7 @@ fun AddEditRecordPage(
 
         // 以下弹窗必须位于 Scaffold 内容体内，才能访问 Scaffold 提供的弹窗宿主并显示
         if (showDatePicker) {
+            BackHandler(enabled = true) { showDatePicker = false }
             OverlayDialog(
                 show = showDatePicker,
                 title = "选择日期",
@@ -399,6 +401,7 @@ fun AddEditRecordPage(
         }
 
         if (showDurationPicker) {
+            BackHandler(enabled = true) { showDurationPicker = false }
             OverlayDialog(
                 show = showDurationPicker,
                 title = "选择加班时长（0.5 小时梯度）",
@@ -434,6 +437,7 @@ fun AddEditRecordPage(
             }
         }
 
+        BackHandler(enabled = showTypePicker) { showTypePicker = false }
         OverlayDialog(
             show = showTypePicker,
             title = "选择类型",
@@ -457,6 +461,7 @@ fun AddEditRecordPage(
             }
         }
 
+        BackHandler(enabled = showLeaveDurationPicker) { showLeaveDurationPicker = false }
         OverlayDialog(
             show = showLeaveDurationPicker,
             title = "选择请假时长",

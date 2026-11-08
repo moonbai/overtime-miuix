@@ -4,8 +4,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
@@ -158,8 +163,11 @@ fun SettingsTextField(
     onValueChange: (String) -> Unit,
     label: String,
     enabled: Boolean = true,
+    isPassword: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    // 密码框：默认以圆点掩码显示，点击尾部的眼睛图标可临时查看明文
+    val passwordVisible = remember { mutableStateOf(false) }
     TextField(
         value = value,
         onValueChange = onValueChange,
@@ -170,7 +178,27 @@ fun SettingsTextField(
             .padding(
                 horizontal = SettingsDimens.ItemHorizontal,
                 vertical = SettingsDimens.ItemVertical
+            ),
+        visualTransformation =
+            if (isPassword && !passwordVisible.value) PasswordVisualTransformation()
+            else VisualTransformation.None,
+        keyboardOptions = if (isPassword)
+            androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = KeyboardType.Password
             )
+        else androidx.compose.foundation.text.KeyboardOptions.Default,
+        trailingIcon = if (isPassword) {
+            {
+                IconButton(onClick = { passwordVisible.value = !passwordVisible.value }) {
+                    Icon(
+                        imageVector = if (passwordVisible.value) MiuixIcons.Hide else MiuixIcons.Show,
+                        contentDescription = if (passwordVisible.value) "隐藏密码" else "显示密码",
+                        tint = MiuixTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        } else null
     )
 }
 

@@ -1,6 +1,7 @@
 package com.overtime.miuix.ui.screen
 
 import androidx.compose.foundation.background
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -343,6 +344,7 @@ fun StatisticsPage(
             val parts = selectedMonth.split("-")
             "${parts[0]}年${parts[1]}月${day}日"
         }
+        BackHandler(enabled = showDayDetail) { showDayDetail = false }
         OverlayDialog(
             show = showDayDetail,
             title = "$dateLabel 记录明细",

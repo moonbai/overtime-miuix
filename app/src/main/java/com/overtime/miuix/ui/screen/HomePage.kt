@@ -1,6 +1,7 @@
 package com.overtime.miuix.ui.screen
 
 import androidx.compose.foundation.background
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -302,6 +303,7 @@ fun HomePage(
         }
     }
 
+    BackHandler(enabled = showDeleteDialog) { showDeleteDialog = false }
     OverlayDialog(
         show = showDeleteDialog,
         title = "确认删除",

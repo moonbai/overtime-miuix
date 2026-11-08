@@ -9,14 +9,14 @@ import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,238 +89,191 @@ fun AboutPage(navController: NavHostController) {
         openExternalLink(context, url, onLinkUnavailable)
     }
 
-    Scaffold(
-        topBar = {
-            SmallTopAppBar(
-                title = "关于",
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
-                    }
-                }
-            )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
-        ) {
-            // Hero 卡片：图标 + 名称 + 版本 + 一行 Slogan
-            item {
-                Card(
+    // 复用设置页统一骨架（返回栏 + Snackbar + 16dp 页面留白 + 12dp 分组间距），
+    // 让「关于」与所有二级设置页共享同一套视觉规范。
+    SettingsScreen(
+        title = "关于",
+        onBack = { navController.popBackStack() }
+    ) {
+        // Hero 卡片：图标 + 名称 + 版本 + 一行 Slogan
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = SettingsDimens.CardCorner,
+                insideMargin = PaddingValues(28.dp)
+            ) {
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 24.dp,
-                    insideMargin = PaddingValues(28.dp)
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                    Box(
+                        modifier = Modifier
+                            .size(88.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(MiuixTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
                     ) {
-                        // 应用图标
-                        Box(
-                            modifier = Modifier
-                                .size(88.dp)
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(MiuixTheme.colorScheme.primaryContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            appIcon?.let { bitmap ->
-                                Image(
-                                    bitmap = bitmap.asImageBitmap(),
-                                    contentDescription = "应用图标",
-                                    contentScale = ContentScale.Fit,
-                                    modifier = Modifier.size(68.dp)
-                                )
-                            } ?: Icon(
-                                MiuixIcons.AppRecording,
+                        appIcon?.let { bitmap ->
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
                                 contentDescription = "应用图标",
-                                tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.size(56.dp)
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.size(68.dp)
                             )
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        // 应用名 + 版本
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "加班记",
-                                style = MiuixTheme.textStyles.headline2,
-                                fontWeight = FontWeight.Bold,
-                                color = MiuixTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "v$versionName",
-                                style = MiuixTheme.textStyles.body1,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        // Slogan：一行显示
-                        Text(
-                            text = "用心记录，每一份付出都值得被看见",
-                            style = MiuixTheme.textStyles.body1,
-                            color = MiuixTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center
+                        } ?: Icon(
+                            MiuixIcons.AppRecording,
+                            contentDescription = "应用图标",
+                            tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.size(56.dp)
                         )
                     }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "加班记",
+                            style = MiuixTheme.textStyles.headline2,
+                            fontWeight = FontWeight.Bold,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "v$versionName",
+                            style = MiuixTheme.textStyles.body1,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "用心记录，每一份付出都值得被看见",
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
+        }
 
-            item { Spacer(modifier = Modifier.height(16.dp)) }
+        item { Spacer(modifier = Modifier.height(SettingsDimens.GroupSpacing)) }
 
-            // 应用简介
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 16.dp,
-                    insideMargin = PaddingValues(20.dp)
-                ) {
-                    Text(
-                        text = "关于应用",
-                        style = MiuixTheme.textStyles.title3,
-                        fontWeight = FontWeight.Bold,
-                        color = MiuixTheme.colorScheme.onSurface
+        // 应用简介：归入标准分组容器，标题与卡片由 SettingsGroup 统一定义
+        item {
+            SettingsGroup(title = "关于应用") {
+                Text(
+                    text = "简洁实用的加班记录与薪资计算工具，支持本地记录、多渠道推送、云端备份、日历同步、智能识别与薪资自动计算。",
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.padding(
+                        horizontal = SettingsDimens.ItemHorizontal,
+                        vertical = 12.dp
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "简洁实用的加班记录与薪资计算工具，支持本地记录、多渠道推送、云端备份、日历同步、智能识别与薪资自动计算。",
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                    )
-                }
+                )
             }
+        }
 
-            item { Spacer(modifier = Modifier.height(16.dp)) }
+        item { Spacer(modifier = Modifier.height(SettingsDimens.GroupSpacing)) }
 
-            // 主要功能
-            item {
-                SmallTitle(text = "主要功能")
-                Spacer(modifier = Modifier.height(10.dp))
+        // 主要功能：保留网格概览，但去掉「卡片套卡片」的嵌套，
+        // 直接以图标 + 文字铺在分组卡片内，与全局卡片规范一致。
+        item {
+            SettingsGroup(title = "主要功能") {
+                FeatureGrid()
             }
-            item { FeatureGrid() }
+        }
 
-            item { Spacer(modifier = Modifier.height(16.dp)) }
+        item { Spacer(modifier = Modifier.height(SettingsDimens.GroupSpacing)) }
 
-            // 开发者 & 操作
-            item {
-                Column {
-                    SmallTitle(text = "关于")
-                    BasicComponent(
-                        title = "作者",
-                        summary = "Mars",
-                        startAction = { Icon(MiuixIcons.Info, contentDescription = null) },
-                        endActions = {
-                            Icon(
-                                imageVector = MiuixIcons.ChevronForward,
-                                contentDescription = "打开微博主页",
-                                tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        },
-                        onClick = { openLink(WEIBO_PROFILE_URL) }
-                    )
-                    BasicComponent(
-                        title = "开源仓库",
-                        summary = "GitHub",
-                        startAction = { Icon(MiuixIcons.Link, contentDescription = null) },
-                        endActions = {
-                            Icon(
-                                imageVector = MiuixIcons.ChevronForward,
-                                contentDescription = "打开仓库主页",
-                                tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        },
-                        onClick = { openLink(REPO_URL) }
-                    )
-                    BasicComponent(
-                        title = "检查更新",
-                        summary = if (checking) "正在检查…" else "查询 GitHub 发布的最新版本",
-                        startAction = { Icon(MiuixIcons.Update, contentDescription = null) },
-                        endActions = {
-                            Icon(
-                                imageVector = MiuixIcons.ChevronForward,
-                                contentDescription = "检查更新",
-                                tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        },
-                        onClick = {
-                            if (checking) return@BasicComponent
-                            checking = true
-                            scope.launch {
-                                try {
-                                    // 检查结果自带「是否有更新」与「失败原因」，
-                                    // UI 不再读取检查器的全局状态
-                                    when (
-                                        val result = UpdateChecker.check(
-                                            versionName, BuildConfig.VERSION_CODE
-                                        )
-                                    ) {
-                                        is UpdateCheckResult.Failure -> {
-                                            snackbarHostState.showCustomToast(result.reason)
-                                        }
-                                        is UpdateCheckResult.Success -> {
-                                            if (result.hasUpdate) {
+        // 开发者 & 操作：与设置首页一致的 SettingsActionItem 跳转行
+        item {
+            SettingsGroup(title = "关于") {
+                SettingsActionItem(
+                    title = "作者",
+                    summary = "Mars",
+                    icon = MiuixIcons.Info,
+                    onClick = { openLink(WEIBO_PROFILE_URL) }
+                )
+                SettingsActionItem(
+                    title = "开源仓库",
+                    summary = "GitHub",
+                    icon = MiuixIcons.Link,
+                    onClick = { openLink(REPO_URL) }
+                )
+                SettingsActionItem(
+                    title = "检查更新",
+                    summary = if (checking) "正在检查…" else "查询 GitHub 发布的最新版本",
+                    icon = MiuixIcons.Update,
+                    onClick = {
+                        if (checking) return@SettingsActionItem
+                        checking = true
+                        scope.launch {
+                            try {
+                                // 检查结果自带「是否有更新」与「失败原因」，
+                                // UI 不再读取检查器的全局状态
+                                when (
+                                    val result = UpdateChecker.check(
+                                        versionName, BuildConfig.VERSION_CODE
+                                    )
+                                ) {
+                                    is UpdateCheckResult.Failure -> {
+                                        snackbarHostState.showCustomToast(result.reason)
+                                    }
+                                    is UpdateCheckResult.Success -> {
+                                        if (result.hasUpdate) {
+                                            updateInfo = result.info
+                                            showUpdateDialog = true
+                                        } else {
+                                            val localSha =
+                                                UpdateChecker.getInstalledApkSha256(context)
+                                            if (UpdateChecker.isLocalConsistent(
+                                                    result.info, localSha
+                                                ) == false
+                                            ) {
                                                 updateInfo = result.info
-                                                showUpdateDialog = true
+                                                showConsistencyDialog = true
                                             } else {
-                                                val localSha =
-                                                    UpdateChecker.getInstalledApkSha256(context)
-                                                if (UpdateChecker.isLocalConsistent(
-                                                        result.info, localSha
-                                                    ) == false
-                                                ) {
-                                                    updateInfo = result.info
-                                                    showConsistencyDialog = true
-                                                } else {
-                                                    snackbarHostState.showCustomToast("已是最新版本")
-                                                }
+                                                snackbarHostState.showCustomToast("已是最新版本")
                                             }
                                         }
                                     }
-                                } catch (e: Exception) {
-                                    snackbarHostState.showCustomToast(
-                                        "检查异常：${e.javaClass.simpleName}"
-                                    )
-                                } finally {
-                                    checking = false
                                 }
+                            } catch (e: Exception) {
+                                snackbarHostState.showCustomToast(
+                                    "检查异常：${e.javaClass.simpleName}"
+                                )
+                            } finally {
+                                checking = false
                             }
                         }
-                    )
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(24.dp)) }
-
-            // 版权
-            item {
-                Text(
-                    text = "© 2026 Mars · All rights reserved",
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
+                    }
                 )
             }
-
-            item { Spacer(modifier = Modifier.height(24.dp)) }
         }
+
+        item { Spacer(modifier = Modifier.height(SettingsDimens.GroupSpacing)) }
+
+        // 版权
+        item {
+            Text(
+                text = "© 2026 Mars · All rights reserved",
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.6f),
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
+        }
+
+        item { Spacer(modifier = Modifier.height(SettingsDimens.GroupSpacing)) }
     }
 
     // 更新对话框
     if (showUpdateDialog && updateInfo != null) {
+        BackHandler(enabled = true) { showUpdateDialog = false }
         val info = updateInfo!!
         val apkSummary = if (info.sizeBytes > 0) {
             "\n安装包：${info.apkName.ifBlank { "APK" }}（${formatApkSize(info.sizeBytes)}）"
@@ -381,6 +334,7 @@ fun AboutPage(navController: NavHostController) {
 
     // 一致性校验对话框
     if (showConsistencyDialog && updateInfo != null) {
+        BackHandler(enabled = true) { showConsistencyDialog = false }
         val info = updateInfo!!
         OverlayDialog(
             show = true,
@@ -409,70 +363,71 @@ fun AboutPage(navController: NavHostController) {
 
 @Composable
 private fun FeatureGrid() {
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            FeatureCard("本地记录", MiuixIcons.Info, Modifier.weight(1f))
-            FeatureCard("多渠道推送", MiuixIcons.Alarm, Modifier.weight(1f))
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            FeatureCard("智能识别", MiuixIcons.AppRecording, Modifier.weight(1f))
-            FeatureCard("云端备份", MiuixIcons.CloudFill, Modifier.weight(1f))
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            FeatureCard("薪资计算", MiuixIcons.BankCards, Modifier.weight(1f))
-            FeatureCard("日历同步", MiuixIcons.Months, Modifier.weight(1f))
+    val features = listOf(
+        "本地记录" to MiuixIcons.Info,
+        "多渠道推送" to MiuixIcons.Alarm,
+        "智能识别" to MiuixIcons.AppRecording,
+        "云端备份" to MiuixIcons.CloudFill,
+        "薪资计算" to MiuixIcons.BankCards,
+        "日历同步" to MiuixIcons.Months
+    )
+    // 2 列网格，单元格直接铺在分组卡片内（不再各自套卡片），
+    // 保留图标 + 文字的概览形式，同时与全局卡片规范一致。
+    val rows = features.chunked(2)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        rows.forEachIndexed { index, rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                rowItems.forEach { (title, icon) ->
+                    FeatureCell(title = title, icon = icon, modifier = Modifier.weight(1f))
+                }
+                // 末行奇数个时用占位补齐，保持两列对齐
+                if (rowItems.size == 1) Spacer(modifier = Modifier.weight(1f))
+            }
+            if (index != rows.lastIndex) {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
         }
     }
 }
 
 @Composable
-private fun FeatureCard(
+private fun FeatureCell(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        cornerRadius = 16.dp,
-        insideMargin = PaddingValues(14.dp)
+    Column(
+        modifier = modifier.padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(MiuixTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(MiuixTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MiuixTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = title,
-                style = MiuixTheme.textStyles.body2,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp)
             )
         }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = title,
+            style = MiuixTheme.textStyles.body2,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center
+        )
     }
 }
 

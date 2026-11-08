@@ -1,6 +1,7 @@
 package com.overtime.miuix.ui.screen
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -183,6 +184,7 @@ fun BackupSettingsPage(
         snackbarHostState = snackbarHostState,
         dialogs = {
             // 云端恢复：选择远端备份文件
+            BackHandler(enabled = showRestoreDialog) { showRestoreDialog = false }
             OverlayDialog(
                 show = showRestoreDialog,
                 title = "选择要恢复的备份",
@@ -210,6 +212,7 @@ fun BackupSettingsPage(
             }
 
             // 导入/恢复二次确认
+            BackHandler(enabled = pendingImport != null) { pendingImport = null }
             OverlayDialog(
                 show = pendingImport != null,
                 title = "确认导入",
@@ -330,7 +333,8 @@ fun BackupSettingsPage(
                             webdavPassText = it
                             scope.launch { settingsRepository.setWebdavPassword(it) }
                         },
-                        label = "密码"
+                        label = "密码",
+                        isPassword = true
                     )
                     SettingsTextField(
                         value = webdavPathText,

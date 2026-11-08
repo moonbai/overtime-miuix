@@ -35,8 +35,16 @@ import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.mcp.McpHostService
 import com.overtime.miuix.ui.screen.*
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.navigationevent.NavigationEvent
+import androidx.navigationevent.NavigationEventTransitionState
+import androidx.navigationevent.OnBackInvokedOverlayInput
 import com.overtime.miuix.ui.theme.OvertimeTheme
 import com.overtime.miuix.util.SalaryCalculator
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
@@ -138,17 +146,31 @@ class MainActivity : ComponentActivity() {
 private fun resolveBackTransition(mode: String): BackTransition =
     BackTransition.entries.firstOrNull { it.name == mode } ?: BackTransition.SCALE_FADE
 
-/** 返回（含预测性返回手势预览）转场规格。 */
-private fun backEnter(mode: String): EnterTransition = when (resolveBackTransition(mode)) {
-    BackTransition.SLIDE_HORIZONTAL -> slideInHorizontally(animationSpec = tween(300)) { -it / 4 } + fadeIn(tween(300))
+/**
+ * 返回（含预测性返回手势预览）转场规格。
+ * @param edge 最近一次返回手势的来源边缘：[NavigationEvent.EDGE_RIGHT] 时横向方向翻转，
+ *             即手势从右侧返回则页面从右向左收束，从左侧返回则保持默认（左向右）。
+ */
+private fun backEnter(mode: String, edge: Int): EnterTransition = when (resolveBackTransition(mode)) {
+    BackTransition.SLIDE_HORIZONTAL ->
+        // 右边缘手势：上一页从右侧进入；左边缘手势：从左侧进入
+        if (edge == NavigationEvent.EDGE_RIGHT)
+            slideInHorizontally(animationSpec = tween(300)) { it / 4 } + fadeIn(tween(300))
+        else
+            slideInHorizontally(animationSpec = tween(300)) { -it / 4 } + fadeIn(tween(300))
     BackTransition.SLIDE_VERTICAL -> slideInVertically(animationSpec = tween(300)) { -it / 4 } + fadeIn(tween(300))
     BackTransition.FADE -> fadeIn(tween(300))
     BackTransition.NONE -> EnterTransition.None
     else -> scaleIn(animationSpec = tween(300), initialScale = 0.92f) + fadeIn(tween(300))
 }
 
-private fun backExit(mode: String): ExitTransition = when (resolveBackTransition(mode)) {
-    BackTransition.SLIDE_HORIZONTAL -> slideOutHorizontally(animationSpec = tween(300)) { it / 4 } + fadeOut(tween(300))
+private fun backExit(mode: String, edge: Int): ExitTransition = when (resolveBackTransition(mode)) {
+    BackTransition.SLIDE_HORIZONTAL ->
+        // 右边缘手势：当前页向左收束；左边缘手势：向右收束
+        if (edge == NavigationEvent.EDGE_RIGHT)
+            slideOutHorizontally(animationSpec = tween(300)) { -it / 4 } + fadeOut(tween(300))
+        else
+            slideOutHorizontally(animationSpec = tween(300)) { it / 4 } + fadeOut(tween(300))
     BackTransition.SLIDE_VERTICAL -> slideOutVertically(animationSpec = tween(300)) { it / 4 } + fadeOut(tween(300))
     BackTransition.FADE -> fadeOut(tween(300))
     BackTransition.NONE -> ExitTransition.None
@@ -179,12 +201,46 @@ fun MainNavHost(
     settingsRepository: SettingsRepository
 ) {
     // Miuix 的 OverlayDialog 内部使用 NavigationBackHandler，
-    // 需要 LocalNavigationEventDispatcherOwner（navigationevent-compose 1.0.2）。
+    // 需要 LocalNavigationEventDispatcherOwner（navigationevent-compose 1.1.2）。
     // NavHost 自身不提供该值，此处创建根 dispatcher（parent = null）。
     val dispatcherOwner = rememberNavigationEventDispatcherOwner(
         enabled = true,
         parent = null
     )
+    val dispatcher = dispatcherOwner.navigationEventDispatcher
+
+    // 将系统预测返回接入 dispatcher 树，让 MIUIX 弹窗（OverlayDialog 内部使用
+    // NavigationBackHandler）能拦截返回手势并关闭弹窗：
+    //   - 此前 root dispatcher 没有任何系统输入，返回手势从未进入该树，
+    //     导致弹窗打开时按返回直接退出应用；
+    //   - 使用 OverlayInput（优先级 1000000，高于 Activity 默认返回 0 / NavHost 所用），
+    //     保证弹窗打开时其消费型 handler 优先于页面返回拿到手势。
+    // 仅当树中存在「已启用（消费型）」handler 时，OverlayInput 才会注册系统回调，
+    // 弹窗关闭后自动注销，因此不会干扰正常的页面返回导航（页面返回仍由 NavHost 处理）。
+    val onBackInvokedDispatcher =
+        (LocalContext.current as? ComponentActivity)?.onBackInvokedDispatcher
+    DisposableEffect(dispatcher, onBackInvokedDispatcher) {
+        val input = onBackInvokedDispatcher?.let { OnBackInvokedOverlayInput(it) }
+        if (input != null) dispatcher.addInput(input)
+        onDispose { input?.let { dispatcher.removeInput(it) } }
+    }
+
+    // 记录最近一次返回手势的来源边缘（左 / 右）。
+    // OverlayInput 仅在弹窗打开（树中存在消费型 handler）时注册系统回调，
+    // 因此这里捕获到的是「弹窗返回」手势的边缘，供横向返回动画定向参考；
+    // 普通页面返回由 NavHost 自行处理，本 dispatcher 不参与，方向沿用系统惯例（左→右）。
+    val backSwipeEdge = remember { mutableIntStateOf(NavigationEvent.EDGE_LEFT) }
+    LaunchedEffect(dispatcher) {
+        dispatcher.transitionState.collect { state ->
+            if (state is NavigationEventTransitionState.InProgress) {
+                val edge = state.latestEvent.swipeEdge
+                if (edge == NavigationEvent.EDGE_LEFT || edge == NavigationEvent.EDGE_RIGHT) {
+                    backSwipeEdge.intValue = edge
+                }
+            }
+        }
+    }
+
     // 返回动画可在「外观设置 → 页面转场」中切换；预测性返回手势预览复用同一组规格
     val backTransition by settingsRepository.predictiveBackTransition
         .collectAsState(initial = BackTransition.SCALE_FADE.name)
@@ -192,9 +248,11 @@ fun MainNavHost(
     val predictiveBackEnabled by settingsRepository.predictiveBackEnabled
         .collectAsState(initial = true)
     val popEnter: EnterTransition =
-        if (predictiveBackEnabled) backEnter(backTransition) else EnterTransition.None
+        if (predictiveBackEnabled) backEnter(backTransition, backSwipeEdge.intValue)
+        else EnterTransition.None
     val popExit: ExitTransition =
-        if (predictiveBackEnabled) backExit(backTransition) else ExitTransition.None
+        if (predictiveBackEnabled) backExit(backTransition, backSwipeEdge.intValue)
+        else ExitTransition.None
 
     CompositionLocalProvider(
         LocalNavigationEventDispatcherOwner provides dispatcherOwner,

@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
 import kotlin.math.roundToInt
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.model.BottomBarStyle
@@ -205,7 +206,7 @@ fun AppearanceSettingsPage(
                             }
                         }
                     )
-                    SettingsNote(text = "切换后立即生效；当前：${BackTransition.entries[backTransitionSelected].label}")
+                    SettingsNote(text = "切换后立即生效")
                 } else {
                     SettingsNote(text = "返回预测已关闭，返回时不做任何动画（瞬时返回）")
                 }
@@ -295,6 +296,9 @@ private fun ColorPickerRow(
             )
         }
     }
+
+    // 取色器打开时拦截系统返回手势，关闭弹窗而非退出应用
+    BackHandler(enabled = showDialog) { showDialog = false }
 
     OverlayDialog(
         show = showDialog,

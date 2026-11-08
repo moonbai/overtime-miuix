@@ -21,6 +21,7 @@ import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -101,6 +102,9 @@ fun QuickSubmitSheet(
     } else {
         SalaryCalculator.calculateOvertimeAmount(baseSalary, selectedType, rate, durationHours)
     }
+
+    // 弹窗打开时拦截系统返回手势，关闭弹窗而非退出应用（与 MIUIX NavigationBackHandler 双保险）
+    BackHandler(enabled = show && !saving) { if (!saving) onDismiss() }
 
     OverlayDialog(
         show = show,
