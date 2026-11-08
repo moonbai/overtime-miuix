@@ -114,7 +114,7 @@ fun AppearanceSettingsPage(
         onBack = { navController.popBackStack() }
     ) {
         item {
-            SettingsGroup(title = "主题") {
+            SettingsGroup {
                 OverlaySpinnerPreference(
                     items = themeItems,
                     selectedIndex = themeSelected,
@@ -134,7 +134,7 @@ fun AppearanceSettingsPage(
 
         item {
             // 底栏样式、悬浮底栏、快速提报都属于「首页操作方式」，合并为一组避免碎片分组
-            SettingsGroup(title = "导航与快捷操作") {
+            SettingsGroup {
                 OverlaySpinnerPreference(
                     items = bottomBarItems,
                     selectedIndex = bottomBarSelected,
@@ -211,7 +211,7 @@ fun AppearanceSettingsPage(
         }
 
         item {
-            SettingsGroup(title = "页面转场") {
+            SettingsGroup {
                 SettingsSwitchItem(
                     title = "返回预测",
                     summary = "开启后，系统返回手势会实时预览目标页面并显示返回动画",
@@ -263,7 +263,7 @@ fun AppearanceSettingsPage(
 
         item {
             // 强调色与各类型颜色是同一类配置，合并为一组
-            SettingsGroup(title = "颜色") {
+            SettingsGroup {
                 ColorPickerRow(
                     label = "全局强调色",
                     selected = accentColor,

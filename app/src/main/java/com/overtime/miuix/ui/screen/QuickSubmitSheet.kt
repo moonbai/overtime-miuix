@@ -73,6 +73,11 @@ fun QuickSubmitSheet(
     var durationHours by remember { mutableStateOf(2.0) }
     var note by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
+    // 一次性提交锁：本次弹窗会话只允许入库一次。成功入库后不解锁，
+    // 覆盖「保存完成 → onDismiss → 弹窗退出动画」期间按钮仍可见可点的连点窗口；
+    // 快速双击时重组尚未发生，靠这个快照状态拦截比按钮 enabled 更可靠。
+    // 弹窗关闭后本组件仍留在组合树中（show 只控制显隐），下次打开时统一复位。
+    var submitted by remember { mutableStateOf(false) }
     // 请假模式：快速提报也支持记请假
     var isLeave by remember { mutableStateOf(false) }
     var leaveDuration by remember { mutableStateOf(-4.0) }
@@ -83,19 +88,23 @@ fun QuickSubmitSheet(
         if (enabled) leaveDuration = -4.0
     }
 
-    // 弹出时按当天日期自动判定加班类型
+    // 弹出时复位提交状态并按当天日期自动判定加班类型
     LaunchedEffect(show) {
-        if (show && !typeManuallyChanged) {
-            val source = try { HolidayDataSource.valueOf(holidayDataSource) } catch (_: Exception) { HolidayDataSource.TIMOR }
-            HolidayManager.configure(
-                dataSource = source,
-                customUrl = holidayCustomUrl,
-                mxnzpAppId = holidayMxnzpAppId,
-                mxnzpAppSecret = holidayMxnzpAppSecret,
-                ignoreHoliday = holidayIgnoreHoliday
-            )
-            selectedType = HolidayManager.getOvertimeType(dateStr)
-            autoDetected = true
+        if (show) {
+            saving = false
+            submitted = false
+            if (!typeManuallyChanged) {
+                val source = try { HolidayDataSource.valueOf(holidayDataSource) } catch (_: Exception) { HolidayDataSource.TIMOR }
+                HolidayManager.configure(
+                    dataSource = source,
+                    customUrl = holidayCustomUrl,
+                    mxnzpAppId = holidayMxnzpAppId,
+                    mxnzpAppSecret = holidayMxnzpAppSecret,
+                    ignoreHoliday = holidayIgnoreHoliday
+                )
+                selectedType = HolidayManager.getOvertimeType(dateStr)
+                autoDetected = true
+            }
         }
     }
 
@@ -297,8 +306,11 @@ fun QuickSubmitSheet(
                 )
                 Button(
                     onClick = {
-                        if (saving) return@Button
+                        // 一次性锁：协程启动前就置位，连点在重组发生前也会被拦下；
+                        // 成功入库后不解锁，覆盖弹窗退出动画期间按钮仍可见的窗口。
+                        if (saving || submitted) return@Button
                         saving = true
+                        submitted = true
                         scope.launch {
                             try {
                                 val finalDuration = if (isLeave) leaveDuration else durationHours
@@ -330,20 +342,24 @@ fun QuickSubmitSheet(
                                     e.printStackTrace()
                                     null
                                 }
-                                saving = false
                                 onSaved(
                                     RecordSyncHelper.calendarHint(calendarResult) ?: "已提报今日加班"
                                 )
                                 onDismiss()
+                                // 不复位 saving / submitted：弹窗关闭后本组件仍在组合树中，
+                                // 状态由下次打开时的 LaunchedEffect(show) 统一复位。
                             } catch (e: Exception) {
                                 e.printStackTrace()
+                                // 仅入库失败才允许重试；成功路径绝不解锁
                                 saving = false
+                                submitted = false
                             }
                         }
                     },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(if (saving) "提交中..." else "提交", color = MiuixTheme.colorScheme.onPrimary)
+                    // 由 Button 透传内容色，不手写 onPrimary（否则在部分主题下文字发灰）
+                    Text(if (saving) "提交中..." else "提交")
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
