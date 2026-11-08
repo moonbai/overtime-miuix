@@ -1,5 +1,6 @@
 package com.mars.overtime
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -53,6 +54,11 @@ import top.yukonga.miuix.kmp.basic.SnackbarHostState
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        /** 通知 / 外部入口携带的目标导航路由 extra，值为 NavHost 中的路由字符串。 */
+        const val EXTRA_NAVIGATE_TO = "navigate_to"
+    }
+
     /**
      * 最近一次返回手势的来源边缘（左 / 右），供「退出方向 = 跟随手势」使用。
      *
@@ -63,6 +69,13 @@ class MainActivity : ComponentActivity() {
      */
     private val backSwipeEdge = mutableIntStateOf(NavigationEvent.EDGE_LEFT)
 
+    /**
+     * 待执行的导航路由（如通知点击携带的 "mcp_settings"）。
+     * 通知点击两条路径都会写入：冷启动在 onCreate 读 intent、应用已在前台/后台
+     * 走 onNewIntent。MainNavHost 内的 LaunchedEffect 消费后置空，避免重复跳转。
+     */
+    private val pendingNavigation = mutableStateOf<String?>(null)
+
     /** 系统预测性返回手势的实时进度（0..1），仅 API 36+ 的非消费型观察者能读到。 */
     private val backProgress = mutableFloatStateOf(0f)
     private var backObserver: OnBackAnimationCallback? = null
@@ -70,6 +83,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // 通知点击冷启动：从 intent 读取目标路由（如 MCP 服务子界面）
+        pendingNavigation.value = intent?.getStringExtra(EXTRA_NAVIGATE_TO)
 
         // 启动流程不申请任何运行时权限：POST_NOTIFICATIONS / ACCESS_LOCAL_NETWORK
         // 只在用户主动启用 MCP 服务、WebDAV 云端备份等开关那一刻按需请求，
@@ -106,6 +122,13 @@ class MainActivity : ComponentActivity() {
                     SalaryCalculator.configure(workingDaysPerMonth, hoursPerDay)
                 }
                 val navController = rememberNavController()
+                // 消费待执行的导航：通知点击后直达目标子界面（如 MCP 服务设置）
+                LaunchedEffect(pendingNavigation.value) {
+                    pendingNavigation.value?.let { route ->
+                        navController.navigate(route) { launchSingleTop = true }
+                        pendingNavigation.value = null
+                    }
+                }
                 MainNavHost(
                     navController = navController,
                     repository = repository,
@@ -199,6 +222,16 @@ class MainActivity : ComponentActivity() {
             }
         }
         return super.dispatchTouchEvent(ev)
+    }
+
+    /**
+     * MainActivity 声明为 singleTop：通知点击时若 Activity 已在栈顶，
+     * 系统不再新建实例而是回调这里，intent 中携带的目标路由随后由
+     * setContent 内的 LaunchedEffect 消费并导航。
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.getStringExtra(EXTRA_NAVIGATE_TO)?.let { pendingNavigation.value = it }
     }
 
     override fun onDestroy() {

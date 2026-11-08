@@ -37,17 +37,42 @@ class OvertimeRepository(private val database: AppDatabase) {
 
     /** 获取某个月（yyyy-MM）内的全部记录，供日历视图按日聚合。 */
     suspend fun getMonthRecords(yearMonth: String): List<OvertimeRecord> {
-        val sdf = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+        return getRecordsInRange(yearMonth, "yyyy-MM") { cal ->
+            cal.set(Calendar.DAY_OF_MONTH, 1)
+            cal.set(Calendar.HOUR_OF_DAY, 0)
+            cal.set(Calendar.MINUTE, 0)
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            val startDate = cal.timeInMillis
+            cal.add(Calendar.MONTH, 1)
+            startDate to cal.timeInMillis
+        }
+    }
+
+    /** 获取某年（yyyy）内的全部记录，供年度统计使用。 */
+    suspend fun getYearRecords(year: String): List<OvertimeRecord> {
+        return getRecordsInRange(year, "yyyy") { cal ->
+            cal.set(Calendar.DAY_OF_YEAR, 1)
+            cal.set(Calendar.HOUR_OF_DAY, 0)
+            cal.set(Calendar.MINUTE, 0)
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            val startDate = cal.timeInMillis
+            cal.add(Calendar.YEAR, 1)
+            startDate to cal.timeInMillis
+        }
+    }
+
+    /** 通用区间查询：按给定 pattern 解析输入时间作为起点，再由调用方推导区间起止，避免月/年两份重复代码。 */
+    private suspend fun getRecordsInRange(
+        input: String,
+        pattern: String,
+        range: (Calendar) -> Pair<Long, Long>
+    ): List<OvertimeRecord> {
+        val sdf = SimpleDateFormat(pattern, Locale.getDefault())
         val cal = Calendar.getInstance()
-        cal.time = sdf.parse(yearMonth) ?: Date()
-        cal.set(Calendar.DAY_OF_MONTH, 1)
-        cal.set(Calendar.HOUR_OF_DAY, 0)
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        val startDate = cal.timeInMillis
-        cal.add(Calendar.MONTH, 1)
-        val endDate = cal.timeInMillis
+        cal.time = sdf.parse(input) ?: Date()
+        val (startDate, endDate) = range(cal)
         return dao.getRecordsByDateRange(startDate, endDate).first()
     }
     

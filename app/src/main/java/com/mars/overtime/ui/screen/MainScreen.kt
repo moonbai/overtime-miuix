@@ -120,14 +120,29 @@ fun MainScreen(
             )
         },
         topBar = {
-            SmallTopAppBar(
-                title = when (selectedTab) {
-                    0 -> "加班记录"
-                    1 -> "统计"
-                    2 -> "设置"
-                    else -> "加班记录"
-                }
-            )
+            // 顶栏高斯模糊：内容层延伸到顶栏背后作为毛玻璃采样源，blurSupported 为 false
+            // 或设备不支持运行时 shader 时回退到不透明 surface，保证标题始终可读。
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .textureBlur(
+                        backdrop = navBackdrop,
+                        shape = AppShapes.radiusZero,
+                        blurRadius = 40f,
+                        enabled = blurSupported
+                    )
+            ) {
+                SmallTopAppBar(
+                    title = when (selectedTab) {
+                        0 -> "加班记录"
+                        1 -> "统计"
+                        2 -> "设置"
+                        else -> "加班记录"
+                    },
+                    color = if (blurSupported) Color.Transparent
+                    else MiuixTheme.colorScheme.surface
+                )
+            }
         },
         // 普通底栏：高斯模糊背景
         bottomBar = {
@@ -184,26 +199,23 @@ fun MainScreen(
         val fabAnchor = LocalFabAnchor.current
         SideEffect { fabAnchor.bottom = activeFabBottom }
 
-        // 内容底部留白：
-        // - 普通底栏：Scaffold 已为其预留空间（paddingValues 含底栏高度），内容自然不被遮挡；
-        // - 悬浮底栏（彻底悬浮）：内容层底部不预留空间，可滚动至底栏「背后」，
-        //   毛玻璃透出其后内容；末项防遮挡由各页面列表自身底部留白（bottomReserve）保证。
-        val contentBottom = if (useFloatingNav) {
-            0.dp
+        // 内容层不再用 Scaffold 的 top/bottom padding 把列表夹在两栏之间：
+        // 否则顶栏/底栏背后没有内容可采样，textureBlur 只能模糊到一片空白，
+        // 视觉上就是纯色块而不是毛玻璃。改为内容层铺满整屏（延伸到栏背后），
+        // 由各页面列表自己用 contentPadding 给首项/末项留出避让空间。
+        val topReserve = paddingValues.calculateTopPadding()
+        val bottomReserve = if (useFloatingNav) {
+            floatingBottomReserve
         } else {
             paddingValues.calculateBottomPadding()
         }
-        // 仅悬浮模式给各页面列表补充底部留白（普通模式由 Scaffold 预留空间，无需额外留白）
-        val bottomReserve = if (useFloatingNav) floatingBottomReserve else 0.dp
         val contentPadding = PaddingValues(
-            top = paddingValues.calculateTopPadding(),
             start = paddingValues.calculateStartPadding(LocalLayoutDirection.current),
-            end = paddingValues.calculateEndPadding(LocalLayoutDirection.current),
-            bottom = contentBottom
+            end = paddingValues.calculateEndPadding(LocalLayoutDirection.current)
         )
 
         Box(modifier = Modifier.fillMaxSize()) {
-            // 页面内容层（同时作为 FAB / 底栏毛玻璃的背景源）
+            // 页面内容层（同时作为顶栏 / 底栏 / FAB 毛玻璃的背景源）
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -215,6 +227,7 @@ fun MainScreen(
                         navController = navController,
                         repository = repository,
                         settingsRepository = settingsRepository,
+                        topReserve = topReserve,
                         bottomReserve = bottomReserve,
                         listState = homeListState
                     )
@@ -222,10 +235,12 @@ fun MainScreen(
                         navController = navController,
                         repository = repository,
                         settingsRepository = settingsRepository,
+                        topReserve = topReserve,
                         bottomReserve = bottomReserve
                     )
                     2 -> SettingsPage(
                         navController = navController,
+                        topReserve = topReserve,
                         bottomReserve = bottomReserve
                     )
                 }
@@ -244,6 +259,9 @@ fun MainScreen(
                     blurSupported = blurSupported,
                     bottomOffset = floatingBarOffset,
                     navBarInset = navBarInset,
+                    // 悬浮底栏此前硬编码只画图标，导致外观设置里的「图标+文字」无效。
+                    // 与普通底栏共用同一份 bottomBarStyle 判定，两种底栏表现一致。
+                    showLabel = navMode == NavigationBarDisplayMode.IconAndText,
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
 
@@ -310,6 +328,9 @@ fun MainScreen(
  * 胶囊本体仍使用 MIUIX 的 textureBlur 毛玻璃与 MiuixTheme 配色，图标取自
  * MIUIX / AppIcons，视觉与框架设计语言保持一致。
  * 尺寸与圆角统一取自令牌层（AppDimens / AppShapes）。
+ *
+ * @param showLabel 是否显示图标下方文字，与外观设置 bottomBarStyle 联动：
+ *                  true 为「图标+文字」，false 为「仅图标」。
  */
 @Composable
 private fun LiquidFloatingNavBar(
@@ -319,6 +340,7 @@ private fun LiquidFloatingNavBar(
     blurSupported: Boolean,
     bottomOffset: Dp,
     navBarInset: Dp,
+    showLabel: Boolean,
     modifier: Modifier = Modifier
 ) {
     val items = listOf(
@@ -404,13 +426,37 @@ private fun LiquidFloatingNavBar(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        Icon(
-                            icon,
-                            contentDescription = label,
-                            tint = if (selectedTab == index) MiuixTheme.colorScheme.primary
-                            else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.size(AppIconSize.lg)
-                        )
+                        val tint = if (selectedTab == index) MiuixTheme.colorScheme.primary
+                        else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        if (showLabel) {
+                            // 图标 + 文字：胶囊固定 64dp 高，图标收至 24dp 并压缩间距，
+                            // 保证文字不与液态指示器边缘相撞。
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    icon,
+                                    contentDescription = null,
+                                    tint = tint,
+                                    modifier = Modifier.size(AppIconSize.md)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = label,
+                                    style = MiuixTheme.textStyles.footnote1,
+                                    color = tint,
+                                    maxLines = 1
+                                )
+                            }
+                        } else {
+                            Icon(
+                                icon,
+                                contentDescription = label,
+                                tint = tint,
+                                modifier = Modifier.size(AppIconSize.lg)
+                            )
+                        }
                     }
                 }
             }

@@ -2,7 +2,6 @@ package com.mars.overtime.ui.screen
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -107,6 +106,7 @@ fun StatisticsPage(
     navController: NavHostController,
     repository: OvertimeRepository,
     settingsRepository: SettingsRepository,
+    topReserve: Dp = 0.dp,
     bottomReserve: Dp = 0.dp
 ) {
     // 全部记录：用于动态计算可统计的月份范围（最早记录月 ~ 当前月）
@@ -316,7 +316,7 @@ fun StatisticsPage(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = AppDimens.pageHorizontal,
-            top = AppDimens.pageVertical,
+            top = AppDimens.pageVertical + topReserve,
             end = AppDimens.pageHorizontal,
             bottom = AppDimens.pageVertical + bottomReserve
         ),
@@ -384,17 +384,15 @@ fun StatisticsPage(
             }
         }
 
-        // 图例：类型颜色说明（记录文字 / 色条），月/年视图都显示
+        // 图例：类型颜色说明（记录文字 / 色条），月/年视图都显示。
+        // 「日期底色」图例已移除：底色与类型图例同源同色，单独一行属于重复信息。
         item {
             LegendRow(typeColor = typeColor)
         }
 
-        // 月度视图专属：日期底色图例 + 日历卡片。
-        // 年度视图没有日历格子，因此不显示底色图例、也不做任何日期着色。
+        // 月度视图专属：日历卡片。
+        // 年度视图没有日历格子，不做任何日期着色。
         if (viewMode == StatsViewMode.MONTH) {
-            item {
-                DayBackgroundLegend(dayBackground = dayBackground)
-            }
             item {
                 CalendarCard(
                     selectedMonth = selectedMonth,
@@ -623,49 +621,6 @@ private fun LegendItem(color: Color, label: String) {
                 .background(color, RoundedCornerShape(AppDimens.chartBarRadius))
         )
         Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = label,
-            style = MiuixTheme.textStyles.footnote1,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-        )
-    }
-}
-
-/**
- * 日期底色图例：只随月度日历一起出现。色块用真实底色 + 实色描边，
- * 避免 10~18% 的淡色在浅色卡片上看不见。
- */
-@Composable
-private fun DayBackgroundLegend(dayBackground: (DayCategory) -> Color) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = AppDimens.spaceXxs),
-        horizontalArrangement = Arrangement.spacedBy(AppDimens.spaceXs),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "日期底色",
-            style = MiuixTheme.textStyles.footnote1,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-        )
-        DayCategory.entries.forEach { category ->
-            DayBackgroundLegendItem(dayBackground(category), category.label)
-        }
-    }
-}
-
-@Composable
-private fun DayBackgroundLegendItem(color: Color, label: String) {
-    val shape = RoundedCornerShape(AppDimens.chartBarRadius)
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .background(color, shape)
-                .border(0.5.dp, color.copy(alpha = 1f), shape)
-        )
-        Spacer(modifier = Modifier.width(AppDimens.spaceXxs))
         Text(
             text = label,
             style = MiuixTheme.textStyles.footnote1,

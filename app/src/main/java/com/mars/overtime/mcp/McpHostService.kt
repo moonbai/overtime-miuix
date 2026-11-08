@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
+import com.mars.overtime.MainActivity
 import com.mars.overtime.R
 import com.google.gson.Gson
 import com.google.gson.JsonArray
@@ -57,7 +58,8 @@ import java.util.concurrent.ConcurrentHashMap
  *  - `DELETE /mcp` 终止会话。
  *
  * 实现的 MCP 方法：`initialize` / `ping` / `tools/list` / `tools/call`，
- * 暴露的工具：add_overtime_record、query_overtime_records、get_monthly_stats。
+ * 暴露的工具：add_overtime_record、query_overtime_records、delete_overtime_record、
+ * get_monthly_stats、get_yearly_stats。
  */
 class McpHostService : Service() {
     private var server: EmbeddedServer<*, *>? = null
@@ -123,7 +125,15 @@ class McpHostService : Service() {
         ).apply { description = "局域网 MCP 服务运行状态" }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
 
-        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+        // 不再用 getLaunchIntentForPackage：它只把任务切到前台，不携带导航信息，
+        // 点击通知永远只能回到主页。改为显式 Intent 携带目标路由，
+        // MainActivity 收到后直接跳到 MCP 服务子界面。
+        // FLAG_ACTIVITY_SINGLE_TOP + MainActivity 的 singleTop 启动模式保证：
+        // 应用在前台时走 onNewIntent、在后台/未启动时走 onCreate，两种路径都能导航。
+        val launchIntent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra(MainActivity.EXTRA_NAVIGATE_TO, "mcp_settings")
+        }
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,
@@ -133,7 +143,7 @@ class McpHostService : Service() {
         return Notification.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notify)
             .setContentTitle("MCP 服务运行中")
-            .setContentText("端口 $port · 点击返回应用")
+            .setContentText("端口 $port · 点击打开 MCP 设置")
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)
@@ -352,6 +362,7 @@ class McpHostService : Service() {
                 name = "add_overtime_record",
                 description = "添加一条加班或请假记录。参数 date(YYYY-MM-DD)、type(WORKDAY/WEEKEND/HOLIDAY)、" +
                     "durationHours(加班小时数，0.5为梯度)、note(可选)、isLeave(是否为请假)、leaveHours(请假小时数，仅 4 或 8，默认 4)。" +
+                    "加班时长上限与 App 内一致：工作日最多 8h，休息日/节假日最多 12h，超出部分自动压到上限。" +
                     "写入后会与 App 内保存一样触发推送、日历同步与自动备份。",
                 required = listOf("date"),
                 properties = mapOf(
@@ -365,10 +376,22 @@ class McpHostService : Service() {
             ))
             add(toolSpec(
                 name = "query_overtime_records",
-                description = "查询加班记录，可按类型过滤。返回记录列表。",
+                description = "查询加班记录，可按类型过滤。返回记录列表（含 id，可用于删除）。",
                 required = emptyList(),
                 properties = mapOf(
                     "type" to schemaEnum(listOf("WORKDAY", "WEEKEND", "HOLIDAY"), "按类型过滤（可选）")
+                )
+            ))
+            add(toolSpec(
+                name = "delete_overtime_record",
+                description = "删除加班/请假记录。优先提供 id 精确删除（可从 query_overtime_records 获取）；" +
+                    "也可以只给 date(YYYY-MM-DD) 按日期删除，配合 type 可选过滤。" +
+                    "按日期匹配到多条且未指定 type 时不执行删除，返回候选列表（含 id）等待确认，避免误删。",
+                required = emptyList(),
+                properties = mapOf(
+                    "id" to schema("number", "记录 id，优先使用，精确删除一条"),
+                    "date" to schema("string", "日期，格式 YYYY-MM-DD；未提供 id 时按日期匹配"),
+                    "type" to schemaEnum(listOf("WORKDAY", "WEEKEND", "HOLIDAY"), "按类型过滤（可选，仅按日期匹配时生效）")
                 )
             ))
             add(toolSpec(
@@ -376,6 +399,12 @@ class McpHostService : Service() {
                 description = "获取指定月份的加班统计：总时长、预估薪资、记录数、各类别时长。",
                 required = listOf("month"),
                 properties = mapOf("month" to schema("string", "月份，格式 YYYY-MM"))
+            ))
+            add(toolSpec(
+                name = "get_yearly_stats",
+                description = "获取指定年份的加班年度统计：总时长、预估薪资、记录数与各类别时长。",
+                required = listOf("year"),
+                properties = mapOf("year" to schema("string", "年份，格式 YYYY"))
             ))
         })
     }
@@ -388,7 +417,9 @@ class McpHostService : Service() {
         return when (name) {
             "add_overtime_record" -> callAddOvertime(arguments, context)
             "query_overtime_records" -> callQuery(arguments, context)
+            "delete_overtime_record" -> callDeleteRecord(arguments, context)
             "get_monthly_stats" -> callMonthlyStats(arguments, context)
+            "get_yearly_stats" -> callYearlyStats(arguments, context)
             else -> throw RpcException(CODE_METHOD_NOT_FOUND, "Unknown tool: $name")
         }
     }
@@ -397,6 +428,11 @@ class McpHostService : Service() {
         val dateStr = args.get("date")?.takeIf { it.isJsonPrimitive }?.asString
             ?: throw RpcException(CODE_INVALID_PARAMS, "Missing required parameter: date")
         val typeStr = args.get("type")?.takeIf { it.isJsonPrimitive }?.asString ?: "WORKDAY"
+        val type = try {
+            OvertimeType.valueOf(typeStr.uppercase(Locale.getDefault()))
+        } catch (_: Exception) {
+            OvertimeType.WORKDAY
+        }
         val durationHoursRaw = args.get("durationHours")?.takeIf { it.isJsonPrimitive }?.asNumber
         val isLeave = runCatching {
             args.get("isLeave")?.takeIf { it.isJsonPrimitive }?.asBoolean ?: false
@@ -404,22 +440,17 @@ class McpHostService : Service() {
         val leaveHoursRaw = runCatching {
             args.get("leaveHours")?.takeIf { it.isJsonPrimitive }?.asNumber?.toDouble()
         }.getOrNull()
-        // 加班：0.5 梯度、默认 2.0，夹到 [0.5, 24]；
+        // 加班：0.5 梯度、默认 2.0；上限与 App 内添加记录页一致：工作日最多 8h，休息日/节假日最多 12h；
         // 请假：与 App 内口径一致，只允许半天 -4 / 全天 -8，>=6h 视为全天，
         // 避免通过 MCP 写入 3.5h 这类 App 里已经不存在的档位。
         val durationHours = if (isLeave) {
             if (kotlin.math.abs(leaveHoursRaw ?: 4.0) >= 6.0) -8.0 else -4.0
         } else {
+            val maxHours = if (type == OvertimeType.WORKDAY) 8.0 else 12.0
             val raw = durationHoursRaw?.toDouble() ?: 2.0
-            (kotlin.math.round(raw * 2) / 2.0).coerceIn(0.5, 24.0)
+            (kotlin.math.round(raw * 2) / 2.0).coerceIn(0.5, maxHours)
         }
         val note = args.get("note")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
-
-        val type = try {
-            OvertimeType.valueOf(typeStr.uppercase(Locale.getDefault()))
-        } catch (_: Exception) {
-            OvertimeType.WORKDAY
-        }
 
         val database = AppDatabase.getDatabase(context)
         val repository = OvertimeRepository(database)
@@ -532,6 +563,119 @@ class McpHostService : Service() {
         }
         val text = "$month 统计：共 ${stats.recordCount} 条，总时长 ${stats.totalHours} 小时，预估 ¥${stats.totalAmount}"
         return toolResult(text = text, structuredContent = s)
+    }
+
+    private suspend fun callYearlyStats(args: JsonObject, context: Context): JsonObject {
+        val year = args.get("year")?.takeIf { it.isJsonPrimitive }?.asString
+            ?: SimpleDateFormat("yyyy", Locale.getDefault()).format(Date())
+        val database = AppDatabase.getDatabase(context)
+        val repository = OvertimeRepository(database)
+        val stats = repository.getYearlyStats(year)
+        // YearlyStats 只含总量；分类口径与月度统计一致，从年记录重算（请假不计入分类时长）
+        val records = repository.getYearRecords(year)
+        var workdayHours = 0.0
+        var weekendHours = 0.0
+        var holidayHours = 0.0
+        records.forEach { record ->
+            if (!record.isLeave) {
+                when (record.type) {
+                    OvertimeType.WORKDAY -> workdayHours += record.durationHours
+                    OvertimeType.WEEKEND -> weekendHours += record.durationHours
+                    OvertimeType.HOLIDAY -> holidayHours += record.durationHours
+                }
+            }
+        }
+
+        val s = JsonObject().apply {
+            addProperty("year", year)
+            addProperty("totalHours", stats.totalHours)
+            addProperty("totalAmount", stats.totalAmount)
+            addProperty("recordCount", records.size)
+            addProperty("workdayHours", workdayHours)
+            addProperty("weekendHours", weekendHours)
+            addProperty("holidayHours", holidayHours)
+        }
+        val text = "$year 年度统计：共 ${records.size} 条，总时长 ${stats.totalHours} 小时，预估 ¥${stats.totalAmount}"
+        return toolResult(text = text, structuredContent = s)
+    }
+
+    private suspend fun callDeleteRecord(args: JsonObject, context: Context): JsonObject {
+        val database = AppDatabase.getDatabase(context)
+        val repository = OvertimeRepository(database)
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+
+        // id 兼容数字与字符串两种原始类型
+        val idRaw = runCatching {
+            args.get("id")?.takeIf { it.isJsonPrimitive }?.asLong
+        }.getOrNull()
+        val typeFilter = args.get("type")?.takeIf { it.isJsonPrimitive }?.asString
+            ?.uppercase(Locale.getDefault())
+            ?.let { t -> runCatching { OvertimeType.valueOf(t) }.getOrNull() }
+
+        val targets: List<OvertimeRecord> = if (idRaw != null) {
+            val rec = repository.getRecordById(idRaw)
+                ?: throw RpcException(CODE_INVALID_PARAMS, "未找到 id 为 $idRaw 的记录")
+            if (typeFilter != null && rec.type != typeFilter) {
+                throw RpcException(
+                    CODE_INVALID_PARAMS,
+                    "记录 ${rec.id} 类型为 ${rec.type.name}，与指定 type=${typeFilter.name} 不符"
+                )
+            }
+            listOf(rec)
+        } else {
+            val dateStr = args.get("date")?.takeIf { it.isJsonPrimitive }?.asString
+                ?: throw RpcException(CODE_INVALID_PARAMS, "需要提供 id 或 date 参数")
+            val dateMs = sdf.parse(dateStr)?.time
+                ?: throw RpcException(CODE_INVALID_PARAMS, "Invalid date format, expect YYYY-MM-DD")
+            // 用格式化后的日期串比对，避免毫秒值因存储基准不同而漏匹配
+            val dateKey = sdf.format(Date(dateMs))
+            val matched = repository.getAllRecords().first()
+                .filter { sdf.format(Date(it.date)) == dateKey }
+                .let { if (typeFilter != null) it.filter { r -> r.type == typeFilter } else it }
+            if (matched.isEmpty()) {
+                throw RpcException(
+                    CODE_INVALID_PARAMS,
+                    "未找到 $dateKey${if (typeFilter != null) "（${typeFilter.name}）" else ""} 的记录"
+                )
+            }
+            if (matched.size > 1 && typeFilter == null) {
+                // 按日期匹配到多条且无法区分：不执行删除，返回候选列表等待调用方给 id / type
+                val candidates = JsonArray().apply {
+                    matched.forEach { r ->
+                        add(JsonObject().apply {
+                            addProperty("id", r.id)
+                            addProperty("date", sdf.format(Date(r.date)))
+                            addProperty("type", r.type.name)
+                            addProperty("durationHours", r.durationHours)
+                            addProperty("isLeave", r.isLeave)
+                            addProperty("note", r.note)
+                        })
+                    }
+                }
+                return toolResult(
+                    text = "$dateKey 匹配到 ${matched.size} 条记录，未执行删除。请指定 id 或 type 后重试",
+                    structuredContent = JsonObject().apply {
+                        addProperty("success", false)
+                        addProperty("needConfirmation", true)
+                        add("candidates", candidates)
+                    }
+                )
+            }
+            matched
+        }
+
+        targets.forEach { repository.delete(it) }
+        val text = "已删除 ${targets.size} 条记录：" + targets.joinToString("；") { r ->
+            "${sdf.format(Date(r.date))}（${r.type.name}）${r.durationHours}h"
+        }
+        return toolResult(
+            text = text,
+            structuredContent = JsonObject().apply {
+                addProperty("success", true)
+                addProperty("deletedCount", targets.size)
+                add("deletedIds", JsonArray().apply { targets.forEach { add(it.id) } })
+            }
+        )
     }
 
     // ----------------------------------------------------------------

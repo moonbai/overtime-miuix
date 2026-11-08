@@ -31,7 +31,8 @@ import java.util.*
  *
  * - 日期固定为当天
  * - 加班类型按当天日期自动判定（工作日/休息日/节假日），可手动切换
- * - 提供常用时长快捷选项，也可左右滑动微调（0.5h 步进，0.5~24h）
+ * - 提供常用时长快捷选项，也可左右滑动微调（0.5h 步进）
+ * - 时长上限与「添加记录」页一致：工作日最多 8h，休息日/节假日最多 12h
  * - 单次弹窗会话只允许提交一次，避免连点产生重复记录
  * - 保存后自动触发推送 / 日历同步 / 自动备份
  */
@@ -114,6 +115,13 @@ fun QuickSubmitSheet(
         OvertimeType.WORKDAY -> workdayRate
         OvertimeType.WEEKEND -> weekendRate
         OvertimeType.HOLIDAY -> holidayRate
+    }
+
+    // 时长上限与「添加记录」页口径一致：工作日最多 8h，休息日/节假日最多 12h
+    val maxDurationHours = if (selectedType == OvertimeType.WORKDAY) 8.0 else 12.0
+    // 类型切换（手动或自动判定）后，现有时长超过新上限时压到上限
+    LaunchedEffect(maxDurationHours) {
+        if (!isLeave && durationHours > maxDurationHours) durationHours = maxDurationHours
     }
     val previewAmount = if (isLeave) {
         SalaryCalculator.calculateLeaveDeduction(baseSalary, leaveDuration)
@@ -261,7 +269,8 @@ fun QuickSubmitSheet(
                     }
                 }
             }
-            // 加班时长：左右拖动滑块选择，0.5h 步进吸附，范围 0.5~24h。
+            // 加班时长：左右拖动滑块选择，0.5h 步进吸附。
+            // 上限与「添加记录」页一致：工作日最多 8h，休息日/节假日最多 12h。
             // 请假固定半天 / 全天两档，不提供滑块（避免时长与档位不一致）。
             if (!isLeave) {
                 Slider(
@@ -269,10 +278,10 @@ fun QuickSubmitSheet(
                     onValueChange = { value ->
                         // 吸附到 0.5h 档位，避免出现 2.3h 这类与上方快捷档位不一致的值
                         durationHours = (kotlin.math.round(value.toDouble() * 2) / 2.0)
-                            .coerceIn(0.5, 24.0)
+                            .coerceIn(0.5, maxDurationHours)
                     },
                     onValueChangeFinished = {},
-                    valueRange = 0.5f..24f,
+                    valueRange = 0.5f..maxDurationHours.toFloat(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -289,7 +298,7 @@ fun QuickSubmitSheet(
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
                     Text(
-                        text = "24h",
+                        text = "最多${maxDurationHours.toInt()}h",
                         style = MiuixTheme.textStyles.footnote1,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )

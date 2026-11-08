@@ -20,12 +20,17 @@ import top.yukonga.miuix.kmp.icon.extended.*
  * 避免同一个设置页里出现两种交互方式。
  */
 @Composable
-fun SettingsPage(navController: NavHostController, bottomReserve: Dp = 0.dp) {
+fun SettingsPage(
+    navController: NavHostController,
+    topReserve: Dp = 0.dp,
+    bottomReserve: Dp = 0.dp
+) {
     val context = LocalContext.current
     val versionName = remember { getVersionName(context) }
 
     SettingsList(
         modifier = Modifier.fillMaxSize(),
+        topReserve = topReserve,
         bottomReserve = bottomReserve
     ) {
         // 入口图标与「关于」页功能宫格同步：语义重新选配 + 共用 AppFeaturePalette 色板，

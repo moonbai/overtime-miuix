@@ -73,6 +73,7 @@ object SettingsDimens {
 @Composable
 fun SettingsList(
     modifier: Modifier = Modifier,
+    topReserve: Dp = AppDimens.zero,
     bottomReserve: Dp = AppDimens.zero,
     content: LazyListScope.() -> Unit
 ) {
@@ -80,7 +81,7 @@ fun SettingsList(
         modifier = modifier,
         contentPadding = PaddingValues(
             start = AppDimens.pageHorizontal,
-            top = AppDimens.pageVertical,
+            top = AppDimens.pageVertical + topReserve,
             end = AppDimens.pageHorizontal,
             bottom = AppDimens.pageVertical + bottomReserve
         ),

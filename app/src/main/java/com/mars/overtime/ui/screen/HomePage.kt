@@ -58,6 +58,7 @@ fun HomePage(
     navController: NavHostController,
     repository: OvertimeRepository,
     settingsRepository: SettingsRepository,
+    topReserve: Dp = 0.dp,
     bottomReserve: Dp = 0.dp,
     listState: LazyListState = rememberLazyListState()
 ) {
@@ -165,7 +166,7 @@ fun HomePage(
             state = listState,
             contentPadding = PaddingValues(
                 start = AppDimens.pageHorizontal,
-                top = AppDimens.pageVertical,
+                top = AppDimens.pageVertical + topReserve,
                 end = AppDimens.pageHorizontal,
                 bottom = AppDimens.pageVertical + bottomReserve
             ),

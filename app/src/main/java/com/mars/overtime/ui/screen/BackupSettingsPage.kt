@@ -34,6 +34,13 @@ import java.io.FileOutputStream
 private fun recordKey(r: OvertimeRecord): String =
     "${r.date}_${r.type}_${r.durationHours}_${r.isLeave}_${r.note.trim()}"
 
+/** 恢复范围：备份文件中可以选择性恢复的内容 */
+private enum class RestoreScope(val label: String) {
+    ALL("全部恢复"),
+    RECORDS_ONLY("仅恢复记录"),
+    SETTINGS_ONLY("仅恢复配置")
+}
+
 @Composable
 fun BackupSettingsPage(
     navController: NavHostController,
@@ -68,6 +75,9 @@ fun BackupSettingsPage(
 
     // 导入/恢复二次确认：解析完成后暂存，由确认框触发真正写入
     var pendingImport by remember { mutableStateOf<BackupData?>(null) }
+
+    // 恢复范围：全部 / 仅记录 / 仅配置；解析成功后按备份内容自动纠正默认值
+    var restoreScope by remember { mutableStateOf(RestoreScope.ALL) }
 
     LaunchedEffect(webdavUrl) { webdavUrlText = webdavUrl }
     LaunchedEffect(webdavUsername) { webdavUserText = webdavUsername }
@@ -105,21 +115,29 @@ fun BackupSettingsPage(
 
     /**
      * 真正执行导入：按业务键去重，仅插入库中不存在的记录，避免重复恢复导致记录翻倍。
+     * scope 控制恢复范围：可只恢复记录、只恢复配置或全部恢复。
      */
-    suspend fun applyImport(data: BackupData) {
-        val existingKeys = repository.getAllRecords().first().map { recordKey(it) }.toSet()
+    suspend fun applyImport(data: BackupData, scope: RestoreScope) {
         var inserted = 0
-        data.records.forEach { rec ->
-            if (recordKey(rec) !in existingKeys) {
-                repository.insert(rec.copy(id = 0))
-                inserted++
+        if (scope != RestoreScope.SETTINGS_ONLY) {
+            val existingKeys = repository.getAllRecords().first().map { recordKey(it) }.toSet()
+            data.records.forEach { rec ->
+                if (recordKey(rec) !in existingKeys) {
+                    repository.insert(rec.copy(id = 0))
+                    inserted++
+                }
             }
         }
-        if (data.settings.isNotEmpty()) {
+        if (scope != RestoreScope.RECORDS_ONLY && data.settings.isNotEmpty()) {
             settingsRepository.importSettings(data.settings)
         }
         val skipped = data.records.size - inserted
-        showToast("导入完成：新增 $inserted 条，跳过 $skipped 条重复")
+        val msg = when (scope) {
+            RestoreScope.ALL -> "导入完成：新增 $inserted 条，跳过 $skipped 条重复，设置已覆盖恢复"
+            RestoreScope.RECORDS_ONLY -> "导入完成：新增 $inserted 条，跳过 $skipped 条重复（未改动设置）"
+            RestoreScope.SETTINGS_ONLY -> "设置已覆盖恢复（未导入记录）"
+        }
+        showToast(msg)
     }
 
     // 从云端下载指定备份文件并恢复记录与设置（支持 ZIP 和旧版 JSON）
@@ -229,36 +247,76 @@ fun BackupSettingsPage(
                 }
             }
 
-            // 导入/恢复二次确认
+            // 导入/恢复二次确认：支持选择恢复范围（全部 / 仅记录 / 仅配置）
             BackHandler(enabled = pendingImport != null) { pendingImport = null }
             OverlayDialog(
                 show = pendingImport != null,
                 title = "确认导入",
                 summary = if (pendingImport != null) {
-                    val settingsHint = if (pendingImport!!.settings.isNotEmpty()) "，并覆盖恢复设置" else ""
-                    "将导入 ${pendingImport!!.records.size} 条记录（自动跳过重复）$settingsHint，确定继续吗？"
+                    when (restoreScope) {
+                        RestoreScope.ALL ->
+                            "将导入 ${pendingImport!!.records.size} 条记录（自动跳过重复），并覆盖恢复设置，确定继续吗？"
+                        RestoreScope.RECORDS_ONLY ->
+                            "将仅导入 ${pendingImport!!.records.size} 条记录（自动跳过重复），不改动任何设置，确定继续吗？"
+                        RestoreScope.SETTINGS_ONLY ->
+                            "将仅覆盖恢复设置，不导入任何记录，确定继续吗？"
+                    }
                 } else "",
                 onDismissRequest = { pendingImport = null }
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    TextButton(
-                        text = "取消",
-                        onClick = { pendingImport = null },
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    TextButton(
-                        text = "导入",
-                        onClick = {
-                            val data = pendingImport
-                            pendingImport = null
-                            data?.let { scope.launch { applyImport(it) } }
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
+                val data = pendingImport
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    if (data != null) {
+                        // 按备份实际内容自动纠正默认范围：缺记录时选仅配置，缺设置时选仅记录
+                        LaunchedEffect(data) {
+                            restoreScope = when {
+                                data.records.isEmpty() && data.settings.isNotEmpty() -> RestoreScope.SETTINGS_ONLY
+                                data.settings.isEmpty() && data.records.isNotEmpty() -> RestoreScope.RECORDS_ONLY
+                                else -> RestoreScope.ALL
+                            }
+                        }
+                        RestoreScope.entries.forEach { scope ->
+                            val enabled = when (scope) {
+                                RestoreScope.RECORDS_ONLY -> data.records.isNotEmpty()
+                                RestoreScope.SETTINGS_ONLY -> data.settings.isNotEmpty()
+                                RestoreScope.ALL -> data.records.isNotEmpty() || data.settings.isNotEmpty()
+                            }
+                            BasicComponent(
+                                title = scope.label,
+                                summary = when (scope) {
+                                    RestoreScope.ALL -> "记录与设置全部恢复"
+                                    RestoreScope.RECORDS_ONLY -> "只导入记录，保留当前设置"
+                                    RestoreScope.SETTINGS_ONLY -> "只覆盖设置，保留当前记录"
+                                },
+                                endActions = if (restoreScope == scope) {
+                                    { Icon(MiuixIcons.Ok, contentDescription = "已选择") }
+                                } else null,
+                                enabled = enabled,
+                                onClick = { restoreScope = scope }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TextButton(
+                            text = "取消",
+                            onClick = { pendingImport = null },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        TextButton(
+                            text = "导入",
+                            onClick = {
+                                val pending = pendingImport
+                                pendingImport = null
+                                pending?.let { scope.launch { applyImport(it, restoreScope) } }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }
