@@ -28,7 +28,7 @@ fun SettingsPage(navController: NavHostController, bottomReserve: Dp = 0.dp) {
         bottomReserve = bottomReserve
     ) {
         item {
-            SettingsGroup(title = "") {
+            SettingsGroup {
                 SettingsActionItem(
                     title = "基础设置",
                     summary = "基础薪资、加班倍率与删除确认",
@@ -51,7 +51,7 @@ fun SettingsPage(navController: NavHostController, bottomReserve: Dp = 0.dp) {
         }
 
         item {
-            SettingsGroup(title = "") {
+            SettingsGroup{
                 SettingsActionItem(
                     title = "备份与恢复",
                     summary = "本地导入导出、自动备份与 WebDAV 同步",
@@ -75,7 +75,7 @@ fun SettingsPage(navController: NavHostController, bottomReserve: Dp = 0.dp) {
 
 
         item {
-            SettingsGroup(title = "") {
+            SettingsGroup{
                 SettingsActionItem(
                     title = "外观设置",
                     summary = "主题、强调色、底栏与快捷操作",
@@ -86,7 +86,7 @@ fun SettingsPage(navController: NavHostController, bottomReserve: Dp = 0.dp) {
         }
 
         item {
-            SettingsGroup(title = "") {
+            SettingsGroup{
                 SettingsActionItem(
                     title = "关于应用",
                     summary = "版本 $versionName",

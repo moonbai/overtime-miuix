@@ -48,6 +48,10 @@ object AppDimens {
     val fabExtendedTextGap = 8.dp      // 扩展型 FAB 图标与文字间距
     val fabReserve = 16.dp             // FAB 与列表卡片右/下边缘的对齐留白
 
+    // Snackbar：限宽后偏左显示，从水平方向避开右下角 FAB，无需再整体抬高
+    val snackbarMaxWidth = 320.dp
+    val snackbarEndReserve = fabSize + fabReserve + fabReserve
+
     // ── 通用组件内边距 ──
     val cardInnerPadding = 12.dp
     val listItemVertical = 8.dp

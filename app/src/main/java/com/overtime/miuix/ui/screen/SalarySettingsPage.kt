@@ -177,7 +177,7 @@ fun SalarySettingsPage(
         }
 
         item {
-            SettingsGroup(title = "") {
+            SettingsGroup{
                 SettingsSwitchItem(
                     title = "记录删除确认",
                     summary = if (deleteConfirmEnabled) {

@@ -26,6 +26,18 @@ suspend fun SnackbarHostState.showCustomToast(message: String) {
 /** 删除撤销提示的消息前缀，用于精确识别本类提示，避免误伤其他 Toast。 */
 const val DELETE_SNACKBAR_PREFIX = "已删除"
 
+/** 「正在检查更新」的完整文案：检查结束时据此精确收起，避免与结果提示叠加。 */
+const val CHECKING_SNACKBAR_MESSAGE = "正在检查更新…"
+
+/** 收起尚未消失的「正在检查更新」提示；遇到其他消息立即停止。 */
+suspend fun SnackbarHostState.dismissCheckingSnackbar() {
+    repeat(4) {
+        val data = newestSnackbarData() ?: return
+        if (data.visuals.message != CHECKING_SNACKBAR_MESSAGE) return
+        data.dismiss()
+    }
+}
+
 /**
  * 收起队列中尚未消失的「删除撤销」提示，只保留最新一条。
  *

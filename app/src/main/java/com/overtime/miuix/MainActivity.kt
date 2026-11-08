@@ -4,6 +4,11 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
+import android.view.MotionEvent
+import android.window.BackEvent
+import android.window.OnBackAnimationCallback
+import android.window.OnBackInvokedDispatcher
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -51,6 +56,17 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 
 class MainActivity : ComponentActivity() {
+
+    /**
+     * 最近一次返回手势的来源边缘（左 / 右），供「退出方向 = 跟随手势」使用。
+     *
+     * 恢复 NavHost 原生预测性返回后，页面级返回手势不再经过 App 自建的
+     * NavigationEventDispatcher（那个 dispatcher 只在弹窗打开时收到事件），
+     * 因此这里改由 Activity 层采集，见 [dispatchTouchEvent] 与 [registerBackObserver]。
+     */
+    private val backSwipeEdge = mutableIntStateOf(NavigationEvent.EDGE_LEFT)
+    private var backObserver: OnBackAnimationCallback? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -83,6 +99,7 @@ class MainActivity : ComponentActivity() {
         val database = AppDatabase.getDatabase(this)
         val repository = OvertimeRepository(database)
         val settingsRepository = SettingsRepository(this)
+        registerBackObserver()
 
         setContent {
             val themeMode by settingsRepository.themeMode.collectAsState(initial = "system")
@@ -113,10 +130,68 @@ class MainActivity : ComponentActivity() {
                 MainNavHost(
                     navController = navController,
                     repository = repository,
-                    settingsRepository = settingsRepository
+                    settingsRepository = settingsRepository,
+                    backSwipeEdge = backSwipeEdge
                 )
             }
         }
+    }
+
+    /**
+     * Android 16（API 36）起系统提供「非消费型」返回观察者优先级：
+     * 注册后可在不拦截、不消费返回事件的前提下收到 onBackStarted 的 swipeEdge，
+     * NavHost 的返回处理完全不受影响。这是「跟随手势」最准确的来源。
+     * 少数 ROM 的实现可能拒绝该优先级，失败时静默降级到 [dispatchTouchEvent]。
+     */
+    private fun registerBackObserver() {
+        if (Build.VERSION.SDK_INT < 36) return
+        try {
+            val observer = object : OnBackAnimationCallback {
+                override fun onBackStarted(backEvent: BackEvent) {
+                    val edge = backEvent.swipeEdge
+                    if (edge == BackEvent.EDGE_LEFT || edge == BackEvent.EDGE_RIGHT) {
+                        backSwipeEdge.intValue = edge
+                    }
+                }
+
+                override fun onBackInvoked() {}
+            }
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_SYSTEM_NAVIGATION_OBSERVER,
+                observer
+            )
+            backObserver = observer
+        } catch (t: Throwable) {
+            Log.w("MainActivity", "返回手势观察者注册失败，降级为触摸边缘推断", t)
+        }
+    }
+
+    /**
+     * API 33~35 没有非消费型返回观察者：从边缘起手的 ACTION_DOWN 推断来源。
+     * 系统识别返回手势前窗口已收到这次 DOWN（随后才收到 CANCEL），因此可据此定向；
+     * 只记录左右各 15% 边缘区域，普通点击不会误改方向。API 36+ 上观察者随后覆盖。
+     */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            val width = resources.displayMetrics.widthPixels
+            val zone = width * 0.15f
+            when {
+                ev.x <= zone -> backSwipeEdge.intValue = NavigationEvent.EDGE_LEFT
+                ev.x >= width - zone -> backSwipeEdge.intValue = NavigationEvent.EDGE_RIGHT
+            }
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    override fun onDestroy() {
+        backObserver?.let {
+            try {
+                onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it)
+            } catch (_: Throwable) {
+            }
+        }
+        backObserver = null
+        super.onDestroy()
     }
 
     /**
@@ -229,7 +304,8 @@ private fun PageSnackbarScope(content: @Composable () -> Unit) {
 fun MainNavHost(
     navController: NavHostController,
     repository: OvertimeRepository,
-    settingsRepository: SettingsRepository
+    settingsRepository: SettingsRepository,
+    backSwipeEdge: MutableIntState
 ) {
     // Miuix 的 OverlayDialog 内部使用 NavigationBackHandler，
     // 需要 LocalNavigationEventDispatcherOwner（navigationevent-compose 1.1.2）。
@@ -256,11 +332,10 @@ fun MainNavHost(
         onDispose { input?.let { dispatcher.removeInput(it) } }
     }
 
-    // 记录最近一次返回手势的来源边缘（左 / 右）。
-    // OverlayInput 仅在弹窗打开（树中存在消费型 handler）时注册系统回调，
-    // 因此这里捕获到的是「弹窗返回」手势的边缘，供横向返回动画定向参考；
-    // 普通页面返回由 NavHost 自行处理，本 dispatcher 不参与，方向沿用系统惯例（左→右）。
-    val backSwipeEdge = remember { mutableIntStateOf(NavigationEvent.EDGE_LEFT) }
+    // 页面级返回手势由 Activity 采集（非消费型观察者 + 边缘触摸兜底），
+    // 见 MainActivity.backSwipeEdge。此处仅补采「弹窗返回」手势的边缘：
+    // OverlayInput 只在弹窗打开（树中存在消费型 handler）时注册系统回调，
+    // 所以 dispatcher 里流过的事件只可能是弹窗返回，不会覆盖页面返回的定向结果。
     LaunchedEffect(dispatcher) {
         dispatcher.transitionState.collect { state ->
             if (state is NavigationEventTransitionState.InProgress) {

@@ -105,13 +105,21 @@ fun AddEditRecordPage(
     var pickMonth by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.MONTH) + 1) }
     var pickDay by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.DAY_OF_MONTH)) }
 
-    // 时长选择器：以 0.5 小时为梯度，范围 0.5~24
+    // 时长选择器：以 0.5 小时为梯度；工作日最多 8h，休息日（周末/节假日）最多 12h
     var pickDurationIndex by remember { mutableIntStateOf(3) }
-    val durationOptions = remember { (0 until 48).map { (it + 1) * 0.5 } } // 0.5, 1.0, ..., 24.0
+    val maxDurationHours = maxDurationFor(selectedType)
+    val durationOptions = remember(maxDurationHours) {
+        (0 until (maxDurationHours / 0.5).toInt()).map { (it + 1) * 0.5 } // 0.5, 1.0, ..., maxDurationHours
+    }
 
     fun indexOfDuration(hours: Double): Int {
         val idx = ((hours / 0.5).roundToLong() - 1).toInt()
         return idx.coerceIn(0, durationOptions.size - 1)
+    }
+
+    // 类型变化（手动切换/按日期自动判定）后，现有时长超过新上限时压到上限
+    LaunchedEffect(maxDurationHours) {
+        if (!isLeave && durationHours > maxDurationHours) durationHours = maxDurationHours
     }
 
     // 获取某年某月的天数
@@ -292,7 +300,11 @@ fun AddEditRecordPage(
                         title = "加班时长",
                         summary = SalaryCalculator.formatHours(durationHours),
                         endActions = { DropdownArrowEndAction(MiuixTheme.colorScheme.primary) },
-                        onClick = { showDurationPicker = true }
+                        onClick = {
+                            // 打开前把选择器索引同步到当前值（超上限时就近压到上限档）
+                            pickDurationIndex = indexOfDuration(durationHours)
+                            showDurationPicker = true
+                        }
                     )
                 }
 
@@ -320,6 +332,8 @@ fun AddEditRecordPage(
                 BasicComponent(
                     title = "请假记录",
                     summary = if (isLeave) "本记录为请假" else "普通加班记录",
+                    // 整行可点击切换；落在 Switch 上的点击由 Switch 自己消费
+                    onClick = { isLeave = !isLeave },
                     endActions = {
                         Switch(
                             checked = isLeave,
@@ -405,7 +419,7 @@ fun AddEditRecordPage(
             BackHandler(enabled = true) { showDurationPicker = false }
             OverlayDialog(
                 show = showDurationPicker,
-                title = "选择加班时长（0.5 小时梯度）",
+                title = "选择加班时长（0.5 小时梯度，最多 ${maxDurationHours.toInt()}h）",
                 onDismissRequest = { showDurationPicker = false }
             ) {
                 Column(
@@ -537,6 +551,10 @@ private fun FullWidthDropdownItem(
         layout(placeable.width, placeable.height) { placeable.place(0, 0) }
     }
 }
+
+/** 加班时长上限：工作日最多 8h，休息日（周末/节假日）最多 12h。 */
+private fun maxDurationFor(type: OvertimeType): Double =
+    if (type == OvertimeType.WORKDAY) 8.0 else 12.0
 
 private suspend fun saveRecord(
     repository: OvertimeRepository,

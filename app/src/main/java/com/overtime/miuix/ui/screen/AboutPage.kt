@@ -32,9 +32,13 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.BuildConfig
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
+import com.overtime.miuix.ui.snackbar.CHECKING_SNACKBAR_MESSAGE
+import com.overtime.miuix.ui.snackbar.dismissCheckingSnackbar
 import com.overtime.miuix.ui.snackbar.showCustomToast
 import com.overtime.miuix.util.UpdateCheckResult
 import com.overtime.miuix.util.UpdateChecker
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
 import top.yukonga.miuix.kmp.basic.*
@@ -212,17 +216,33 @@ fun AboutPage(navController: NavHostController) {
                     onClick = {
                         if (checking) return@SettingsActionItem
                         checking = true
+                        // 网络不通时两个通道各 8s 超时，此前点击后最长约 16s 只有一行
+                        // 不起眼的摘要文字变化，容易被当成「点了没反应」。这里在 300ms
+                        // 内未返回时先弹一条提示给出即时反馈，检查结束再精确收起它，
+                        // 避免与结果提示叠成两条。
+                        val done = CompletableDeferred<Unit>()
+                        scope.launch {
+                            delay(300)
+                            if (!done.isCompleted) {
+                                snackbarHostState.showCustomToast(CHECKING_SNACKBAR_MESSAGE)
+                            }
+                        }
                         scope.launch {
                             try {
                                 // 检查结果自带「是否有更新」与「失败原因」，
                                 // UI 不再读取检查器的全局状态
-                                when (
-                                    val result = UpdateChecker.check(
-                                        versionName, BuildConfig.VERSION_CODE
-                                    )
-                                ) {
+                                val result = UpdateChecker.check(
+                                    versionName, BuildConfig.VERSION_CODE
+                                )
+                                done.complete(Unit)
+                                snackbarHostState.dismissCheckingSnackbar()
+                                when (result) {
                                     is UpdateCheckResult.Failure -> {
-                                        snackbarHostState.showCustomToast(result.reason)
+                                        // 失败原因较长，给足 4 秒，避免 2 秒一闪而过
+                                        snackbarHostState.showSnackbar(
+                                            result.reason,
+                                            duration = SnackbarDuration.Custom(4000)
+                                        )
                                     }
                                     is UpdateCheckResult.Success -> {
                                         if (result.hasUpdate) {
@@ -244,10 +264,13 @@ fun AboutPage(navController: NavHostController) {
                                     }
                                 }
                             } catch (e: Exception) {
+                                done.complete(Unit)
+                                snackbarHostState.dismissCheckingSnackbar()
                                 snackbarHostState.showCustomToast(
                                     "检查异常：${e.javaClass.simpleName}"
                                 )
                             } finally {
+                                done.complete(Unit)
                                 checking = false
                             }
                         }

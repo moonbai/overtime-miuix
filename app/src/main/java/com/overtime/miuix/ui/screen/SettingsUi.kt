@@ -146,7 +146,7 @@ fun SettingsActionItem(
     )
 }
 
-/** 卡片内的开关行：所有设置页的开关外观与行为一致 */
+/** 卡片内的开关行：所有设置页的开关外观与行为一致，整行可点击切换 */
 @Composable
 fun SettingsSwitchItem(
     title: String,
@@ -157,6 +157,9 @@ fun SettingsSwitchItem(
     BasicComponent(
         title = title,
         summary = summary,
+        // Switch 自身有 toggleable，会消费落在开关上的点击；
+        // 这里再给整行 clickable，点击标题/摘要区域同样能切换。
+        onClick = { onCheckedChange(!checked) },
         endActions = {
             Switch(checked = checked, onCheckedChange = onCheckedChange)
         }

@@ -96,17 +96,26 @@ fun MainScreen(
     // 旧实现硬编码「64dp 底栏 + 24dp 间距」，在图标+文字底栏 / 大字体 / 不同 ROM 上
     // 会与底栏重叠或悬得过高。
 
-    // Snackbar 默认贴在底栏上方，正好覆盖右下角 FAB 并拦截触摸：保存记录后
-    // 必须等提示消失才能再次点「添加」。把提示整体抬到 FAB 顶部之上，
-    // 悬浮底栏模式下 FAB 更高，额外叠加底栏高度与离底间距。
-    val snackbarLift = AppDimens.pageVertical + AppDimens.fabSize + AppDimens.fabReserve +
+    // 旧实现把提示整体抬到 FAB 顶部之上（约 88dp，悬浮底栏模式更高），
+    // 结果「已删除 N 条记录」浮在屏幕中部、离操作区太远。改为：
+    // 纵向只保留避让底栏的小幅上移，横向把 Host 可绘制区域从右侧收窄并给卡片限宽，
+    // 让提示偏左显示，从水平方向绕开右下角的悬浮加号，不再拦截 FAB 触摸。
+    val snackbarLift = AppDimens.spaceXs +
         (if (useFloatingNav) navBarInset + floatingBarOffset + floatingBarHeight else 0.dp)
 
     Scaffold(
         snackbarHost = {
             SnackbarHost(
                 snackbarHostState,
-                modifier = Modifier.padding(bottom = snackbarLift)
+                modifier = Modifier
+                    .padding(bottom = snackbarLift)
+                    .padding(end = AppDimens.snackbarEndReserve),
+                content = { data ->
+                    Snackbar(
+                        data,
+                        modifier = Modifier.widthIn(max = AppDimens.snackbarMaxWidth)
+                    )
+                }
             )
         },
         topBar = {

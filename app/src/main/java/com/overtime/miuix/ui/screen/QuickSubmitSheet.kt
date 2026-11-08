@@ -1,6 +1,7 @@
 package com.overtime.miuix.ui.screen
 import com.overtime.miuix.ui.theme.AppShapes
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -75,6 +76,12 @@ fun QuickSubmitSheet(
     // 请假模式：快速提报也支持记请假
     var isLeave by remember { mutableStateOf(false) }
     var leaveDuration by remember { mutableStateOf(-4.0) }
+    // 整行与开关共用同一套切换逻辑，避免两处行为分叉
+    val toggleLeave: (Boolean) -> Unit = { enabled ->
+        isLeave = enabled
+        // 切到请假时回到半天档，避免沿用上一次的微调值导致两个选项都不选中
+        if (enabled) leaveDuration = -4.0
+    }
 
     // 弹出时按当天日期自动判定加班类型
     LaunchedEffect(show) {
@@ -150,6 +157,8 @@ fun QuickSubmitSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    // 整行可点击切换；落在 Switch 上的点击由 Switch 的 toggleable 消费
+                    .clickable { toggleLeave(!isLeave) }
                     .padding(horizontal = 12.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -161,11 +170,7 @@ fun QuickSubmitSheet(
                 )
                 Switch(
                     checked = isLeave,
-                    onCheckedChange = {
-                        isLeave = it
-                        // 切到请假时回到半天档，避免沿用上一次的微调值导致两个选项都不选中
-                        if (it) leaveDuration = -4.0
-                    }
+                    onCheckedChange = toggleLeave
                 )
             }
 
