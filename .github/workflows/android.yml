@@ -30,15 +30,17 @@ jobs:
         SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
         yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
         echo "sdkmanager version: $("$SDKMANAGER" --version)"
+        # Android 17 的 SDK platform 包名是 platforms;android-37.0（带小数点，
+        # 与 compileSdk 使用的整数 37 不同；同系列还有 37.1 / 37.2 稳定版）。
         # runner 预装的本地仓库索引(repository2-3.xml)是镜像构建时的旧快照，
-        # sdkmanager 发现它存在就直接复用，从而看不到新发布的 Android 17 (API 37)。
-        # 删除本地索引缓存，强制重新从 Google 拉取含 API 37 的最新索引后再安装。
+        # sdkmanager 会直接复用从而看不到 android-37.0，因此删除本地索引缓存，
+        # 强制重新从 Google 拉取最新索引后再安装。
         rm -f "$ANDROID_HOME"/repository2-3.xml "$ANDROID_HOME"/addons_list-3.xml
         rm -rf "$HOME/.android/cache"
-        if "$SDKMANAGER" "platforms;android-37" "build-tools;37.0.0"; then
+        if "$SDKMANAGER" "platforms;android-37.0" "build-tools;37.0.0"; then
           echo "Android SDK 37 installed"
         else
-          echo "::error::安装 platforms;android-37 失败，列出可用 platforms 以便定位"
+          echo "::error::安装 platforms;android-37.0 失败，列出可用 platforms 以便定位"
           "$SDKMANAGER" --list 2>/dev/null | grep -i "platforms;android" || true
           exit 1
         fi
