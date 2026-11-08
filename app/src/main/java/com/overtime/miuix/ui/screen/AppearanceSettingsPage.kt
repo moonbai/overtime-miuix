@@ -6,10 +6,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.model.BottomBarStyle
 import com.overtime.miuix.data.repository.SettingsRepository
@@ -37,6 +39,8 @@ fun AppearanceSettingsPage(
     val bottomBarStyle by settingsRepository.bottomBarStyle.collectAsState(initial = "ICON_TEXT")
     val quickSubmit by settingsRepository.quickSubmit.collectAsState(initial = false)
     val useFloatingNav by settingsRepository.useFloatingNav.collectAsState(initial = false)
+    val floatingNavBottomOffset by settingsRepository.floatingNavBottomOffset
+        .collectAsState(initial = 5)
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
     val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
     val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
@@ -97,6 +101,55 @@ fun AppearanceSettingsPage(
                     checked = useFloatingNav,
                     onCheckedChange = { scope.launch { settingsRepository.setUseFloatingNav(it) } }
                 )
+                if (useFloatingNav) {
+                    // 拖动时只更新本地状态，松手才落盘，避免每个像素都写一次 DataStore
+                    var sliderValue by remember(floatingNavBottomOffset) {
+                        mutableFloatStateOf(floatingNavBottomOffset.toFloat())
+                    }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "悬浮底栏离底距离",
+                                style = MiuixTheme.textStyles.body1,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "${sliderValue.roundToInt()} dp",
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.primary
+                            )
+                        }
+                        Slider(
+                            value = sliderValue,
+                            onValueChange = { sliderValue = it },
+                            onValueChangeFinished = {
+                                scope.launch {
+                                    settingsRepository.setFloatingNavBottomOffset(
+                                        sliderValue.roundToInt()
+                                    )
+                                }
+                            },
+                            valueRange = 0f..64f,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp)
+                        )
+                        Text(
+                            text = "悬浮底栏与屏幕底部的距离，系统手势条安全区会自动叠加",
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
                 SettingsSwitchItem(
                     title = "快速提报模式",
                     summary = "首页显示一键记录今天的快捷按钮",

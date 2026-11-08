@@ -1,5 +1,8 @@
 package com.overtime.miuix.ui.screen
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -9,8 +12,10 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.overtime.miuix.data.repository.OvertimeRepository
@@ -38,6 +43,8 @@ fun MainScreen(
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     val bottomBarStyle by settingsRepository.bottomBarStyle.collectAsState(initial = "ICON_TEXT")
     val useFloatingNav by settingsRepository.useFloatingNav.collectAsState(initial = false)
+    val floatingNavBottomOffset by settingsRepository.floatingNavBottomOffset
+        .collectAsState(initial = 5)
     val quickSubmit by settingsRepository.quickSubmit.collectAsState(initial = false)
     val blurSupported = isRuntimeShaderSupported()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -61,8 +68,6 @@ fun MainScreen(
         else -> NavigationBarDisplayMode.IconAndText
     }
 
-    // 首页 FAB 的高斯模糊背景层：捕获底栏之上的页面内容作为模糊源
-    val fabBackdrop = rememberLayerBackdrop()
     // 悬浮/普通底栏的高斯模糊背景层：捕获页面内容作为毛玻璃源
     val navBackdrop = rememberLayerBackdrop()
     val snackbarHostState = LocalSnackbarHostState.current
@@ -73,9 +78,10 @@ fun MainScreen(
         .asPaddingValues()
         .calculateBottomPadding()
 
-    // 悬浮底栏：离底部间距 + 估算高度（用于内容底部留白，确保不被遮挡）。
-    val floatingBarOffset = 5.dp
-    val floatingBarHeight = 80.dp
+    // 悬浮底栏：与屏幕底部的距离由外观设置控制（0..64dp），胶囊自身高度固定。
+    // 以下留白 / FAB / Snackbar 位置全部基于这两个值联动，调节后整体不会错位。
+    val floatingBarOffset = floatingNavBottomOffset.dp
+    val floatingBarHeight = FloatingBarHeight
     // 悬浮底栏「彻底悬浮」时，各页面列表需补充的底部留白（离底间距 + 估算高度 + 余量），
     // 保证末项（如「关于」）可滚动至悬浮底栏之上，不被遮挡。
     val floatingBottomReserve = floatingBarOffset + floatingBarHeight + 8.dp
@@ -182,7 +188,6 @@ fun MainScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .layerBackdrop(fabBackdrop)
                     .layerBackdrop(navBackdrop)
                     .padding(contentPadding)
             ) {
@@ -207,50 +212,21 @@ fun MainScreen(
                 }
             }
 
-            // 悬浮底栏（叠加层）：外层 Box 仅负责「居中对齐 + 离底间距」
+            // 悬浮底栏（叠加层）：自定义胶囊 + MIUIX 风格液态选中指示器
             if (useFloatingNav) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = navBarInset + floatingBarOffset)
-                ) {
-                    FloatingNavigationBar(
-                        modifier = Modifier.textureBlur(
-                            backdrop = navBackdrop,
-                            shape = RoundedCornerShape(28.dp),
-                            blurRadius = 40f,
-                            enabled = blurSupported
-                        ),
-                        color = if (blurSupported) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer,
-                        cornerRadius = 28.dp,
-                        horizontalOutSidePadding = 0.dp,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        FloatingNavigationBarItem(
-                            selected = selectedTab == 0,
-                            onClick = {
-                                // 与普通底栏保持一致：重复点击「首页」回到顶部
-                                if (selectedTab == 0) scrollHomeToTop() else selectedTab = 0
-                            },
-                            icon = AppIcons.Home,
-                            label = "首页"
-                        )
-                        Spacer(modifier = Modifier.width(24.dp))
-                        FloatingNavigationBarItem(
-                            selected = selectedTab == 1,
-                            onClick = { selectedTab = 1 },
-                            icon = MiuixIcons.Months,
-                            label = "统计"
-                        )
-                        Spacer(modifier = Modifier.width(24.dp))
-                        FloatingNavigationBarItem(
-                            selected = selectedTab == 2,
-                            onClick = { selectedTab = 2 },
-                            icon = MiuixIcons.Settings,
-                            label = "设置"
-                        )
-                    }
-                }
+                LiquidFloatingNavBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { index ->
+                        // 与普通底栏保持一致：重复点击「首页」回到顶部
+                        if (index == 0 && selectedTab == 0) scrollHomeToTop()
+                        else selectedTab = index
+                    },
+                    backdrop = navBackdrop,
+                    blurSupported = blurSupported,
+                    bottomOffset = floatingBarOffset,
+                    navBarInset = navBarInset,
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
 
                 // 悬浮模式首页 FAB：位于悬浮底栏上方
                 if (selectedTab == 0) {
@@ -261,8 +237,6 @@ fun MainScreen(
                     ) {
                         HomeFab(
                             quickSubmit = quickSubmit,
-                            fabBackdrop = fabBackdrop,
-                            blurSupported = blurSupported,
                             onAddRecord = { navController.navigate("add_record") },
                             onQuickSubmit = { showQuickSubmit = true }
                         )
@@ -279,8 +253,6 @@ fun MainScreen(
                 ) {
                     HomeFab(
                         quickSubmit = quickSubmit,
-                        fabBackdrop = fabBackdrop,
-                        blurSupported = blurSupported,
                         onAddRecord = { navController.navigate("add_record") },
                         onQuickSubmit = { showQuickSubmit = true }
                     )
@@ -304,111 +276,203 @@ fun MainScreen(
     )
 }
 
-/** FAB 毛玻璃背景统一模糊半径，避免三个按钮各写一份数值出现细微差异。 */
-private const val FAB_BLUR_RADIUS = 28f
+/** 悬浮胶囊底栏固定高度：内容留白、FAB、Snackbar 位置都据此联动。 */
+private val FloatingBarHeight = 64.dp
 
-/** MIUIX FloatingActionButton 的默认 MinWidth / MinHeight */
-private val FabSize = 60.dp
+/** 悬浮胶囊与液态选中指示器的圆角。 */
+private val FloatingBarShape = RoundedCornerShape(28.dp)
+private val LiquidIndicatorShape = RoundedCornerShape(20.dp)
 
-/** 扩展型「快速提报」按钮的圆角，按钮本体与模糊层共用同一形状。 */
+/** MIUIX 标准 FAB 尺寸：单层实心强调色圆，不再叠加毛玻璃外层。 */
+private val FabSize = 56.dp
+
+/** 扩展型「快速提报」按钮的圆角。 */
 private val FabExtendedShape = RoundedCornerShape(28.dp)
 
 /**
  * 首页悬浮操作按钮：快速提报模式下提供「添加 / 快速提报」两个按钮，
- * 否则为单个带有强调色高斯模糊背景的添加按钮。
+ * 否则为单个强调色圆形按钮。
+ *
+ * 旧实现在 FAB 外套了一层 CircleShape 毛玻璃，与 MIUIX FAB 默认的多边形容器
+ * 叠加成「半透明大圆 + 深色多边形」的双层脏效果，0.55 透明度也让强调色发灰。
+ * 现在统一为单层实心强调色，形状显式指定，图标前景色按容器对比度取值。
  */
 @Composable
 private fun HomeFab(
     quickSubmit: Boolean,
-    fabBackdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop,
-    blurSupported: Boolean,
     onAddRecord: () -> Unit,
     onQuickSubmit: () -> Unit
 ) {
     if (quickSubmit) {
-        // 快速提报模式：两个按钮并排，带强调色高斯模糊背景
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 常规添加（进入完整表单）—— 次要容器色毛玻璃
-            Box(
-                modifier = Modifier.textureBlur(
-                    backdrop = fabBackdrop,
-                    shape = CircleShape,
-                    blurRadius = FAB_BLUR_RADIUS,
-                    enabled = blurSupported
-                )
+            FloatingActionButton(
+                onClick = onAddRecord,
+                shape = CircleShape,
+                containerColor = MiuixTheme.colorScheme.secondaryContainer,
+                modifier = Modifier.size(FabSize)
             ) {
-                FloatingActionButton(
-                    onClick = onAddRecord,
-                    containerColor = if (blurSupported) MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
-                    else MiuixTheme.colorScheme.secondaryContainer
+                Icon(
+                    MiuixIcons.Add,
+                    contentDescription = "添加记录",
+                    tint = MiuixTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            FloatingActionButton(
+                onClick = onQuickSubmit,
+                shape = FabExtendedShape,
+                containerColor = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.height(FabSize)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 18.dp)
                 ) {
                     Icon(
-                        MiuixIcons.Add,
-                        contentDescription = "添加记录",
-                        tint = MiuixTheme.colorScheme.onSecondaryContainer
+                        MiuixIcons.Ok,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(20.dp)
                     )
-                }
-            }
-            // 快速提报（一键记录今天）—— 强调色毛玻璃
-            Box(
-                modifier = Modifier.textureBlur(
-                    backdrop = fabBackdrop,
-                    shape = FabExtendedShape,
-                    blurRadius = FAB_BLUR_RADIUS,
-                    enabled = blurSupported
-                )
-            ) {
-                FloatingActionButton(
-                    onClick = onQuickSubmit,
-                    shape = FabExtendedShape,
-                    containerColor = if (blurSupported) MiuixTheme.colorScheme.primary.copy(alpha = 0.55f)
-                    else MiuixTheme.colorScheme.primary
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    ) {
-                        Icon(
-                            MiuixIcons.Ok,
-                            contentDescription = null,
-                            tint = MiuixTheme.colorScheme.onPrimary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "快速提报",
-                            color = MiuixTheme.colorScheme.onPrimary,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "快速提报",
+                        color = MiuixTheme.colorScheme.onPrimary,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                    )
                 }
             }
         }
     } else {
-        // 单按钮模式：强调色高斯模糊背景
-        Box(
-            modifier = Modifier.textureBlur(
-                backdrop = fabBackdrop,
-                shape = CircleShape,
-                blurRadius = FAB_BLUR_RADIUS,
+        FloatingActionButton(
+            onClick = onAddRecord,
+            shape = CircleShape,
+            containerColor = MiuixTheme.colorScheme.primary,
+            modifier = Modifier.size(FabSize)
+        ) {
+            Icon(
+                MiuixIcons.Add,
+                contentDescription = "添加记录",
+                tint = MiuixTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+/**
+ * 悬浮胶囊底栏：MIUIX 0.9.4 的 FloatingNavigationBarItem 仅对选中 icon 着色，
+ * 这里补上 HyperOS 风格的「液态」选中指示器 —— 两层圆角胶囊以不同刚度的
+ * spring 动画在三个等宽 item 间滑动，主体先到、尾层滞后回弹，形成流体拖尾。
+ *
+ * 胶囊本体仍使用 MIUIX 的 textureBlur 毛玻璃与 MiuixTheme 配色，图标取自
+ * MIUIX / AppIcons，视觉与框架设计语言保持一致。
+ */
+@Composable
+private fun LiquidFloatingNavBar(
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit,
+    backdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop,
+    blurSupported: Boolean,
+    bottomOffset: Dp,
+    navBarInset: Dp,
+    modifier: Modifier = Modifier
+) {
+    val items = listOf(
+        AppIcons.Home to "首页",
+        MiuixIcons.Months to "统计",
+        MiuixIcons.Settings to "设置"
+    )
+
+    Box(
+        modifier = modifier
+            .padding(bottom = navBarInset + bottomOffset)
+            .padding(horizontal = SettingsDimens.PageHorizontal * 2)
+            .fillMaxWidth()
+            .height(FloatingBarHeight)
+            .textureBlur(
+                backdrop = backdrop,
+                shape = FloatingBarShape,
+                blurRadius = 40f,
                 enabled = blurSupported
             )
-        ) {
-            FloatingActionButton(
-                onClick = onAddRecord,
-                containerColor = if (blurSupported) MiuixTheme.colorScheme.primary.copy(alpha = 0.55f)
-                else MiuixTheme.colorScheme.primary
-            ) {
-                // 显式指定前景色：MIUIX 的 Icon 默认取 LocalContentColor，
-                // 在 primary 底上会与背景同色系、对比度不足（快速提报模式的按钮此前已显式指定）。
-                Icon(
-                    MiuixIcons.Add,
-                    contentDescription = "添加记录",
-                    tint = MiuixTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(24.dp)
-                )
+            .clip(FloatingBarShape)
+            .background(
+                if (blurSupported) MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.3f)
+                else MiuixTheme.colorScheme.surfaceContainer
+            )
+    ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val itemWidth = maxWidth / 3f
+            val target = itemWidth * selectedTab.toFloat()
+
+            // 双层不同刚度的 spring：主体快速到位，尾层慢半拍形成液体拉伸感
+            val leadX by animateDpAsState(
+                targetValue = target,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy,
+                    stiffness = Spring.StiffnessMedium
+                ),
+                label = "liquidLead"
+            )
+            val trailX by animateDpAsState(
+                targetValue = target,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy,
+                    stiffness = Spring.StiffnessLow
+                ),
+                label = "liquidTrail"
+            )
+
+            // 尾层：慢、淡
+            Box(
+                modifier = Modifier
+                    .offset(x = trailX)
+                    .width(itemWidth)
+                    .height(FloatingBarHeight)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .clip(LiquidIndicatorShape)
+                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.08f))
+            )
+            // 主体：快、实
+            Box(
+                modifier = Modifier
+                    .offset(x = leadX)
+                    .width(itemWidth)
+                    .height(FloatingBarHeight)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .clip(LiquidIndicatorShape)
+                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.18f))
+            )
+        }
+
+        Row(modifier = Modifier.fillMaxSize()) {
+            items.forEachIndexed { index, (icon, label) ->
+                Surface(
+                    onClick = { onTabSelected(index) },
+                    color = Color.Transparent,
+                    shape = LiquidIndicatorShape,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(horizontal = 4.dp, vertical = 6.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Icon(
+                            icon,
+                            contentDescription = label,
+                            tint = if (selectedTab == index) MiuixTheme.colorScheme.primary
+                            else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
             }
         }
     }

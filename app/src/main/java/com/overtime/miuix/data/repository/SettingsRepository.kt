@@ -26,6 +26,10 @@ class SettingsRepository(private val context: Context) {
     // 悬浮底栏（FloatingNavigationBar）
     val useFloatingNav: Flow<Boolean> = context.dataStore.data.map { it[KEY_FLOATING_NAV] ?: false }
 
+    // 悬浮底栏与屏幕底部的距离（dp，不含系统导航栏安全区），范围 0..64
+    val floatingNavBottomOffset: Flow<Int> = context.dataStore.data
+        .map { (it[KEY_FLOATING_NAV_BOTTOM_OFFSET] ?: DEFAULT_FLOATING_NAV_BOTTOM_OFFSET).coerceIn(0, 64) }
+
     // 加班类型配色（统计日历等使用）
     val typeColorWorkday: Flow<Int> = context.dataStore.data.map { it[KEY_TYPE_COLOR_WORKDAY] ?: 0xFF3482FF.toInt() }
     val typeColorWeekend: Flow<Int> = context.dataStore.data.map { it[KEY_TYPE_COLOR_WEEKEND] ?: 0xFF34C759.toInt() }
@@ -86,6 +90,9 @@ class SettingsRepository(private val context: Context) {
     suspend fun setDeleteConfirmEnabled(enabled: Boolean) { context.dataStore.edit { it[KEY_DELETE_CONFIRM] = enabled } }
     suspend fun setMonetEnabled(enabled: Boolean) { context.dataStore.edit { it[KEY_MONET_ENABLED] = enabled } }
     suspend fun setUseFloatingNav(enabled: Boolean) { context.dataStore.edit { it[KEY_FLOATING_NAV] = enabled } }
+    suspend fun setFloatingNavBottomOffset(dp: Int) {
+        context.dataStore.edit { it[KEY_FLOATING_NAV_BOTTOM_OFFSET] = dp.coerceIn(0, 64) }
+    }
     suspend fun setTypeColorWorkday(color: Int) { context.dataStore.edit { it[KEY_TYPE_COLOR_WORKDAY] = color } }
     suspend fun setTypeColorWeekend(color: Int) { context.dataStore.edit { it[KEY_TYPE_COLOR_WEEKEND] = color } }
     suspend fun setTypeColorHoliday(color: Int) { context.dataStore.edit { it[KEY_TYPE_COLOR_HOLIDAY] = color } }
@@ -142,6 +149,9 @@ class SettingsRepository(private val context: Context) {
                     KEY_BOTTOM_BAR_STYLE.name -> prefs[KEY_BOTTOM_BAR_STYLE] = value
                     KEY_MONET_ENABLED.name -> prefs[KEY_MONET_ENABLED] = value.toBoolean()
                     KEY_FLOATING_NAV.name -> prefs[KEY_FLOATING_NAV] = value.toBoolean()
+                    KEY_FLOATING_NAV_BOTTOM_OFFSET.name ->
+                        prefs[KEY_FLOATING_NAV_BOTTOM_OFFSET] =
+                            (value.toIntOrNull() ?: DEFAULT_FLOATING_NAV_BOTTOM_OFFSET).coerceIn(0, 64)
                     KEY_TYPE_COLOR_WORKDAY.name -> prefs[KEY_TYPE_COLOR_WORKDAY] = value.toIntOrNull() ?: 0xFF3482FF.toInt()
                     KEY_TYPE_COLOR_WEEKEND.name -> prefs[KEY_TYPE_COLOR_WEEKEND] = value.toIntOrNull() ?: 0xFF34C759.toInt()
                     KEY_TYPE_COLOR_HOLIDAY.name -> prefs[KEY_TYPE_COLOR_HOLIDAY] = value.toIntOrNull() ?: 0xFFFF7043.toInt()
@@ -193,6 +203,7 @@ class SettingsRepository(private val context: Context) {
             KEY_BOTTOM_BAR_STYLE.name to bottomBarStyle.first(),
             KEY_MONET_ENABLED.name to monetEnabled.first().toString(),
             KEY_FLOATING_NAV.name to useFloatingNav.first().toString(),
+            KEY_FLOATING_NAV_BOTTOM_OFFSET.name to floatingNavBottomOffset.first().toString(),
             KEY_TYPE_COLOR_WORKDAY.name to typeColorWorkday.first().toString(),
             KEY_TYPE_COLOR_WEEKEND.name to typeColorWeekend.first().toString(),
             KEY_TYPE_COLOR_HOLIDAY.name to typeColorHoliday.first().toString(),
@@ -240,6 +251,8 @@ class SettingsRepository(private val context: Context) {
         private val KEY_DELETE_CONFIRM = booleanPreferencesKey("delete_confirm")
         private val KEY_MONET_ENABLED = booleanPreferencesKey("monet_enabled")
         private val KEY_FLOATING_NAV = booleanPreferencesKey("floating_nav")
+        private val KEY_FLOATING_NAV_BOTTOM_OFFSET = intPreferencesKey("floating_nav_bottom_offset")
+        private const val DEFAULT_FLOATING_NAV_BOTTOM_OFFSET = 5
 
         private val KEY_TYPE_COLOR_WORKDAY = intPreferencesKey("type_color_workday")
         private val KEY_TYPE_COLOR_WEEKEND = intPreferencesKey("type_color_weekend")
