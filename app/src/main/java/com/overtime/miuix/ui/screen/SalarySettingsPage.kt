@@ -20,7 +20,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 薪资与记录：本页是设置中唯一需要「整组数值一起校验」的页面，因此保留显式保存，
+ * 基础设置：本页是设置中唯一需要「整组数值一起校验」的页面，因此保留显式保存，
  * 并在分组内明确提示；其余设置项一律即改即存。
  */
 @Composable
@@ -103,7 +103,7 @@ fun SalarySettingsPage(
     }
 
     SettingsScreen(
-        title = "薪资与记录",
+        title = "基础设置",
         onBack = { tryExit() },
         snackbarHostState = snackbarHostState,
         dialogs = {
@@ -137,8 +137,8 @@ fun SalarySettingsPage(
         }
     ) {
         item {
-            SettingsGroup(title = "薪资与倍率") {
-                SettingsNote(text = "小时薪资 = 基础薪资 ÷ 月计薪天数 ÷ 每日工时；\n本组数值需点击底部「保存设置」才会生效。")
+            SettingsGroup(title = "基础薪资与倍率") {
+                SettingsNote(text = "小时薪资 = 基础薪资 ÷ 月计薪天数 ÷ 每日工时\n以下数据修改后需点击底部「保存设置」才会生效。")
                 SettingsTextField(
                     value = salaryText,
                     onValueChange = { salaryText = it },
@@ -177,13 +177,13 @@ fun SalarySettingsPage(
         }
 
         item {
-            SettingsGroup(title = "记录交互") {
+            SettingsGroup(title = "") {
                 SettingsSwitchItem(
-                    title = "删除二次确认",
+                    title = "记录删除确认",
                     summary = if (deleteConfirmEnabled) {
-                        "删除前弹窗确认，防止误删"
+                        "删除前弹窗二次确认，防止误删"
                     } else {
-                        "点删除后立即移除，4 秒内可撤销"
+                        "点删除后立即删除，4 秒内可撤销"
                     },
                     checked = deleteConfirmEnabled,
                     onCheckedChange = { enabled ->
@@ -242,14 +242,14 @@ private fun SalaryPreviewCard(preview: PreviewResult?) {
             .padding(12.dp)
     ) {
         Text(
-            text = "实时试算",
+            text = "实时计算",
             style = MiuixTheme.textStyles.body1,
             fontWeight = FontWeight.Medium
         )
         Spacer(modifier = Modifier.height(6.dp))
         if (preview == null) {
             Text(
-                text = "填写有效数值后显示试算结果",
+                text = "填写有效数值后显示计算结果",
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
@@ -271,7 +271,7 @@ private fun SalaryPreviewCard(preview: PreviewResult?) {
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "按当前输入值试算，保存后对新记录生效",
+            text = "按当前输入值计算，保存后仅对后续新增记录生效",
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
         )

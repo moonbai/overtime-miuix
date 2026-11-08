@@ -42,7 +42,7 @@ class SettingsRepository(private val context: Context) {
     val backExitDirection: Flow<String> = context.dataStore.data
         .map { it[KEY_BACK_EXIT_DIRECTION] ?: DEFAULT_BACK_EXIT_DIRECTION }
 
-    // 薪资计算口径：月计薪天数 / 每日工时，可在「薪资与记录」中调整
+    // 薪资计算口径：月计薪天数 / 每日工时，可在「基础设置」中调整
     val workingDaysPerMonth: Flow<Double> = context.dataStore.data
         .map { it[KEY_WORKING_DAYS_PER_MONTH] ?: DEFAULT_WORKING_DAYS_PER_MONTH }
     val hoursPerDay: Flow<Double> = context.dataStore.data

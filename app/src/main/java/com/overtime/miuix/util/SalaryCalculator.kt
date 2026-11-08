@@ -10,7 +10,7 @@ object SalaryCalculator {
     const val DEFAULT_HOURS_PER_DAY = 8.0
 
     /**
-     * 当前计薪口径，由「薪资与记录」设置页持久化并由 MainActivity 在设置变化时同步。
+     * 当前计薪口径，由「基础设置」设置页持久化并由 MainActivity 在设置变化时同步。
      * 用 @Volatile 保证记录保存 / 推送 / MCP 等后台线程读取时可见；configure 做下限
      * 保护，避免非法值导致除零。
      */

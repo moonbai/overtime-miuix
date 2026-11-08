@@ -60,7 +60,7 @@ fun HolidaySettingsPage(
     val currentYear = Year.now().value.toString()
 
     SettingsScreen(
-        title = "节假日管理",
+        title = "类型设置",
         onBack = { navController.popBackStack() },
         snackbarHostState = snackbarHostState
     ) {

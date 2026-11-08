@@ -28,35 +28,41 @@ fun SettingsPage(navController: NavHostController, bottomReserve: Dp = 0.dp) {
         bottomReserve = bottomReserve
     ) {
         item {
-            SettingsGroup(title = "记录与计算") {
+            SettingsGroup(title = "") {
                 SettingsActionItem(
-                    title = "薪资与记录",
+                    title = "基础设置",
                     summary = "基础薪资、加班倍率与删除确认",
                     icon = MiuixIcons.BankCards,
                     onClick = { navController.navigate("salary_settings") }
                 )
                 SettingsActionItem(
-                    title = "节假日管理",
+                    title = "类型设置",
                     summary = "日期判定数据源、缓存与调休规则",
                     icon = MiuixIcons.Months,
                     onClick = { navController.navigate("holiday_settings") }
-                )
-            }
-        }
-
-        item {
-            SettingsGroup(title = "联动与接入") {
-                SettingsActionItem(
-                    title = "推送设置",
-                    summary = "保存记录后推送到所选渠道",
-                    icon = MiuixIcons.Alarm,
-                    onClick = { navController.navigate("push_settings") }
                 )
                 SettingsActionItem(
                     title = "日历同步",
                     summary = "保存记录后自动写入系统日历",
                     icon = MiuixIcons.Update,
                     onClick = { navController.navigate("calendar_settings") }
+                )
+            }
+        }
+
+        item {
+            SettingsGroup(title = "") {
+                SettingsActionItem(
+                    title = "备份与恢复",
+                    summary = "本地导入导出、自动备份与 WebDAV 同步",
+                    icon = MiuixIcons.CloudFill,
+                    onClick = { navController.navigate("backup_settings") }
+                )
+                SettingsActionItem(
+                    title = "推送设置",
+                    summary = "保存记录后推送到所选渠道",
+                    icon = MiuixIcons.Alarm,
+                    onClick = { navController.navigate("push_settings") }
                 )
                 SettingsActionItem(
                     title = "MCP 服务",
@@ -67,19 +73,9 @@ fun SettingsPage(navController: NavHostController, bottomReserve: Dp = 0.dp) {
             }
         }
 
-        item {
-            SettingsGroup(title = "数据与备份") {
-                SettingsActionItem(
-                    title = "备份与恢复",
-                    summary = "本地导入导出、自动备份与 WebDAV 同步",
-                    icon = MiuixIcons.CloudFill,
-                    onClick = { navController.navigate("backup_settings") }
-                )
-            }
-        }
 
         item {
-            SettingsGroup(title = "个性化") {
+            SettingsGroup(title = "") {
                 SettingsActionItem(
                     title = "外观设置",
                     summary = "主题、强调色、底栏与快捷操作",
@@ -90,7 +86,7 @@ fun SettingsPage(navController: NavHostController, bottomReserve: Dp = 0.dp) {
         }
 
         item {
-            SettingsGroup(title = "关于") {
+            SettingsGroup(title = "") {
                 SettingsActionItem(
                     title = "关于应用",
                     summary = "版本 $versionName",

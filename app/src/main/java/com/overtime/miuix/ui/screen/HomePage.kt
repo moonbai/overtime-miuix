@@ -394,12 +394,6 @@ private fun MonthlyOverviewCard(
                 StatItem("预估薪资", stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
                 StatItem("记录数", "${stats?.recordCount ?: 0}条")
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "金额按记录保存时的薪资规则计算，修改基础设置仅影响之后的新记录",
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-            )
         }
     }
 }
