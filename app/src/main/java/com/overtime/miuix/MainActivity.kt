@@ -155,6 +155,8 @@ private fun resolveBackTransition(mode: String): BackTransition =
 private val BACK_SETTLE_EASING = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 private fun backTween(): androidx.compose.animation.core.FiniteAnimationSpec<Float> =
     tween(200, easing = BACK_SETTLE_EASING)
+private fun backTweenOffset(): androidx.compose.animation.core.FiniteAnimationSpec<androidx.compose.ui.unit.IntOffset> =
+    tween(200, easing = BACK_SETTLE_EASING)
 
 /** 未识别的退出方向值回退到跟随手势，兼容旧备份与未知字符串。 */
 private fun resolveExitDirection(direction: String): String =
@@ -171,17 +173,17 @@ private fun resolveExitDirection(direction: String): String =
 private fun backEnter(mode: String, edge: Int, exitDirection: String): EnterTransition = when (resolveBackTransition(mode)) {
     BackTransition.SLIDE_HORIZONTAL -> when (resolveExitDirection(exitDirection)) {
         // 恒定向左退出：上一页从右侧进入
-        "ALWAYS_LEFT" -> slideInHorizontally(animationSpec = backTween()) { it / 4 } + fadeIn(backTween())
+        "ALWAYS_LEFT" -> slideInHorizontally(animationSpec = backTweenOffset()) { it / 4 } + fadeIn(backTween())
         // 恒定向右退出：上一页从左侧进入
-        "ALWAYS_RIGHT" -> slideInHorizontally(animationSpec = backTween()) { -it / 4 } + fadeIn(backTween())
+        "ALWAYS_RIGHT" -> slideInHorizontally(animationSpec = backTweenOffset()) { -it / 4 } + fadeIn(backTween())
         // 跟随手势：右边缘手势上一页从右侧进入；左边缘从左侧进入
         else ->
             if (edge == NavigationEvent.EDGE_RIGHT)
-                slideInHorizontally(animationSpec = backTween()) { it / 4 } + fadeIn(backTween())
+                slideInHorizontally(animationSpec = backTweenOffset()) { it / 4 } + fadeIn(backTween())
             else
-                slideInHorizontally(animationSpec = backTween()) { -it / 4 } + fadeIn(backTween())
+                slideInHorizontally(animationSpec = backTweenOffset()) { -it / 4 } + fadeIn(backTween())
     }
-    BackTransition.SLIDE_VERTICAL -> slideInVertically(animationSpec = backTween()) { -it / 4 } + fadeIn(backTween())
+    BackTransition.SLIDE_VERTICAL -> slideInVertically(animationSpec = backTweenOffset()) { -it / 4 } + fadeIn(backTween())
     BackTransition.FADE -> fadeIn(backTween())
     BackTransition.NONE -> EnterTransition.None
     else -> scaleIn(animationSpec = backTween(), initialScale = 0.92f) + fadeIn(backTween())
@@ -190,17 +192,17 @@ private fun backEnter(mode: String, edge: Int, exitDirection: String): EnterTran
 private fun backExit(mode: String, edge: Int, exitDirection: String): ExitTransition = when (resolveBackTransition(mode)) {
     BackTransition.SLIDE_HORIZONTAL -> when (resolveExitDirection(exitDirection)) {
         // 恒定向左退出：当前页向左收束
-        "ALWAYS_LEFT" -> slideOutHorizontally(animationSpec = backTween()) { -it / 4 } + fadeOut(backTween())
+        "ALWAYS_LEFT" -> slideOutHorizontally(animationSpec = backTweenOffset()) { -it / 4 } + fadeOut(backTween())
         // 恒定向右退出：当前页向右收束
-        "ALWAYS_RIGHT" -> slideOutHorizontally(animationSpec = backTween()) { it / 4 } + fadeOut(backTween())
+        "ALWAYS_RIGHT" -> slideOutHorizontally(animationSpec = backTweenOffset()) { it / 4 } + fadeOut(backTween())
         // 跟随手势：右边缘手势当前页向左收束；左边缘向右收束
         else ->
             if (edge == NavigationEvent.EDGE_RIGHT)
-                slideOutHorizontally(animationSpec = backTween()) { -it / 4 } + fadeOut(backTween())
+                slideOutHorizontally(animationSpec = backTweenOffset()) { -it / 4 } + fadeOut(backTween())
             else
-                slideOutHorizontally(animationSpec = backTween()) { it / 4 } + fadeOut(backTween())
+                slideOutHorizontally(animationSpec = backTweenOffset()) { it / 4 } + fadeOut(backTween())
     }
-    BackTransition.SLIDE_VERTICAL -> slideOutVertically(animationSpec = backTween()) { it / 4 } + fadeOut(backTween())
+    BackTransition.SLIDE_VERTICAL -> slideOutVertically(animationSpec = backTweenOffset()) { it / 4 } + fadeOut(backTween())
     BackTransition.FADE -> fadeOut(backTween())
     BackTransition.NONE -> ExitTransition.None
     else -> scaleOut(animationSpec = backTween(), targetScale = 0.88f) + fadeOut(backTween())

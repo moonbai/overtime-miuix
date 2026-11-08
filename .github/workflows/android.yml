@@ -28,14 +28,20 @@ jobs:
         echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
         echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
         SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-        # runner 预装的 cmdline-tools 可能较旧，无法解析包含 Android 17 (API 37)
-        # 的最新仓库索引，从而找不到 platforms;android-37。先升级 cmdline-tools 自身，
-        # 用新版解析器重新拉取索引后再安装平台与构建工具。
         yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
-        "$SDKMANAGER" --version
-        "$SDKMANAGER" "cmdline-tools;latest"
-        SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-        "$SDKMANAGER" "platforms;android-37" "build-tools;37.0.0"
+        echo "sdkmanager version: $("$SDKMANAGER" --version)"
+        # runner 预装的本地仓库索引(repository2-3.xml)是镜像构建时的旧快照，
+        # sdkmanager 发现它存在就直接复用，从而看不到新发布的 Android 17 (API 37)。
+        # 删除本地索引缓存，强制重新从 Google 拉取含 API 37 的最新索引后再安装。
+        rm -f "$ANDROID_HOME"/repository2-3.xml "$ANDROID_HOME"/addons_list-3.xml
+        rm -rf "$HOME/.android/cache"
+        if "$SDKMANAGER" "platforms;android-37" "build-tools;37.0.0"; then
+          echo "Android SDK 37 installed"
+        else
+          echo "::error::安装 platforms;android-37 失败，列出可用 platforms 以便定位"
+          "$SDKMANAGER" --list 2>/dev/null | grep -i "platforms;android" || true
+          exit 1
+        fi
 
     # 不使用 gradle/actions/setup-gradle：项目自带 Gradle Wrapper (9.8.2)
     # setup-gradle 依赖 GitHub Actions Cache Service 缓存/下载 Gradle 分发版，
