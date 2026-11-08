@@ -1,6 +1,7 @@
 package com.mars.overtime.ui.screen
 
 import android.os.Build
+import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -14,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
@@ -66,6 +68,14 @@ fun AppearanceSettingsPage(
     settingsRepository: SettingsRepository
 ) {
     val scope = rememberCoroutineScope()
+    // 系统「预测性返回动画」开关（开发者选项）：MIUI 即使到 Android 17 也默认关闭，
+    // 关闭时系统不下发手势预览事件，跟手与方向判定全部失效，因此按实际开关值提示。
+    val context = LocalContext.current
+    val systemBackAnimationEnabled = remember {
+        runCatching {
+            Settings.Global.getInt(context.contentResolver, "enable_back_animation", 1)
+        }.getOrDefault(1) == 1
+    }
     val themeMode by settingsRepository.themeMode.collectAsState(initial = "system")
     val bottomBarStyle by settingsRepository.bottomBarStyle.collectAsState(initial = "ICON_TEXT")
     val quickSubmit by settingsRepository.quickSubmit.collectAsState(initial = false)
@@ -250,9 +260,9 @@ fun AppearanceSettingsPage(
                             }
                         )
                     }
-                    if (Build.VERSION.SDK_INT < 35) {
+                    if (!systemBackAnimationEnabled) {
                         SettingsNote(
-                            text = "Android 13/14 需在「开发者选项 → 预测性返回动画」中开启后才支持实时预览"
+                            text = "系统未开启预测性返回：请到「开发者选项 → 预测性返回动画」打开，跟手预览与方向判定才生效"
                         )
                     }
                 }

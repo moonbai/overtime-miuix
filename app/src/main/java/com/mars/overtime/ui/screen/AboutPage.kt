@@ -242,9 +242,15 @@ fun AboutPage(navController: NavHostController) {
                                     versionName, BuildConfig.VERSION_CODE
                                 )
                                 done.complete(Unit)
-                                snackbarHostState.dismissCheckingSnackbar()
+                                // 结果分支的状态设置（非挂起）必须先于任何 suspend 调用：
+                                // dismissCheckingSnackbar 是挂起点，若此时协程已被取消
+                                //（用户离开页面销毁 rememberCoroutineScope），挂起恢复时
+                                // 抛 CancellationException，弹窗状态将永远设置不上，
+                                // 且 catch 内的 toast 同样是 suspend 会再次被取消——
+                                // 表现为「检查成功却静默无弹窗」。
                                 when (result) {
                                     is UpdateCheckResult.Failure -> {
+                                        snackbarHostState.dismissCheckingSnackbar()
                                         // 失败原因较长，给足 4 秒，避免 2 秒一闪而过
                                         snackbarHostState.showSnackbar(
                                             result.reason,
@@ -255,6 +261,11 @@ fun AboutPage(navController: NavHostController) {
                                         if (result.hasUpdate) {
                                             updateInfo = result.info
                                             showUpdateDialog = true
+                                            android.util.Log.d(
+                                                "AboutPage",
+                                                "更新弹窗已触发 latest=${result.info.latestVersion}"
+                                            )
+                                            snackbarHostState.dismissCheckingSnackbar()
                                         } else {
                                             val localSha =
                                                 UpdateChecker.getInstalledApkSha256(context)
@@ -265,12 +276,18 @@ fun AboutPage(navController: NavHostController) {
                                                 updateInfo = result.info
                                                 showConsistencyDialog = true
                                             } else {
+                                                snackbarHostState.dismissCheckingSnackbar()
                                                 snackbarHostState.showCustomToast("已是最新版本")
                                             }
                                         }
                                     }
                                 }
                             } catch (e: Exception) {
+                                android.util.Log.w(
+                                    "AboutPage",
+                                    "检查更新协程异常: ${e.javaClass.simpleName}",
+                                    e
+                                )
                                 done.complete(Unit)
                                 snackbarHostState.dismissCheckingSnackbar()
                                 snackbarHostState.showCustomToast(
