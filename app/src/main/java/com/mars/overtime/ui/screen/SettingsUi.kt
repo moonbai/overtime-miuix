@@ -147,26 +147,15 @@ fun SettingsActionItem(
         summary = summary,
         startAction = {
             if (vector != null) {
-                if (iconTint != null) {
-                    // 与「关于」页功能宫格共用同一套淡彩容器：12% 淡底 + 语义色图标。
-                    // 不传 iconTint 时保持原样（裸 Icon），其它页面零变化。
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(AppShapes.radiusSm)
-                            .background(iconTint.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            vector,
-                            contentDescription = null,
-                            tint = iconTint,
-                            modifier = Modifier.size(AppIconSize.sm)
-                        )
-                    }
-                } else {
-                    Icon(vector, contentDescription = null)
-                }
+                // 统一为单色主题色图标（默认 primary），与底栏导航、FAB 同一套语言；
+                // 不再为每个入口套 12% 彩色底盒，避免列表里出现一排杂乱的色块。
+                // 仅在确需单点强调时经 iconTint 覆盖颜色，默认留空即可。
+                Icon(
+                    vector,
+                    contentDescription = null,
+                    tint = iconTint ?: MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.size(AppIconSize.sm)
+                )
             }
         },
         onClick = onClick

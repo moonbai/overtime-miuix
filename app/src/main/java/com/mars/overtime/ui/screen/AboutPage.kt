@@ -34,7 +34,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.mars.overtime.BuildConfig
-import com.mars.overtime.ui.component.AppFeaturePalette
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.snackbar.CHECKING_SNACKBAR_MESSAGE
 import com.mars.overtime.ui.snackbar.dismissCheckingSnackbar
@@ -307,7 +306,7 @@ fun AboutPage(navController: NavHostController) {
                 SettingsActionItem(
                     title = "作者",
                     summary = "Mars",
-                    icon = MiuixIcons.Info,
+                    icon = MiuixIcons.Contacts,
                     onClick = { openLink(WEIBO_PROFILE_URL) }
                 )
                 SettingsActionItem(
@@ -570,28 +569,26 @@ private fun UpdateResultDialogs(
 }
 
 /**
- * 功能色板：六个功能各给一个低饱和色，容器取 12% 淡底、图标取实色。
- * 取代原来「六个一模一样的实心蓝圆」——既单调，实心高饱和块还会压过文字。
- * 色板是固定的品牌功能色，不随主题强调色变化，避免用户换主题后六格糊成一片。
+ * 功能宫格条目：图标按语义选配，统一单色主题色渲染（见 [FeatureCell]），
+ * 与设置行、底栏导航同一套语言，不再为每个功能套彩色底盒。
  */
 private data class AboutFeature(
     val title: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
-    val tint: Color
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
 )
 
 @Composable
 private fun FeatureGrid() {
-    // 图标按语义重新选配：本地记录=Notes、推送=Send、智能识别=Scan、
+    // 图标按语义选配：本地记录=Notes、推送=Send、智能识别=Scan、
     // 云端备份=UploadCloud、薪资计算=BankCards、日历同步=Months。
     // 旧版用 Info / Alarm / AppRecording 表达记录 / 推送 / 识别，语义完全错配。
     val features = listOf(
-        AboutFeature("本地记录", MiuixIcons.Notes, AppFeaturePalette.record),
-        AboutFeature("多渠道推送", MiuixIcons.Send, AppFeaturePalette.push),
-        AboutFeature("智能识别", MiuixIcons.Scan, AppFeaturePalette.smart),
-        AboutFeature("云端备份", MiuixIcons.UploadCloud, AppFeaturePalette.cloud),
-        AboutFeature("薪资计算", MiuixIcons.BankCards, AppFeaturePalette.salary),
-        AboutFeature("日历同步", MiuixIcons.Months, AppFeaturePalette.calendar)
+        AboutFeature("本地记录", MiuixIcons.Notes),
+        AboutFeature("多渠道推送", MiuixIcons.Send),
+        AboutFeature("智能识别", MiuixIcons.Scan),
+        AboutFeature("云端备份", MiuixIcons.UploadCloud),
+        AboutFeature("薪资计算", MiuixIcons.BankCards),
+        AboutFeature("日历同步", MiuixIcons.Months)
     )
     val rows = features.chunked(2)
     Column(
@@ -626,17 +623,19 @@ private fun FeatureCell(
         modifier = modifier.padding(vertical = AppDimens.spaceXxs),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // 统一单色主题色图标 + 中性底容器：去掉原来每个功能各自的 12% 彩色底盒，
+        // 与设置行、底栏导航同一套单色语言，底色不再花花绿绿。
         Box(
             modifier = Modifier
                 .size(44.dp)
                 .clip(AppShapes.radiusMd)
-                .background(feature.tint.copy(alpha = 0.12f)),
+                .background(MiuixTheme.colorScheme.surfaceContainer),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = feature.icon,
                 contentDescription = null,
-                tint = feature.tint,
+                tint = MiuixTheme.colorScheme.primary,
                 modifier = Modifier.size(AppIconSize.md)
             )
         }

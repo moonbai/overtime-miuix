@@ -60,21 +60,11 @@ class FabAnchorState(
 val LocalFabAnchor = compositionLocalOf { FabAnchorState() }
 
 /**
- * 功能色板：关于页功能宫格与设置页入口共用同一组低饱和色，
- * 保证「同一个功能在两处是同一个颜色」，也让设置页不再是清一色的黑白裸图标。
- * 固定品牌色、不随主题强调色变化，避免用户换主题后所有入口糊成一片。
+ * 图标统一规范（见下方 [SettingsActionItem] / [FeatureCell]）：
+ * 设置页与关于页的入口、宫格图标一律走「单色主题色 + 无彩色底盒」，
+ * 与底栏导航（选中=primary、未选中=onSurfaceVariant）、FAB 同一套图标语言，
+ * 不再为每个功能堆一排水彩方块，避免列表底色杂乱。
  */
-object AppFeaturePalette {
-    val record = Color(0xFF3482FF)      // 本地记录
-    val push = Color(0xFF0FA3B1)        // 推送
-    val smart = Color(0xFF7A6BFF)       // 智能识别 / 类型判定
-    val cloud = Color(0xFF00A97A)       // 云端备份
-    val salary = Color(0xFFF08A24)      // 薪资 / 基础设置
-    val calendar = Color(0xFFE2607A)    // 日历同步
-    val appearance = Color(0xFF9B6BFF)  // 外观设置
-    val mcp = Color(0xFF5A7BFF)         // MCP 服务
-    val about = Color(0xFF7C8AA5)       // 关于应用
-}
 
 /**
  * 与入口加号 FAB 同构的确认按钮：形状 / 直径 / 图标尺寸全部复用 [AppFab] 的同一组令牌，
