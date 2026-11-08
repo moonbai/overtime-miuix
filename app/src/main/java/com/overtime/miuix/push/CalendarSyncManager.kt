@@ -1,12 +1,12 @@
-package com.overtime.miuix.push
+package com.mars.overtime.push
 
 import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.provider.CalendarContract
 import android.util.Log
-import com.overtime.miuix.data.database.OvertimeRecord
-import com.overtime.miuix.data.model.OvertimeType
+import com.mars.overtime.data.database.OvertimeRecord
+import com.mars.overtime.data.model.OvertimeType
 import java.util.Calendar
 import java.util.TimeZone
 
@@ -26,7 +26,7 @@ import java.util.TimeZone
 object CalendarSyncManager {
     private const val TAG = "CalendarSync"
     private const val CALENDAR_DISPLAY_NAME = "加班记"
-    private const val ACCOUNT_NAME = "overtime@com.overtime.miuix"
+    private const val ACCOUNT_NAME = "overtime@com.mars.overtime"
     private const val ACCOUNT_TYPE = "LOCAL"
 
     /** 同步结果，供 UI 精确提示失败原因，而不是笼统的「同步失败」。 */
