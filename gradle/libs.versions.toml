@@ -1,6 +1,6 @@
 [versions]
 agp = "9.5.1"
-kotlin = "2.4.0"
+kotlin = "2.3.20" # 降回 2.3.20：2.4.0 导致 kotlinBuildToolsApiClasspath 解析失败（KSP 2.3.10 / AGP 9.5.1 均按 2.3.x 验证）；与 KSP 同 minor，保持最小改动
 coreKtx = "1.15.0"
 lifecycleRuntimeKtx = "2.11.0"
 activityCompose = "1.9.3"
