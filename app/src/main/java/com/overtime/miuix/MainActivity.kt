@@ -39,9 +39,25 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.runtime.snapshotFlow
+import androidx.navigation.NavController
 import androidx.navigationevent.NavigationEvent
+import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.OnBackInvokedOverlayInput
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import com.overtime.miuix.ui.theme.OvertimeTheme
 import com.overtime.miuix.util.SalaryCalculator
 import kotlinx.coroutines.flow.collect
@@ -225,20 +241,29 @@ fun MainNavHost(
         onDispose { input?.let { dispatcher.removeInput(it) } }
     }
 
-    // 记录最近一次返回手势的来源边缘（左 / 右）。
-    // OverlayInput 仅在弹窗打开（树中存在消费型 handler）时注册系统回调，
-    // 因此这里捕获到的是「弹窗返回」手势的边缘，供横向返回动画定向参考；
-    // 普通页面返回由 NavHost 自行处理，本 dispatcher 不参与，方向沿用系统惯例（左→右）。
+    // 记录最近一次返回手势的来源边缘（左 / 右），供以下场景复用横向返回方向：
+    //   - 跟手平移期间实时写入（见 snapshotFlow 收集）；
+    //   - 按钮 / 代码触发的 pop（不走手势）沿用上一次边缘。
     val backSwipeEdge = remember { mutableIntStateOf(NavigationEvent.EDGE_LEFT) }
-    LaunchedEffect(dispatcher) {
-        dispatcher.transitionState.collect { state ->
-            if (state is NavigationEventTransitionState.InProgress) {
-                val edge = state.latestEvent.swipeEdge
-                if (edge == NavigationEvent.EDGE_LEFT || edge == NavigationEvent.EDGE_RIGHT) {
-                    backSwipeEdge.intValue = edge
-                }
-            }
+
+    // 容器宽度（px）与跟手偏移量：手势期间实时平移 NavHost 容器，实现「跟手」横向返回。
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+    val boxWidth = remember { mutableIntStateOf(0) }
+    val offset = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+
+    // 是否可返回（仅在非根页面启用页面返回 handler，根页面保留系统「退出应用」）。
+    val canGoBack = remember { mutableStateOf(navController.previousBackStackEntry != null) }
+    DisposableEffect(navController) {
+        val listener = NavController.OnDestinationChangedListener { _, _, _ ->
+            canGoBack.value = navController.previousBackStackEntry != null
+            // 进入新页面时复位偏移，避免上一次手势残留位移。
+            scope.launch { offset.snapTo(0f) }
         }
+        navController.addOnDestinationChangedListener(listener)
+        onDispose { navController.removeOnDestinationChangedListener(listener) }
     }
 
     // 返回动画可在「外观设置 → 页面转场」中切换；预测性返回手势预览复用同一组规格
@@ -247,18 +272,87 @@ fun MainNavHost(
     // 预测性返回总开关：关闭后返回瞬时无动画
     val predictiveBackEnabled by settingsRepository.predictiveBackEnabled
         .collectAsState(initial = true)
+    // 手势返回进行中（松手确认）时，由 offset 跟手平移「接管」整页转场，
+    // 抑制 NavHost 自带 pop 动画，避免与跟手平移叠加成双重动画。
+    val gesturePop = remember { mutableStateOf(false) }
     val popEnter: EnterTransition =
-        if (predictiveBackEnabled) backEnter(backTransition, backSwipeEdge.intValue)
+        if (predictiveBackEnabled && !gesturePop.value) backEnter(backTransition, backSwipeEdge.intValue)
         else EnterTransition.None
     val popExit: ExitTransition =
-        if (predictiveBackEnabled) backExit(backTransition, backSwipeEdge.intValue)
+        if (predictiveBackEnabled && !gesturePop.value) backExit(backTransition, backSwipeEdge.intValue)
         else ExitTransition.None
+
+    // 页面返回 handler（navigationevent 官方 Composable，自动完成 add / remove 与启用管理）。
+    // 它消费页面级返回手势并驱动跟手平移；弹窗打开时，弹窗的 overlay handler 优先级更高且
+    // 后注册，会先被命中，因此页面返回不会与弹窗关闭冲突。
+    val backState = rememberNavigationEventState(
+        NavigationEventInfo.None,
+        emptyList(),
+        emptyList()
+    )
+    fun widthPx(): Float = if (boxWidth.intValue > 0) boxWidth.intValue.toFloat() else screenWidthPx
+    // 左边缘手势 → 内容从左向右滑出（+）；右边缘手势 → 从右向左滑出（-）。
+    fun dir(edge: Int): Float = if (edge == NavigationEvent.EDGE_RIGHT) -1f else 1f
+
+    // 跟手平移 + 边缘检测：收集「本 handler 自身」的转场状态（backState.transitionState），
+    // 它只在页面返回 handler 真正接管手势时更新；弹窗返回由弹窗 handler 接管，不会误平移整页。
+    // 手势进度（progress）直接驱动容器平移实现跟手；来源边缘（swipeEdge）翻转横向方向。
+    LaunchedEffect(backState) {
+        snapshotFlow { backState.transitionState }.collect { state ->
+            if (state is NavigationEventTransitionState.InProgress) {
+                // 手势进行中：抑制 NavHost 自带 pop 动画，由 offset 跟手平移独占驱动整页，
+                // 避免「弹窗/页面」与「手写平移」叠加成双重动画。
+                gesturePop.value = true
+                val event = state.latestEvent
+                backSwipeEdge.intValue = event.swipeEdge
+                val p = event.progress.coerceIn(0f, 1f)
+                scope.launch { offset.snapTo(dir(event.swipeEdge) * widthPx() * p) }
+            }
+        }
+    }
 
     CompositionLocalProvider(
         LocalNavigationEventDispatcherOwner provides dispatcherOwner,
         // 兜底默认值：各目的地都会用 PageSnackbarScope 覆盖为页面级 state
         LocalSnackbarHostState provides remember { SnackbarHostState() }
     ) {
+        // 页面返回 handler 必须位于 dispatcherOwner 提供的 CompositionLocalProvider 内，
+        // 才能将自身注册到根 dispatcher 并接管页面级返回手势。弹窗打开时弹窗的 overlay
+        // handler 优先级更高且后注册，会先被命中，故不会与弹窗关闭冲突。
+        NavigationBackHandler(
+            state = backState,
+            isBackEnabled = predictiveBackEnabled && canGoBack.value,
+            onBackCancelled = {
+                // 手势取消：当前页沿跟手方向回弹归位，并复位手势返回标记，
+                // 让下一次（非手势）pop 仍能走 NavHost 自带转场。
+                scope.launch {
+                    offset.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+                    gesturePop.value = false
+                }
+            },
+            onBackCompleted = {
+                // 手势确认：当前页沿跟手方向继续滑出至整屏外完成收尾（跟手感延续），
+                // 再由 NavHost 切换上一页——此刻 pop 动画已被 gesturePop 抑制，避免叠加；
+                // 最后复位偏移与标记。方向由本次手势来源边缘决定（左→右滑 / 右→左滑）。
+                scope.launch {
+                    gesturePop.value = true
+                    offset.animateTo(
+                        dir(backSwipeEdge.intValue) * widthPx(),
+                        spring(stiffness = Spring.StiffnessMediumLow)
+                    )
+                    navController.popBackStack()
+                    offset.snapTo(0f)
+                    gesturePop.value = false
+                }
+            }
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .onSizeChanged { boxWidth.intValue = it.width }
+                .graphicsLayer { translationX = offset.value }
+        ) {
         NavHost(
             navController = navController,
             startDestination = "main",
@@ -366,6 +460,7 @@ fun MainNavHost(
         }
         composable("about") {
             PageSnackbarScope { AboutPage(navController = navController) }
+        }
         }
         }
     }
