@@ -17,6 +17,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -30,6 +36,7 @@ import com.overtime.miuix.mcp.McpHostService
 import com.overtime.miuix.ui.screen.*
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
 import com.overtime.miuix.ui.theme.OvertimeTheme
+import com.overtime.miuix.util.SalaryCalculator
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
@@ -84,6 +91,15 @@ class MainActivity : ComponentActivity() {
                 keyColor = androidx.compose.ui.graphics.Color(accentColor),
                 monet = monetEnabled
             ) {
+                // 计薪口径持久化在 DataStore，启动时及设置变化后同步给纯 Kotlin 计算工具，
+                // 保证记录保存、推送、MCP 与设置页试算使用同一组参数。
+                val workingDaysPerMonth by settingsRepository.workingDaysPerMonth
+                    .collectAsState(initial = SalaryCalculator.DEFAULT_WORKING_DAYS_PER_MONTH)
+                val hoursPerDay by settingsRepository.hoursPerDay
+                    .collectAsState(initial = SalaryCalculator.DEFAULT_HOURS_PER_DAY)
+                LaunchedEffect(workingDaysPerMonth, hoursPerDay) {
+                    SalaryCalculator.configure(workingDaysPerMonth, hoursPerDay)
+                }
                 val navController = rememberNavController()
                 MainNavHost(
                     navController = navController,
@@ -118,6 +134,44 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** 未识别的持久化值回退到默认动画，避免旧备份写入未知字符串后转场失效。 */
+private fun resolveBackTransition(mode: String): BackTransition =
+    BackTransition.entries.firstOrNull { it.name == mode } ?: BackTransition.SCALE_FADE
+
+/** 返回（含预测性返回手势预览）转场规格。 */
+private fun backEnter(mode: String): EnterTransition = when (resolveBackTransition(mode)) {
+    BackTransition.SLIDE_HORIZONTAL -> slideInHorizontally(animationSpec = tween(300)) { -it / 4 } + fadeIn(tween(300))
+    BackTransition.SLIDE_VERTICAL -> slideInVertically(animationSpec = tween(300)) { -it / 4 } + fadeIn(tween(300))
+    BackTransition.FADE -> fadeIn(tween(300))
+    BackTransition.NONE -> EnterTransition.None
+    else -> scaleIn(animationSpec = tween(300), initialScale = 0.92f) + fadeIn(tween(300))
+}
+
+private fun backExit(mode: String): ExitTransition = when (resolveBackTransition(mode)) {
+    BackTransition.SLIDE_HORIZONTAL -> slideOutHorizontally(animationSpec = tween(300)) { it / 4 } + fadeOut(tween(300))
+    BackTransition.SLIDE_VERTICAL -> slideOutVertically(animationSpec = tween(300)) { it / 4 } + fadeOut(tween(300))
+    BackTransition.FADE -> fadeOut(tween(300))
+    BackTransition.NONE -> ExitTransition.None
+    else -> scaleOut(animationSpec = tween(300), targetScale = 0.88f) + fadeOut(tween(300))
+}
+
+/**
+ * 为单个导航目的地提供独立的 [SnackbarHostState]。
+ *
+ * 旧实现全 App 共用一个 state，而每个页面的 Scaffold 各自挂载 SnackbarHost，
+ * 且 MainScreen 为避让 FAB 额外抬高了 Host。页面返回时，子页面尚未消失的提示
+ * 会被上一界面的 Host 重新渲染，位置从贴底跳到抬高（视觉上「往上移动」）。
+ * 改为页面级 state 后，提示与当前页面生命周期绑定：随返回转场一起淡出，
+ * 不会漂移到上一界面，也不会出现多个 Host 同时渲染同一条提示。
+ */
+@Composable
+private fun PageSnackbarScope(content: @Composable () -> Unit) {
+    CompositionLocalProvider(
+        LocalSnackbarHostState provides remember { SnackbarHostState() },
+        content = content
+    )
+}
+
 @Composable
 fun MainNavHost(
     navController: NavHostController,
@@ -131,101 +185,129 @@ fun MainNavHost(
         enabled = true,
         parent = null
     )
+    // 返回动画可在「外观设置 → 页面转场」中切换；预测性返回手势预览复用同一组规格
+    val backTransition by settingsRepository.predictiveBackTransition
+        .collectAsState(initial = BackTransition.SCALE_FADE.name)
+    // 预测性返回总开关：关闭后返回瞬时无动画
+    val predictiveBackEnabled by settingsRepository.predictiveBackEnabled
+        .collectAsState(initial = true)
+    val popEnter: EnterTransition =
+        if (predictiveBackEnabled) backEnter(backTransition) else EnterTransition.None
+    val popExit: ExitTransition =
+        if (predictiveBackEnabled) backExit(backTransition) else ExitTransition.None
+
     CompositionLocalProvider(
         LocalNavigationEventDispatcherOwner provides dispatcherOwner,
+        // 兜底默认值：各目的地都会用 PageSnackbarScope 覆盖为页面级 state
         LocalSnackbarHostState provides remember { SnackbarHostState() }
     ) {
         NavHost(
             navController = navController,
             startDestination = "main",
-            // 返回（pop）动画改为缩放：下层页自 0.92 放大淡入，当前页缩至 0.88 淡出；
-            // 手势返回的实时预览（predictive back）复用同一组转场规格，预览即缩放效果
-            popEnterTransition = {
-                scaleIn(animationSpec = tween(300), initialScale = 0.92f) + fadeIn(tween(300))
-            },
-            popExitTransition = {
-                scaleOut(animationSpec = tween(300), targetScale = 0.88f) + fadeOut(tween(300))
-            }
+            popEnterTransition = { popEnter },
+            popExitTransition = { popExit }
         ) {
         composable("main") {
-            MainScreen(
-                navController = navController,
-                repository = repository,
-                settingsRepository = settingsRepository
-            )
+            PageSnackbarScope {
+                MainScreen(
+                    navController = navController,
+                    repository = repository,
+                    settingsRepository = settingsRepository
+                )
+            }
         }
         composable("add_record") {
-            AddEditRecordPage(
-                navController = navController,
-                repository = repository,
-                settingsRepository = settingsRepository
-            )
+            PageSnackbarScope {
+                AddEditRecordPage(
+                    navController = navController,
+                    repository = repository,
+                    settingsRepository = settingsRepository
+                )
+            }
         }
         composable("edit_record/{recordId}") { backStackEntry ->
-            val recordId = backStackEntry.arguments?.getString("recordId")?.toLongOrNull()
-            AddEditRecordPage(
-                navController = navController,
-                repository = repository,
-                settingsRepository = settingsRepository,
-                recordId = recordId
-            )
+            PageSnackbarScope {
+                val recordId = backStackEntry.arguments?.getString("recordId")?.toLongOrNull()
+                AddEditRecordPage(
+                    navController = navController,
+                    repository = repository,
+                    settingsRepository = settingsRepository,
+                    recordId = recordId
+                )
+            }
         }
         composable("statistics") {
-            StatisticsPage(
-                navController = navController,
-                repository = repository,
-                settingsRepository = settingsRepository
-            )
+            PageSnackbarScope {
+                StatisticsPage(
+                    navController = navController,
+                    repository = repository,
+                    settingsRepository = settingsRepository
+                )
+            }
         }
         composable("settings") {
-            SettingsPage(navController = navController)
+            PageSnackbarScope { SettingsPage(navController = navController) }
         }
         composable("push_settings") {
-            PushSettingsPage(
-                navController = navController,
-                settingsRepository = settingsRepository
-            )
+            PageSnackbarScope {
+                PushSettingsPage(
+                    navController = navController,
+                    settingsRepository = settingsRepository
+                )
+            }
         }
         composable("backup_settings") {
-            BackupSettingsPage(
-                navController = navController,
-                repository = repository,
-                settingsRepository = settingsRepository
-            )
+            PageSnackbarScope {
+                BackupSettingsPage(
+                    navController = navController,
+                    repository = repository,
+                    settingsRepository = settingsRepository
+                )
+            }
         }
         composable("salary_settings") {
-            SalarySettingsPage(
-                navController = navController,
-                settingsRepository = settingsRepository
-            )
+            PageSnackbarScope {
+                SalarySettingsPage(
+                    navController = navController,
+                    settingsRepository = settingsRepository
+                )
+            }
         }
         composable("appearance_settings") {
-            AppearanceSettingsPage(
-                navController = navController,
-                settingsRepository = settingsRepository
-            )
+            PageSnackbarScope {
+                AppearanceSettingsPage(
+                    navController = navController,
+                    settingsRepository = settingsRepository
+                )
+            }
         }
         composable("calendar_settings") {
-            CalendarSettingsPage(
-                navController = navController,
-                repository = repository,
-                settingsRepository = settingsRepository
-            )
+            PageSnackbarScope {
+                CalendarSettingsPage(
+                    navController = navController,
+                    repository = repository,
+                    settingsRepository = settingsRepository
+                )
+            }
         }
         composable("holiday_settings") {
-            HolidaySettingsPage(
-                navController = navController,
-                settingsRepository = settingsRepository
-            )
+            PageSnackbarScope {
+                HolidaySettingsPage(
+                    navController = navController,
+                    settingsRepository = settingsRepository
+                )
+            }
         }
         composable("mcp_settings") {
-            McpSettingsPage(
-                navController = navController,
-                settingsRepository = settingsRepository
-            )
+            PageSnackbarScope {
+                McpSettingsPage(
+                    navController = navController,
+                    settingsRepository = settingsRepository
+                )
+            }
         }
         composable("about") {
-            AboutPage(navController = navController)
+            PageSnackbarScope { AboutPage(navController = navController) }
         }
         }
     }

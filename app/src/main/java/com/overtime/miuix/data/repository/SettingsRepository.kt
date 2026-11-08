@@ -30,6 +30,20 @@ class SettingsRepository(private val context: Context) {
     val floatingNavBottomOffset: Flow<Int> = context.dataStore.data
         .map { (it[KEY_FLOATING_NAV_BOTTOM_OFFSET] ?: DEFAULT_FLOATING_NAV_BOTTOM_OFFSET).coerceIn(0, 64) }
 
+    // 预测性返回总开关：关闭后返回不做任何动画（瞬时返回），也禁用系统返回手势预览
+    val predictiveBackEnabled: Flow<Boolean> = context.dataStore.data
+        .map { it[KEY_PREDICTIVE_BACK_ENABLED] ?: DEFAULT_PREDICTIVE_BACK_ENABLED }
+
+    // 页面返回转场动画（预测性返回手势预览复用同一组规格），仅在总开关开启时生效
+    val predictiveBackTransition: Flow<String> = context.dataStore.data
+        .map { it[KEY_PREDICTIVE_BACK_TRANSITION] ?: DEFAULT_PREDICTIVE_BACK_TRANSITION }
+
+    // 薪资计算口径：月计薪天数 / 每日工时，可在「薪资与记录」中调整
+    val workingDaysPerMonth: Flow<Double> = context.dataStore.data
+        .map { it[KEY_WORKING_DAYS_PER_MONTH] ?: DEFAULT_WORKING_DAYS_PER_MONTH }
+    val hoursPerDay: Flow<Double> = context.dataStore.data
+        .map { it[KEY_HOURS_PER_DAY] ?: DEFAULT_HOURS_PER_DAY }
+
     // 加班类型配色（统计日历等使用）
     val typeColorWorkday: Flow<Int> = context.dataStore.data.map { it[KEY_TYPE_COLOR_WORKDAY] ?: 0xFF3482FF.toInt() }
     val typeColorWeekend: Flow<Int> = context.dataStore.data.map { it[KEY_TYPE_COLOR_WEEKEND] ?: 0xFF34C759.toInt() }
@@ -93,6 +107,18 @@ class SettingsRepository(private val context: Context) {
     suspend fun setFloatingNavBottomOffset(dp: Int) {
         context.dataStore.edit { it[KEY_FLOATING_NAV_BOTTOM_OFFSET] = dp.coerceIn(0, 64) }
     }
+    suspend fun setPredictiveBackEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PREDICTIVE_BACK_ENABLED] = enabled }
+    }
+    suspend fun setPredictiveBackTransition(mode: String) {
+        context.dataStore.edit { it[KEY_PREDICTIVE_BACK_TRANSITION] = mode }
+    }
+    suspend fun setWorkingDaysPerMonth(days: Double) {
+        context.dataStore.edit { it[KEY_WORKING_DAYS_PER_MONTH] = days }
+    }
+    suspend fun setHoursPerDay(hours: Double) {
+        context.dataStore.edit { it[KEY_HOURS_PER_DAY] = hours }
+    }
     suspend fun setTypeColorWorkday(color: Int) { context.dataStore.edit { it[KEY_TYPE_COLOR_WORKDAY] = color } }
     suspend fun setTypeColorWeekend(color: Int) { context.dataStore.edit { it[KEY_TYPE_COLOR_WEEKEND] = color } }
     suspend fun setTypeColorHoliday(color: Int) { context.dataStore.edit { it[KEY_TYPE_COLOR_HOLIDAY] = color } }
@@ -152,6 +178,16 @@ class SettingsRepository(private val context: Context) {
                     KEY_FLOATING_NAV_BOTTOM_OFFSET.name ->
                         prefs[KEY_FLOATING_NAV_BOTTOM_OFFSET] =
                             (value.toIntOrNull() ?: DEFAULT_FLOATING_NAV_BOTTOM_OFFSET).coerceIn(0, 64)
+                    KEY_PREDICTIVE_BACK_TRANSITION.name ->
+                        prefs[KEY_PREDICTIVE_BACK_TRANSITION] = value
+                    KEY_PREDICTIVE_BACK_ENABLED.name ->
+                        prefs[KEY_PREDICTIVE_BACK_ENABLED] = value.toBoolean()
+                    KEY_WORKING_DAYS_PER_MONTH.name ->
+                        prefs[KEY_WORKING_DAYS_PER_MONTH] =
+                            (value.toDoubleOrNull() ?: DEFAULT_WORKING_DAYS_PER_MONTH).coerceAtLeast(0.01)
+                    KEY_HOURS_PER_DAY.name ->
+                        prefs[KEY_HOURS_PER_DAY] =
+                            (value.toDoubleOrNull() ?: DEFAULT_HOURS_PER_DAY).coerceAtLeast(0.01)
                     KEY_TYPE_COLOR_WORKDAY.name -> prefs[KEY_TYPE_COLOR_WORKDAY] = value.toIntOrNull() ?: 0xFF3482FF.toInt()
                     KEY_TYPE_COLOR_WEEKEND.name -> prefs[KEY_TYPE_COLOR_WEEKEND] = value.toIntOrNull() ?: 0xFF34C759.toInt()
                     KEY_TYPE_COLOR_HOLIDAY.name -> prefs[KEY_TYPE_COLOR_HOLIDAY] = value.toIntOrNull() ?: 0xFFFF7043.toInt()
@@ -204,6 +240,10 @@ class SettingsRepository(private val context: Context) {
             KEY_MONET_ENABLED.name to monetEnabled.first().toString(),
             KEY_FLOATING_NAV.name to useFloatingNav.first().toString(),
             KEY_FLOATING_NAV_BOTTOM_OFFSET.name to floatingNavBottomOffset.first().toString(),
+            KEY_PREDICTIVE_BACK_TRANSITION.name to predictiveBackTransition.first(),
+            KEY_PREDICTIVE_BACK_ENABLED.name to predictiveBackEnabled.first().toString(),
+            KEY_WORKING_DAYS_PER_MONTH.name to workingDaysPerMonth.first().toString(),
+            KEY_HOURS_PER_DAY.name to hoursPerDay.first().toString(),
             KEY_TYPE_COLOR_WORKDAY.name to typeColorWorkday.first().toString(),
             KEY_TYPE_COLOR_WEEKEND.name to typeColorWeekend.first().toString(),
             KEY_TYPE_COLOR_HOLIDAY.name to typeColorHoliday.first().toString(),
@@ -253,6 +293,14 @@ class SettingsRepository(private val context: Context) {
         private val KEY_FLOATING_NAV = booleanPreferencesKey("floating_nav")
         private val KEY_FLOATING_NAV_BOTTOM_OFFSET = intPreferencesKey("floating_nav_bottom_offset")
         private const val DEFAULT_FLOATING_NAV_BOTTOM_OFFSET = 5
+        private val KEY_PREDICTIVE_BACK_ENABLED = booleanPreferencesKey("predictive_back_enabled")
+        private const val DEFAULT_PREDICTIVE_BACK_ENABLED = true
+        private val KEY_PREDICTIVE_BACK_TRANSITION = stringPreferencesKey("predictive_back_transition")
+        private const val DEFAULT_PREDICTIVE_BACK_TRANSITION = "SCALE_FADE"
+        private val KEY_WORKING_DAYS_PER_MONTH = doublePreferencesKey("working_days_per_month")
+        private val KEY_HOURS_PER_DAY = doublePreferencesKey("hours_per_day")
+        private const val DEFAULT_WORKING_DAYS_PER_MONTH = 21.75
+        private const val DEFAULT_HOURS_PER_DAY = 8.0
 
         private val KEY_TYPE_COLOR_WORKDAY = intPreferencesKey("type_color_workday")
         private val KEY_TYPE_COLOR_WEEKEND = intPreferencesKey("type_color_weekend")

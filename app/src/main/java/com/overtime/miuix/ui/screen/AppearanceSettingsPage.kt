@@ -1,6 +1,7 @@
 package com.overtime.miuix.ui.screen
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -8,7 +9,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -18,7 +21,17 @@ import com.overtime.miuix.data.repository.SettingsRepository
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/** 页面返回转场（含预测性返回手势预览），name 持久化到 DataStore。 */
+enum class BackTransition(val label: String) {
+    SCALE_FADE("缩放淡入"),
+    SLIDE_HORIZONTAL("横向滑动"),
+    SLIDE_VERTICAL("纵向滑动"),
+    FADE("纯淡入淡出"),
+    NONE("无动画")
+}
 
 // 主题模式选项：value → label，其中 monet_* 映射到 ColorSchemeMode.MonetLight/MonetDark
 private val THEME_OPTIONS = listOf(
@@ -45,6 +58,10 @@ fun AppearanceSettingsPage(
     val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
     val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
     val accentColor by settingsRepository.accentColor.collectAsState(initial = 0xFF3482FF.toInt())
+    val backTransition by settingsRepository.predictiveBackTransition
+        .collectAsState(initial = BackTransition.SCALE_FADE.name)
+    val predictiveBackEnabled by settingsRepository.predictiveBackEnabled
+        .collectAsState(initial = true)
 
     val themeItems = remember { THEME_OPTIONS.map { DropdownItem(text = it.second) } }
     val themeSelected = remember(themeMode) {
@@ -56,6 +73,13 @@ fun AppearanceSettingsPage(
     }
     val bottomBarSelected = remember(bottomBarStyle) {
         BottomBarStyle.entries.indexOfFirst { it.name == bottomBarStyle }.coerceAtLeast(0)
+    }
+
+    val backTransitionItems = remember {
+        BackTransition.entries.map { DropdownItem(text = it.label) }
+    }
+    val backTransitionSelected = remember(backTransition) {
+        BackTransition.entries.indexOfFirst { it.name == backTransition }.coerceAtLeast(0)
     }
 
     SettingsScreen(
@@ -160,6 +184,35 @@ fun AppearanceSettingsPage(
         }
 
         item {
+            SettingsGroup(title = "页面转场") {
+                SettingsSwitchItem(
+                    title = "返回预测",
+                    summary = "开启后，系统返回手势会实时预览目标页面并显示返回动画",
+                    checked = predictiveBackEnabled,
+                    onCheckedChange = { scope.launch { settingsRepository.setPredictiveBackEnabled(it) } }
+                )
+                if (predictiveBackEnabled) {
+                    OverlaySpinnerPreference(
+                        items = backTransitionItems,
+                        selectedIndex = backTransitionSelected,
+                        title = "返回动画",
+                        summary = "返回、手势返回预览与页面退出时使用的动画",
+                        onSelectedIndexChange = { index ->
+                            scope.launch {
+                                settingsRepository.setPredictiveBackTransition(
+                                    BackTransition.entries[index].name
+                                )
+                            }
+                        }
+                    )
+                    SettingsNote(text = "切换后立即生效；当前：${BackTransition.entries[backTransitionSelected].label}")
+                } else {
+                    SettingsNote(text = "返回预测已关闭，返回时不做任何动画（瞬时返回）")
+                }
+            }
+        }
+
+        item {
             // 强调色与各类型颜色是同一类配置，合并为一组
             SettingsGroup(title = "颜色") {
                 ColorPickerRow(
@@ -206,30 +259,92 @@ private fun ColorPickerRow(
     selected: Int,
     onSelect: (Int) -> Unit
 ) {
-    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        Text(
-            text = label,
-            style = MiuixTheme.textStyles.body1,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-        )
+    var showDialog by remember { mutableStateOf(false) }
+    var draft by remember { mutableStateOf(Color(selected)) }
+
+    // 单行入口：标题 + 当前色值 + 色点，点击弹出 MIUIX 原生取色器
+    Surface(
+        onClick = {
+            draft = Color(selected)
+            showDialog = true
+        },
+        color = Color.Transparent,
+        modifier = Modifier.fillMaxWidth()
+    ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
-            TYPE_COLOR_PALETTE.forEach { c ->
-                val isSelected = selected == c
-                // MIUIX Surface(onClick) 统一承载色块、选中描边与标准按压反馈
-                Surface(
-                    onClick = { onSelect(c) },
-                    color = Color(c),
-                    shape = CircleShape,
-                    border = if (isSelected) BorderStroke(3.dp, MiuixTheme.colorScheme.onSurface) else null,
-                    modifier = Modifier.size(32.dp)
-                ) {}
+            Text(
+                text = label,
+                style = MiuixTheme.textStyles.body1,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "#${"%06X".format(selected and 0xFFFFFF)}",
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color(selected))
+            )
+        }
+    }
+
+    OverlayDialog(
+        show = showDialog,
+        title = label,
+        summary = "拖动滑块自由取色，或点击预设色快速选择",
+        onDismissRequest = { showDialog = false }
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            ColorPicker(
+                color = draft,
+                onColorChanged = { draft = it },
+                modifier = Modifier.fillMaxWidth(),
+                colorSpace = ColorSpace.HSV
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                TYPE_COLOR_PALETTE.forEach { c ->
+                    Surface(
+                        onClick = { draft = Color(c) },
+                        color = Color(c),
+                        shape = CircleShape,
+                        border = if (draft.toArgb() == c) {
+                            BorderStroke(2.dp, MiuixTheme.colorScheme.onSurface)
+                        } else null,
+                        modifier = Modifier.size(28.dp)
+                    ) {}
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                TextButton(
+                    text = "取消",
+                    onClick = { showDialog = false },
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                TextButton(
+                    text = "确定",
+                    onClick = {
+                        // 统一存为不透明 ARGB，避免取色器 alpha 影响主题配色
+                        onSelect(draft.toArgb() or 0xFF000000.toInt())
+                        showDialog = false
+                    },
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }

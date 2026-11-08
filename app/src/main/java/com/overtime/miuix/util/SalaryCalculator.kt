@@ -6,15 +6,33 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 object SalaryCalculator {
-    private const val WORKING_DAYS_PER_MONTH = 21.75
-    private const val HOURS_PER_DAY = 8.0
-    
+    const val DEFAULT_WORKING_DAYS_PER_MONTH = 21.75
+    const val DEFAULT_HOURS_PER_DAY = 8.0
+
     /**
-     * 标准小时薪资口径：月基础薪资 / 21.75 天 / 8 小时。
-     * 抽成公共方法，供金额计算与推送内容展示共用，避免两处公式漂移。
+     * 当前计薪口径，由「薪资与记录」设置页持久化并由 MainActivity 在设置变化时同步。
+     * 用 @Volatile 保证记录保存 / 推送 / MCP 等后台线程读取时可见；configure 做下限
+     * 保护，避免非法值导致除零。
+     */
+    @Volatile
+    var workingDaysPerMonth: Double = DEFAULT_WORKING_DAYS_PER_MONTH
+        private set
+
+    @Volatile
+    var hoursPerDay: Double = DEFAULT_HOURS_PER_DAY
+        private set
+
+    fun configure(workingDaysPerMonth: Double, hoursPerDay: Double) {
+        this.workingDaysPerMonth = workingDaysPerMonth.coerceAtLeast(0.01)
+        this.hoursPerDay = hoursPerDay.coerceAtLeast(0.01)
+    }
+
+    /**
+     * 小时薪资口径：月基础薪资 / 月计薪天数 / 每日工时。
+     * 抽成公共方法，供金额计算、推送内容展示与设置页试算共用，避免公式漂移。
      */
     fun hourlySalary(baseSalary: Double): Double =
-        baseSalary / WORKING_DAYS_PER_MONTH / HOURS_PER_DAY
+        baseSalary / workingDaysPerMonth / hoursPerDay
 
     fun calculateOvertimeAmount(
         baseSalary: Double,
@@ -30,7 +48,7 @@ object SalaryCalculator {
 
     /**
      * 请假工资扣减：按标准日薪比例计算（rate=1.0），以负值表示扣款。
-     * 例如请全天(8h)扣减一天工资 = baseSalary / 21.75。
+     * 例如按每日工时请满一天，扣减一天工资 = baseSalary / 当前月计薪天数。
      */
     fun calculateLeaveDeduction(baseSalary: Double, durationHours: Double): Double {
         val absHours = kotlin.math.abs(durationHours)
