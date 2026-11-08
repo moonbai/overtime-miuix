@@ -123,7 +123,7 @@ fun McpSettingsPage(
                         else -> "服务运行中 · 监听端口 $port"
                     }
                 )
-                SettingsNote(text = "服务以常驻通知方式运行。局域网访问需要「本地网络」与「通知」权限；若客户端连不上，先确认此处显示「运行中」。")
+                SettingsNote(text = "服务以常驻通知方式运行。局域网访问需要「本地网络」与「通知」权限；\n若客户端连不上，先确认此处显示「运行中」。")
                 SettingsActionItem(
                     title = if (runningPort == null) "启动服务" else "重启服务",
                     summary = "按当前端口重新拉起并刷新状态",
@@ -173,14 +173,14 @@ fun McpSettingsPage(
 
         item {
             SettingsGroup(title = "接入信息") {
-                SettingsNote(text = "可用工具：add_overtime_record（添加加班/请假记录）、query_overtime_records（查询记录）、get_monthly_stats（月度统计）。")
+                SettingsNote(text = "可用工具：\n add_overtime_record（添加加班/请假记录）\n query_overtime_records（查询记录）\n get_monthly_stats（月度统计）。")
                 SettingsPreviewText(text = "访问地址：http://$deviceIp:$mcpPort/mcp")
             }
         }
 
         item {
             SettingsGroup(title = "配置 JSON") {
-                SettingsNote(text = "复制以下配置到 AI 客户端即可接入。手机与客户端需在同一局域网。")
+                SettingsNote(text = "复制以下配置到 AI 客户端即可接入。\n手机与客户端需在同一局域网。")
                 SettingsButtonRow(
                     firstText = "复制本机配置",
                     onFirstClick = { copyConfig("本机配置", localConfigJson) },

@@ -250,7 +250,6 @@ fun AppearanceSettingsPage(
                             }
                         )
                     }
-                    SettingsNote(text = "切换后立即生效")
                     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                         SettingsNote(
                             text = "Android 14 及以上支持手势实时预览；当前系统将在松手后播放动画"
