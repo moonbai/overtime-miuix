@@ -12,13 +12,15 @@ import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
-import androidx.activity.compose.BackHandler
+import android.os.Bundle
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,9 +41,12 @@ import com.mars.overtime.ui.snackbar.dismissCheckingSnackbar
 import com.mars.overtime.ui.snackbar.showCustomToast
 import com.mars.overtime.util.UpdateCheckResult
 import com.mars.overtime.util.UpdateChecker
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Locale
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -73,6 +78,89 @@ private fun formatApkSize(bytes: Long): String = if (bytes >= 1024 * 1024) {
     "%.0f KB".format(Locale.US, bytes / 1024.0)
 }
 
+/** 单一弹窗状态：两类结果弹窗天然互斥，且能跨配置变更恢复。 */
+private enum class UpdateDialogKind { NONE, UPDATE, CONSISTENCY }
+
+private data class UpdateDialogState(
+    val kind: UpdateDialogKind,
+    val info: UpdateChecker.UpdateInfo? = null
+)
+
+private val NO_DIALOG = UpdateDialogState(UpdateDialogKind.NONE)
+
+/**
+ * UpdateInfo 不是 Parcelable / Serializable，手写 Saver 逐字段存进 Bundle：
+ * 旋转、切换深色、分屏等 Activity 重建场景下，检查成功的弹窗不会凭空消失。
+ * rememberSaveable 带 saver 的重载要求非空 T，故用 NONE + 可空 info 表示「无弹窗」。
+ */
+private val UpdateDialogStateSaver = Saver<UpdateDialogState, Bundle>(
+    save = { state ->
+        Bundle().apply {
+            putString("kind", state.kind.name)
+            state.info?.let { i ->
+                putString("latestVersion", i.latestVersion)
+                putInt("versionCode", i.versionCode ?: -1)
+                putString("downloadUrl", i.downloadUrl)
+                putString("releaseNotes", i.releaseNotes)
+                putString("releaseUrl", i.releaseUrl)
+                putString("expectedSha256", i.expectedSha256)
+                putString("source", i.source)
+                putString("apkName", i.apkName)
+                putLong("sizeBytes", i.sizeBytes)
+            }
+        }
+    },
+    restore = { b ->
+        val kind = runCatching {
+            UpdateDialogKind.valueOf(b.getString("kind").orEmpty())
+        }.getOrDefault(UpdateDialogKind.NONE)
+        if (kind == UpdateDialogKind.NONE) NO_DIALOG
+        else UpdateDialogState(
+            kind = kind,
+            info = UpdateChecker.UpdateInfo(
+                latestVersion = b.getString("latestVersion").orEmpty(),
+                versionCode = b.getInt("versionCode", -1).takeIf { it >= 0 },
+                downloadUrl = b.getString("downloadUrl").orEmpty(),
+                releaseNotes = b.getString("releaseNotes").orEmpty(),
+                releaseUrl = b.getString("releaseUrl").orEmpty(),
+                expectedSha256 = b.getString("expectedSha256"),
+                source = b.getString("source").orEmpty(),
+                apkName = b.getString("apkName").orEmpty(),
+                sizeBytes = b.getLong("sizeBytes", 0L)
+            )
+        )
+    }
+)
+
+private val MD_HEADING = Regex("^#{1,6}\\s+", RegexOption.MULTILINE)
+private val MD_BULLET = Regex("^[*+-]\\s+", RegexOption.MULTILINE)
+private val MD_LINK = Regex("\\[([^\\]]+)]\\([^)]+\\)")
+private val HTML_TAG = Regex("<[^>]+>")
+
+/**
+ * 发布说明展示前统一清洗：
+ * - 去掉供检查器解析的机器元数据（versionCode / sha256），避免把 64 位 hex 展示给用户
+ * - 去掉 Markdown / HTML 标记，让 REST（原始 Markdown）与 Atom（Html.fromHtml）两条
+ *   通道在弹窗里呈现一致的纯文本。检查器仍使用原始 body 解析，互不影响。
+ */
+private fun cleanReleaseNotes(raw: String): String {
+    val text = raw
+        .lineSequence()
+        .map { it.trim() }
+        .filterNot { line ->
+            line.contains("versionCode:", ignoreCase = true) ||
+                line.contains("sha256:", ignoreCase = true)
+        }
+        .joinToString("\n")
+        .replace(MD_HEADING, "")
+        .replace(MD_BULLET, "• ")
+        .replace("**", "")
+        .replace("`", "")
+        .replace(HTML_TAG, "")
+        .trim()
+    return MD_LINK.replace(text) { it.groupValues[1] }
+}
+
 @Composable
 fun AboutPage(navController: NavHostController) {
     val context = LocalContext.current
@@ -83,9 +171,10 @@ fun AboutPage(navController: NavHostController) {
     val versionName = remember { getVersionName(context) }
 
     var checking by remember { mutableStateOf(false) }
-    var updateInfo by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
-    var showUpdateDialog by remember { mutableStateOf(false) }
-    var showConsistencyDialog by remember { mutableStateOf(false) }
+    // 两类结果弹窗共用一个状态：互斥；rememberSaveable 保证 Activity 重建后弹窗不丢
+    var dialogState by rememberSaveable(saver = UpdateDialogStateSaver) {
+        mutableStateOf(NO_DIALOG)
+    }
 
     // 所有外链共用同一套「打不开就提示」的兜底逻辑
     // 显式声明 () -> Unit：lambda 体返回 Job（scope.launch），
@@ -101,7 +190,16 @@ fun AboutPage(navController: NavHostController) {
     // 让「关于」与所有二级设置页共享同一套视觉规范。
     SettingsScreen(
         title = "关于",
-        onBack = { navController.popBackStack() }
+        onBack = { navController.popBackStack() },
+        // 弹窗必须经 dialogs 挂进 Scaffold 的 content，OverlayDialog 才能找到 popup 宿主
+        dialogs = {
+            UpdateResultDialogs(
+                state = dialogState,
+                versionName = versionName,
+                openLink = openLink,
+                onDismiss = { dialogState = NO_DIALOG }
+            )
+        }
     ) {
         // Hero 卡片：图标 + 名称 + 版本 + 一行 Slogan
         item {
@@ -242,12 +340,9 @@ fun AboutPage(navController: NavHostController) {
                                     versionName, BuildConfig.VERSION_CODE
                                 )
                                 done.complete(Unit)
-                                // 结果分支的状态设置（非挂起）必须先于任何 suspend 调用：
-                                // dismissCheckingSnackbar 是挂起点，若此时协程已被取消
-                                //（用户离开页面销毁 rememberCoroutineScope），挂起恢复时
-                                // 抛 CancellationException，弹窗状态将永远设置不上，
-                                // 且 catch 内的 toast 同样是 suspend 会再次被取消——
-                                // 表现为「检查成功却静默无弹窗」。
+                                // 结果分支的弹窗状态赋值（非挂起）必须先于任何 suspend 调用：
+                                // dismissCheckingSnackbar 是挂起点，协程若在恢复时被取消，
+                                // 后续赋值不再执行，表现为「检查成功却静默无弹窗」。
                                 when (result) {
                                     is UpdateCheckResult.Failure -> {
                                         snackbarHostState.dismissCheckingSnackbar()
@@ -259,22 +354,29 @@ fun AboutPage(navController: NavHostController) {
                                     }
                                     is UpdateCheckResult.Success -> {
                                         if (result.hasUpdate) {
-                                            updateInfo = result.info
-                                            showUpdateDialog = true
+                                            dialogState = UpdateDialogState(
+                                                UpdateDialogKind.UPDATE, result.info
+                                            )
                                             android.util.Log.d(
                                                 "AboutPage",
                                                 "更新弹窗已触发 latest=${result.info.latestVersion}"
                                             )
                                             snackbarHostState.dismissCheckingSnackbar()
                                         } else {
-                                            val localSha =
+                                            // 读取整包 APK 算 SHA-256 是磁盘 IO（安装包可达 50MB+），
+                                            // 必须切到 IO；压在 Compose 主线程会让「已是最新版本」
+                                            // 这条最常走的成功路径掉帧甚至 ANR。
+                                            val localSha = withContext(Dispatchers.IO) {
                                                 UpdateChecker.getInstalledApkSha256(context)
+                                            }
                                             if (UpdateChecker.isLocalConsistent(
                                                     result.info, localSha
                                                 ) == false
                                             ) {
-                                                updateInfo = result.info
-                                                showConsistencyDialog = true
+                                                dialogState = UpdateDialogState(
+                                                    UpdateDialogKind.CONSISTENCY, result.info
+                                                )
+                                                snackbarHostState.dismissCheckingSnackbar()
                                             } else {
                                                 snackbarHostState.dismissCheckingSnackbar()
                                                 snackbarHostState.showCustomToast("已是最新版本")
@@ -282,6 +384,11 @@ fun AboutPage(navController: NavHostController) {
                                         }
                                     }
                                 }
+                            } catch (e: CancellationException) {
+                                // 协程取消是正常的结构化并发，不能当「检查异常」吞掉：
+                                // catch 内的 suspend 会在已取消协程上立即再次抛出。
+                                done.complete(Unit)
+                                throw e
                             } catch (e: Exception) {
                                 android.util.Log.w(
                                     "AboutPage",
@@ -319,45 +426,75 @@ fun AboutPage(navController: NavHostController) {
         item { Spacer(modifier = Modifier.height(AppDimens.groupSpacing)) }
     }
 
-    // 更新对话框
-    if (showUpdateDialog && updateInfo != null) {
-        BackHandler(enabled = true) { showUpdateDialog = false }
-        val info = updateInfo!!
-        val apkSummary = if (info.sizeBytes > 0) {
-            "\n安装包：${info.apkName.ifBlank { "APK" }}（${formatApkSize(info.sizeBytes)}）"
-        } else ""
-        OverlayDialog(
-            show = true,
-            title = "发现新版本",
-            summary = "当前版本：$versionName\n最新版本：${info.latestVersion}$apkSummary",
-            onDismissRequest = { showUpdateDialog = false }
-        ) {
+}
+
+/**
+ * 检查结果弹窗。必须挂到 SettingsScreen 的 dialogs（Scaffold content 内）：
+ * MIUIX OverlayDialog 默认 renderInRootScaffold=true，依赖 Scaffold 提供的 popup 宿主，
+ * 放在 Scaffold 外部会「状态已置位、窗口不渲染」，只留下一个看不见的返回消费者。
+ * 返回处理完全交给弹窗自身的 NavigationBackHandler + onDismissRequest，
+ * 不再额外注册 androidx.activity BackHandler，避免一次返回被消费两次。
+ */
+@Composable
+private fun UpdateResultDialogs(
+    state: UpdateDialogState,
+    versionName: String,
+    openLink: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val dialog = state
+
+    OverlayDialog(
+        show = dialog.kind == UpdateDialogKind.UPDATE,
+        title = "发现新版本",
+        summary = "GitHub 已发布新版本，建议更新",
+        onDismissRequest = { onDismiss() }
+    ) {
+        val info = dialog.info
+        if (info != null) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                if (info.releaseNotes.isNotBlank()) {
-                    // 发布说明保留完整内容，限高后可滚动，避免长更新日志撑开对话框
+                // 版本、包名、数据来源拆成独立行，不再挤在 summary 的小号文字里
+                Text(
+                    text = "v$versionName  →  v${info.latestVersion}",
+                    style = MiuixTheme.textStyles.body1,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+                if (info.sizeBytes > 0) {
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = info.releaseNotes,
+                        text = "安装包：${info.apkName.ifBlank { "APK" }}（${formatApkSize(info.sizeBytes)}）",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                }
+                val notes = cleanReleaseNotes(info.releaseNotes)
+                if (notes.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "更新内容",
+                        style = MiuixTheme.textStyles.body2,
+                        fontWeight = FontWeight.Medium,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    // 与按钮同宽（不再额外水平内缩），限高后可滚动
+                    Text(
+                        text = notes,
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
                             .heightIn(max = 200.dp)
                             .verticalScroll(rememberScrollState())
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
                 }
-                // 优先直达 APK 直链；解析不到资源时退回发布页
-                Button(
-                    onClick = {
-                        val target = info.downloadUrl.ifBlank {
-                            info.releaseUrl.ifBlank { RELEASE_PAGE_URL }
-                        }
-                        openLink(target)
-                        showUpdateDialog = false
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (info.downloadUrl.isNotBlank()) "下载 APK" else "前往发布页")
+                if (info.source.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "数据来源：${info.source}",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
                 }
                 if (info.downloadUrl.isNotBlank()) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -365,45 +502,66 @@ fun AboutPage(navController: NavHostController) {
                         text = "查看发布页",
                         onClick = {
                             openLink(info.releaseUrl.ifBlank { RELEASE_PAGE_URL })
-                            showUpdateDialog = false
+                            onDismiss()
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                TextButton(
-                    text = "稍后再说",
-                    onClick = { showUpdateDialog = false },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Spacer(modifier = Modifier.height(12.dp))
+                // 与全项目弹窗一致：两个等宽按钮横向排列；主操作显式用主色
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    TextButton(
+                        text = "稍后再说",
+                        onClick = { onDismiss() },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = {
+                            // 优先直达 APK 直链；解析不到资源时退回发布页
+                            val target = info.downloadUrl.ifBlank {
+                                info.releaseUrl.ifBlank { RELEASE_PAGE_URL }
+                            }
+                            openLink(target)
+                            onDismiss()
+                        },
+                        colors = ButtonDefaults.buttonColorsPrimary(),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(if (info.downloadUrl.isNotBlank()) "下载 APK" else "前往发布页")
+                    }
+                }
             }
         }
     }
 
-    // 一致性校验对话框
-    if (showConsistencyDialog && updateInfo != null) {
-        BackHandler(enabled = true) { showConsistencyDialog = false }
-        val info = updateInfo!!
-        OverlayDialog(
-            show = true,
-            title = "安装包校验不一致",
-            summary = "当前安装包与官方发布版本校验值不一致，可能存在被修改或替换的情况，建议重新下载安装。",
-            onDismissRequest = { showConsistencyDialog = false }
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Button(
-                    onClick = {
-                        openLink(info.releaseUrl.ifBlank { RELEASE_PAGE_URL })
-                        showConsistencyDialog = false
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("前往重新下载") }
-                Spacer(modifier = Modifier.height(8.dp))
+    OverlayDialog(
+        show = dialog.kind == UpdateDialogKind.CONSISTENCY,
+        title = "安装包校验不一致",
+        summary = "当前安装包与官方发布版本校验值不一致，可能存在被修改或替换的情况，建议重新下载安装。",
+        onDismissRequest = { onDismiss() }
+    ) {
+        val info = dialog.info
+        if (info != null) {
+            Row(modifier = Modifier.fillMaxWidth()) {
                 TextButton(
                     text = "忽略",
-                    onClick = { showConsistencyDialog = false },
-                    modifier = Modifier.fillMaxWidth()
+                    onClick = { onDismiss() },
+                    modifier = Modifier.weight(1f)
                 )
+                Spacer(modifier = Modifier.width(12.dp))
+                Button(
+                    onClick = {
+                        // 与更新弹窗一致：优先直达 APK，解析不到资源时才回退发布页
+                        val target = info.downloadUrl.ifBlank {
+                            info.releaseUrl.ifBlank { RELEASE_PAGE_URL }
+                        }
+                        openLink(target)
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColorsPrimary(),
+                    modifier = Modifier.weight(1f)
+                ) { Text("前往重新下载") }
             }
         }
     }
