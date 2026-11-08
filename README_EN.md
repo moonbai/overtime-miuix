@@ -20,7 +20,7 @@
 - **Real-time Salary Preview** — Live salary estimate while entering data; leave records show the estimated deduction
 - **Quick Submit** — One-tap today's overtime from the home screen with automatic date-type detection, duration presets plus a slider, and a one-shot submit lock that prevents duplicate inserts from rapid taps
 - **Statistics** — Month / year views, a monthly calendar card (tap a day for its details), categorized stats, plus yearly monthly trends and type breakdown
-- **Smart Date Detection** — Timor / MXNZP / custom API data sources auto-detect workdays, weekends and holidays, with make-up workday rules and caching
+- **Smart Date Detection** — Uapis holiday calendar (default) / MXNZP / custom API data sources auto-detect workdays, weekends and holidays, with make-up workday rules and caching
 - **Post-save Hooks** — A single save triggers notifications, calendar sync and auto-backup; any hook failure becomes a hint and never rolls back the record
 
 ### Extended

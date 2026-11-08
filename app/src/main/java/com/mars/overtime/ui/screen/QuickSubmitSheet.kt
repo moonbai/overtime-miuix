@@ -52,7 +52,8 @@ fun QuickSubmitSheet(
     val weekendRate by settingsRepository.weekendRate.collectAsState(initial = 2.0)
     val holidayRate by settingsRepository.holidayRate.collectAsState(initial = 3.0)
 
-    val holidayDataSource by settingsRepository.holidayDataSource.collectAsState(initial = "TIMOR")
+    val holidayDataSource by settingsRepository.holidayDataSource
+        .collectAsState(initial = HolidayDataSource.UAPIS.name)
     val holidayCustomUrl by settingsRepository.holidayCustomUrl.collectAsState(initial = "")
     val holidayMxnzpAppId by settingsRepository.holidayMxnzpAppId.collectAsState(initial = "")
     val holidayMxnzpAppSecret by settingsRepository.holidayMxnzpAppSecret.collectAsState(initial = "")
@@ -95,7 +96,7 @@ fun QuickSubmitSheet(
             saving = false
             submitGuard.set(false)
             if (!typeManuallyChanged) {
-                val source = try { HolidayDataSource.valueOf(holidayDataSource) } catch (_: Exception) { HolidayDataSource.TIMOR }
+                val source = try { HolidayDataSource.valueOf(holidayDataSource) } catch (_: Exception) { HolidayDataSource.UAPIS }
                 HolidayManager.configure(
                     dataSource = source,
                     customUrl = holidayCustomUrl,

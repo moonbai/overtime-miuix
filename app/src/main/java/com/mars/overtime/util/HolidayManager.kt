@@ -11,7 +11,7 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 
 enum class HolidayDataSource(val label: String) {
-    TIMOR("Timor API"),
+    UAPIS("Uapis 节假日 API"),
     MXNZP("MXNZP API"),
     CUSTOM("自定义 API")
 }
@@ -22,7 +22,10 @@ object HolidayManager {
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
-    private const val TIMOR_API_URL_TEMPLATE = "https://timor.tech/api/holiday/year/{year}"
+    // Timor（timor.tech）已停止服务，默认改用 uapis.cn 的节假日日历。
+    // year 模式一次返回全年每一天的明细（含普通工作日与调休上班日），
+    // 因此缓存按日写入后不会对每个普通日期重复发起整年请求。
+    private const val UAPIS_API_URL_TEMPLATE = "https://uapis.cn/api/v1/misc/holiday-calendar?year={year}"
     private const val MXNZP_API_URL_TEMPLATE = "https://www.mxnzp.com/api/holiday/list/year/{year}"
 
     // 公平内存：有界 LRU（accessOrder），上限≈5.6 年全年日历，超限按最久未用淘汰，防止无界增长。
@@ -39,7 +42,8 @@ object HolidayManager {
         val date: String,
         val isHoliday: Boolean,
         val name: String = "",
-        val type: Int = 0  // 0=工作日, 1=休息日, 2=节假日
+        // 统一档位：0=工作日, 1/2=休息日, 3=法定节假日（见 infoToType）
+        val type: Int = 0
     )
 
     private var cachedDataSource: HolidayDataSource? = null
@@ -62,7 +66,7 @@ object HolidayManager {
         cachedIgnoreHoliday = ignoreHoliday
     }
 
-    fun getDataSource(): HolidayDataSource = cachedDataSource ?: HolidayDataSource.TIMOR
+    fun getDataSource(): HolidayDataSource = cachedDataSource ?: HolidayDataSource.UAPIS
 
     /**
      * 公平内存：驱逐 OkHttp 空闲连接（下次请求自动重建，无功能影响）。
@@ -101,16 +105,66 @@ object HolidayManager {
     }
 
     private fun buildApiUrl(year: String): String {
-        val dataSource = cachedDataSource ?: HolidayDataSource.TIMOR
+        val dataSource = cachedDataSource ?: HolidayDataSource.UAPIS
         val customUrl = cachedCustomUrl
         return when (dataSource) {
-            HolidayDataSource.TIMOR -> TIMOR_API_URL_TEMPLATE.replace("{year}", year)
+            HolidayDataSource.UAPIS -> UAPIS_API_URL_TEMPLATE.replace("{year}", year)
             HolidayDataSource.MXNZP -> MXNZP_API_URL_TEMPLATE.replace("{year}", year)
             HolidayDataSource.CUSTOM -> customUrl?.replace("\${year}", year)?.replace("{year}", year) ?: ""
         }
     }
 
-    private fun parseTimorResponse(body: String) {
+    /**
+     * 解析 uapis.cn 节假日日历（year / month / day 模式通用，只读取 days[]）。
+     *
+     * 注意：days[].is_holiday 会把节气、农历节日等「不放假的节日」也标为 true，
+     * 不能用于判定休息日；权威字段是 legal_holiday_type：
+     *  - rest            法定休假 -> 法定节假日档（3）
+     *  - workday_adjust  法定调休上班 -> 工作日档（0），名称带「调休」供推送载荷识别
+     * 其余按 is_workday / is_weekend 区分普通工作日与周末。
+     * 整个法定休假区间按法定节假日档处理（与旧 Timor 的行为一致）。
+     *
+     * @return 实际写入缓存的日期条数，供 fetchHolidays 判定是否真的解析成功。
+     */
+    private fun parseUapisResponse(body: String): Int {
+        var count = 0
+        try {
+            val json = org.json.JSONObject(body)
+            val days = json.optJSONArray("days") ?: return 0
+            for (i in 0 until days.length()) {
+                val item = days.optJSONObject(i) ?: continue
+                val date = item.optString("date", "")
+                if (date.isEmpty()) continue
+                val legalType = item.optString("legal_holiday_type", "")
+                val legalName = item.optString("legal_holiday_name", "")
+                val isWorkday = item.optBoolean("is_workday", false)
+                val isWeekend = item.optBoolean("is_weekend", false)
+                val (type, name, isHoliday) = when {
+                    legalType == "rest" -> Triple(3, legalName, true)
+                    legalType == "workday_adjust" ->
+                        Triple(0, if (legalName.isNotEmpty()) "$legalName 调休" else "调休", false)
+                    isWorkday -> Triple(0, "", false)
+                    // 周末或其他休息日（is_rest_day），按休息日档
+                    else -> Triple(
+                        if (isWeekend || item.optBoolean("is_rest_day", false)) 1 else 0,
+                        "",
+                        false
+                    )
+                }
+                holidayCache[date] = HolidayInfo(
+                    date = date, isHoliday = isHoliday, name = name, type = type
+                )
+                count++
+            }
+        } catch (e: Exception) {
+            Log.e("HolidayManager", "解析 Uapis 响应失败", e)
+        }
+        return count
+    }
+
+    /** 兼容自定义 API 中的旧 Timor 格式；@return 写入缓存的条数。 */
+    private fun parseTimorResponse(body: String): Int {
+        var count = 0
         try {
             val json = org.json.JSONObject(body)
             val code = json.optInt("code", -1)
@@ -132,6 +186,7 @@ object HolidayManager {
                                 name = name,
                                 type = wage
                             )
+                            count++
                         }
                     }
                 }
@@ -139,9 +194,12 @@ object HolidayManager {
         } catch (e: Exception) {
             Log.e("HolidayManager", "解析 Timor 响应失败", e)
         }
+        return count
     }
 
-    private fun parseMxnzpResponse(body: String) {
+    /** 兼容 MXNZP 格式；@return 写入缓存的条数。 */
+    private fun parseMxnzpResponse(body: String): Int {
+        var count = 0
         try {
             val json = org.json.JSONObject(body)
             val code = json.optInt("code", -1)
@@ -165,6 +223,7 @@ object HolidayManager {
                                         name = name,
                                         type = detailsType
                                     )
+                                    count++
                                 }
                             }
                         }
@@ -174,32 +233,36 @@ object HolidayManager {
         } catch (e: Exception) {
             Log.e("HolidayManager", "解析 MXNZP 响应失败", e)
         }
+        return count
     }
 
-    private fun parseCustomResponse(body: String) {
-        try {
+    /** 自定义数据源按响应结构自动分发；@return 写入缓存的条数。 */
+    private fun parseCustomResponse(body: String): Int {
+        return try {
             val json = org.json.JSONObject(body)
             when {
+                // uapis.cn：全年日历 + 统计摘要
+                json.has("days") && json.has("summary") -> parseUapisResponse(body)
                 json.has("holiday") -> parseTimorResponse(body)
                 json.has("data") -> {
                     val data = json.opt("data")
-                    if (data is org.json.JSONArray) {
-                        parseMxnzpResponse(body)
-                    } else {
-                        parseSimpleResponse(body)
-                    }
+                    if (data is org.json.JSONArray) parseMxnzpResponse(body)
+                    else parseSimpleResponse(body)
                 }
                 else -> parseSimpleResponse(body)
             }
         } catch (e: Exception) {
             Log.e("HolidayManager", "解析自定义 API 响应失败", e)
+            0
         }
     }
 
-    private fun parseSimpleResponse(body: String) {
+    /** 兼容最简 { data: [...] } 数组格式；@return 写入缓存的条数。 */
+    private fun parseSimpleResponse(body: String): Int {
+        var count = 0
         try {
             val json = org.json.JSONObject(body)
-            val dataArray = json.optJSONArray("data") ?: json.optJSONArray("holidays") ?: return
+            val dataArray = json.optJSONArray("data") ?: json.optJSONArray("holidays") ?: return 0
             for (i in 0 until dataArray.length()) {
                 val item = dataArray.optJSONObject(i) ?: continue
                 val date = item.optString("date", item.optString("dateStr", ""))
@@ -208,11 +271,13 @@ object HolidayManager {
                 val isHoliday = item.optBoolean("holiday", item.optBoolean("isHoliday", type != 0))
                 if (date.isNotEmpty()) {
                     holidayCache[date] = HolidayInfo(date = date, isHoliday = isHoliday, name = name, type = type)
+                    count++
                 }
             }
         } catch (e: Exception) {
             Log.e("HolidayManager", "解析简单响应失败", e)
         }
+        return count
     }
 
     suspend fun getOvertimeType(dateStr: String): OvertimeType = withContext(Dispatchers.IO) {
@@ -227,7 +292,7 @@ object HolidayManager {
         val year = dateStr.substring(0, 4)
         try {
             var url = buildApiUrl(year)
-            val dataSource = cachedDataSource ?: HolidayDataSource.TIMOR
+            val dataSource = cachedDataSource ?: HolidayDataSource.UAPIS
 
             if (dataSource == HolidayDataSource.MXNZP) {
                 val appId = cachedMxnzpAppId ?: ""
@@ -247,7 +312,7 @@ object HolidayManager {
 
                 if (body != null) {
                     when (dataSource) {
-                        HolidayDataSource.TIMOR -> parseTimorResponse(body)
+                        HolidayDataSource.UAPIS -> parseUapisResponse(body)
                         HolidayDataSource.MXNZP -> parseMxnzpResponse(body)
                         HolidayDataSource.CUSTOM -> parseCustomResponse(body)
                     }
@@ -273,12 +338,9 @@ object HolidayManager {
     }
 
     /**
-     * 依据 mxnzp 日期 API 的 detailsType 判定加班类型：
-     *   0 = 工作日      -> WORKDAY（工作日加班）
-     *   1 = 假日(周末)   -> WEEKEND（休息日加班）
-     *   2 = 普通节假日   -> WEEKEND（休息日加班，双倍档）
-     *   3 = 三倍工资节假日 -> HOLIDAY（节假日加班）
-     * 参考文档：https://www.mxnzp.com/doc/detail?id=1
+     * 统一日期档位：0=工作日(WEEKDAY)、1/2=休息日、3=法定节假日。
+     * MXNZP 的 detailsType 原生就是这套值（见 https://www.mxnzp.com/doc/detail?id=1）；
+     * Uapis 的 legal_holiday_type / is_workday 在 parseUapisResponse 中先归一化成这套值。
      */
     private fun infoToType(info: HolidayInfo): OvertimeType {
         return when (info.type) {
@@ -318,7 +380,7 @@ object HolidayManager {
     suspend fun fetchHolidays(year: String): Boolean = withContext(Dispatchers.IO) {
         try {
             var url = buildApiUrl(year)
-            val dataSource = cachedDataSource ?: HolidayDataSource.TIMOR
+            val dataSource = cachedDataSource ?: HolidayDataSource.UAPIS
 
             if (dataSource == HolidayDataSource.MXNZP) {
                 val appId = cachedMxnzpAppId ?: ""
@@ -336,15 +398,16 @@ object HolidayManager {
             val res = client.newCall(req).execute()
             val body = res.body?.string()
             res.close()
+            if (body == null) return@withContext false
 
-            if (body != null) {
-                when (dataSource) {
-                    HolidayDataSource.TIMOR -> parseTimorResponse(body)
-                    HolidayDataSource.MXNZP -> parseMxnzpResponse(body)
-                    HolidayDataSource.CUSTOM -> parseCustomResponse(body)
-                }
+            val parsed = when (dataSource) {
+                HolidayDataSource.UAPIS -> parseUapisResponse(body)
+                HolidayDataSource.MXNZP -> parseMxnzpResponse(body)
+                HolidayDataSource.CUSTOM -> parseCustomResponse(body)
             }
-            body != null
+            // 解析异常会被各 parse 函数吞掉并只写日志，用实际写入条数判定，
+            // 避免「更新成功」但实际缓存为空的假成功。
+            parsed > 0
         } catch (e: Exception) {
             Log.e("HolidayManager", "拉取节假日失败", e)
             false

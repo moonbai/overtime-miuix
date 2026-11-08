@@ -73,7 +73,8 @@ fun AddEditRecordPage(
     var pickLeaveIndex by remember { mutableIntStateOf(0) } // 默认 -4.0（半天）
 
     // 节假日数据源配置
-    val holidayDataSource by settingsRepository.holidayDataSource.collectAsState(initial = "TIMOR")
+    val holidayDataSource by settingsRepository.holidayDataSource
+        .collectAsState(initial = HolidayDataSource.UAPIS.name)
     val holidayCustomUrl by settingsRepository.holidayCustomUrl.collectAsState(initial = "")
     val holidayMxnzpAppId by settingsRepository.holidayMxnzpAppId.collectAsState(initial = "")
     val holidayMxnzpAppSecret by settingsRepository.holidayMxnzpAppSecret.collectAsState(initial = "")
@@ -81,7 +82,7 @@ fun AddEditRecordPage(
 
     // 同步配置到 HolidayManager，保证按日期判定时使用用户所选数据源
     LaunchedEffect(holidayDataSource, holidayCustomUrl, holidayMxnzpAppId, holidayMxnzpAppSecret, holidayIgnoreHoliday) {
-        val source = try { HolidayDataSource.valueOf(holidayDataSource) } catch (_: Exception) { HolidayDataSource.TIMOR }
+        val source = try { HolidayDataSource.valueOf(holidayDataSource) } catch (_: Exception) { HolidayDataSource.UAPIS }
         HolidayManager.configure(
             dataSource = source,
             customUrl = holidayCustomUrl,

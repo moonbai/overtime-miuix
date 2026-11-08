@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.mars.overtime.util.HolidayDataSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -95,7 +96,13 @@ class SettingsRepository(private val context: Context) {
     val autoBackupLocation: Flow<String> = context.dataStore.data.map { it[KEY_AUTO_BACKUP_LOCATION] ?: "local" }
 
     // Holiday settings
-    val holidayDataSource: Flow<String> = context.dataStore.data.map { it[KEY_HOLIDAY_DATA_SOURCE] ?: "TIMOR" }
+    // Timor 服务已下线：旧配置 / 旧备份里的 TIMOR 与其它未知值统一迁移到默认数据源，
+    // 避免各页面 valueOf 失败后回退结果不一致。
+    val holidayDataSource: Flow<String> = context.dataStore.data.map { prefs ->
+        val saved = prefs[KEY_HOLIDAY_DATA_SOURCE]
+        if (saved != null && HolidayDataSource.entries.any { it.name == saved }) saved
+        else HolidayDataSource.UAPIS.name
+    }
     val holidayCustomUrl: Flow<String> = context.dataStore.data.map { it[KEY_HOLIDAY_CUSTOM_URL] ?: "" }
     val holidayMxnzpAppId: Flow<String> = context.dataStore.data.map { it[KEY_HOLIDAY_MXNZP_APP_ID] ?: "" }
     val holidayMxnzpAppSecret: Flow<String> = context.dataStore.data.map { it[KEY_HOLIDAY_MXNZP_APP_SECRET] ?: "" }

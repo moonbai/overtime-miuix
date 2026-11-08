@@ -26,7 +26,8 @@ fun HolidaySettingsPage(
     val scope = rememberCoroutineScope()
     val snackbarHostState = LocalSnackbarHostState.current
 
-    val dataSource by settingsRepository.holidayDataSource.collectAsState(initial = "TIMOR")
+    val dataSource by settingsRepository.holidayDataSource
+        .collectAsState(initial = HolidayDataSource.UAPIS.name)
     val customUrl by settingsRepository.holidayCustomUrl.collectAsState(initial = "")
     val mxnzpAppId by settingsRepository.holidayMxnzpAppId.collectAsState(initial = "")
     val mxnzpAppSecret by settingsRepository.holidayMxnzpAppSecret.collectAsState(initial = "")
@@ -39,7 +40,7 @@ fun HolidaySettingsPage(
     var isLoading by remember { mutableStateOf(false) }
 
     val selectedSource = remember(dataSource) {
-        try { HolidayDataSource.valueOf(dataSource) } catch (_: Exception) { HolidayDataSource.TIMOR }
+        try { HolidayDataSource.valueOf(dataSource) } catch (_: Exception) { HolidayDataSource.UAPIS }
     }
 
     LaunchedEffect(customUrl) { customUrlText = customUrl }
@@ -81,7 +82,7 @@ fun HolidaySettingsPage(
                     selectedIndex = sourceSelected,
                     title = "数据源",
                     summary = when (selectedSource) {
-                        HolidayDataSource.TIMOR -> "timor.tech 免费 API，无需配置"
+                        HolidayDataSource.UAPIS -> "uapis.cn 节假日日历，默认源，无需配置；含全年日期与调休"
                         HolidayDataSource.MXNZP -> "MXNZP API，需配置 App ID 和 Secret"
                         HolidayDataSource.CUSTOM -> "自定义 API 地址，支持 {year} 占位符"
                     },
@@ -120,7 +121,7 @@ fun HolidaySettingsPage(
         if (selectedSource == HolidayDataSource.CUSTOM) {
             item {
                 SettingsGroup(title = "自定义 API 配置") {
-                    SettingsNote(text = "支持 {year} 或 \${year} 占位符自动替换年份，响应格式需兼容 Timor 或 MXNZP。")
+                    SettingsNote(text = "支持 {year} 或 \${year} 占位符自动替换年份，响应格式需兼容 Uapis（days 数组）、Timor 或 MXNZP。")
                     SettingsTextField(
                         value = customUrlText,
                         onValueChange = {
