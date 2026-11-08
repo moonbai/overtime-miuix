@@ -250,16 +250,11 @@ fun AppearanceSettingsPage(
                             }
                         )
                     }
-                    SettingsNote(
-                        text = "选择「横向滑动」+「跟随手势」后，从屏幕左 / 右边缘返回会按对应方向跟手退出"
-                    )
                     if (Build.VERSION.SDK_INT < 35) {
                         SettingsNote(
                             text = "Android 13/14 需在「开发者选项 → 预测性返回动画」中开启后才支持实时预览"
                         )
                     }
-                } else {
-                    SettingsNote(text = "返回预测已关闭，返回时不做任何动画（瞬时返回）")
                 }
             }
         }

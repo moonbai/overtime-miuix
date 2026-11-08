@@ -58,10 +58,7 @@ private enum class DayCategory(val label: String) {
     HOLIDAY("节假日")
 }
 
-/** 三类底色：色相沿用用户配置的类型色，不透明度按「工作日 < 休息日 < 节假日」递进。 */
-private const val WORKDAY_BG_ALPHA = 0.10f
-private const val REST_BG_ALPHA = 0.14f
-private const val HOLIDAY_BG_ALPHA = 0.18f
+/** 三类底色直接使用外观设置里配置的类型色（实色），不再做透明度淡化。 */
 
 /**
  * 整月日期分类。显示范围：仅 selectedMonth 的 1..当月天数（28 / 29 / 30 / 31，含闰年 2/29）。
@@ -167,14 +164,13 @@ fun StatisticsPage(
         buildDayCategories(selectedMonth, holidayIgnoreHoliday)
     }
 
-    // 三类底色：色相取自用户配置的类型色，不透明度按类别递进——即使三色被设成
-    // 近似色，深浅梯度仍可区分。今日不再用主色半透明填充（默认主色与工作日蓝
-    // 同色相会混淆），改为主色描边叠加在分类底色之上。
+    // 三类底色直接取外观设置配置的类型色（实色），与「类型占比 / 图例」同源；
+    // 格内文字统一用黑色保证在实色底上的对比度。今日改为主色描边叠加在分类底色之上。
     val dayBackground: (DayCategory) -> Color = { category ->
         when (category) {
-            DayCategory.WORKDAY -> Color(typeColorWorkday).copy(alpha = WORKDAY_BG_ALPHA)
-            DayCategory.REST_DAY -> Color(typeColorWeekend).copy(alpha = REST_BG_ALPHA)
-            DayCategory.HOLIDAY -> Color(typeColorHoliday).copy(alpha = HOLIDAY_BG_ALPHA)
+            DayCategory.WORKDAY -> Color(typeColorWorkday)
+            DayCategory.REST_DAY -> Color(typeColorWeekend)
+            DayCategory.HOLIDAY -> Color(typeColorHoliday)
         }
     }
 
@@ -884,14 +880,15 @@ private fun CalendarCard(
                                         )
                                         if (agg != null && agg.maxAbs > 0) {
                                             // 展示当天净时长：加班为正、请假为负（如 -2h）
-                                            // 净时长为负时用错误色（请假占主导），否则用类型色
+                                            // 底色已是实色类型色，文字固定黑色保证对比度
+                                            // （请假负值仍用错误色，红黑区分正负）
                                             val net = agg.netHours
                                             Text(
                                                 text = compactHours(net),
                                                 style = MiuixTheme.textStyles.footnote1,
                                                 fontWeight = FontWeight.Medium,
                                                 color = if (net < 0) MiuixTheme.colorScheme.error
-                                                else typeColor(agg.type)
+                                                else Color.Black
                                             )
                                         } else {
                                             Spacer(modifier = Modifier.height(16.dp))

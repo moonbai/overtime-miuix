@@ -12,6 +12,7 @@ import com.google.gson.JsonParser
 import com.mars.overtime.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
@@ -85,7 +86,10 @@ object UpdateChecker {
         Pattern.CASE_INSENSITIVE
     )
 
-    // 复用同一个客户端，避免每次检查都重建 OkHttp 连接池与线程池
+    // 复用同一个客户端，避免每次检查都重建 OkHttp 连接池与线程池。
+    // 超时三层保险：OkHttp 的 connect/read 只覆盖 socket 阶段，DNS 解析挂死时
+    // 永不触发（实测 App 内请求 28s 无返回的根因）；callTimeout 覆盖整个调用
+    // （含 DNS）；Ktor HttpTimeout 是协程级总超时，即使底层线程卡死也能打断。
     private val client: HttpClient by lazy {
         HttpClient(OkHttp) {
             engine {
@@ -93,7 +97,13 @@ object UpdateChecker {
                     connectTimeout(8, TimeUnit.SECONDS)
                     readTimeout(8, TimeUnit.SECONDS)
                     writeTimeout(8, TimeUnit.SECONDS)
+                    callTimeout(12, TimeUnit.SECONDS)
                 }
+            }
+            install(HttpTimeout) {
+                requestTimeoutMillis = 15_000
+                connectTimeoutMillis = 8_000
+                socketTimeoutMillis = 8_000
             }
         }
     }
@@ -185,8 +195,10 @@ object UpdateChecker {
     suspend fun check(currentVersion: String, currentVersionCode: Int): UpdateCheckResult =
         withContext(Dispatchers.IO) {
             val now = System.currentTimeMillis()
+            Log.d(TAG, "check() 开始 current=$currentVersion code=$currentVersionCode")
             // 1) 新鲜缓存直接复用，不发起请求、不消耗配额（含 304 复用）
             cachedInfo?.takeIf { now - cachedAt < CACHE_TTL_MS }?.let { info ->
+                Log.d(TAG, "check() 命中缓存 latest=${info.latestVersion}")
                 return@withContext UpdateCheckResult.Success(
                     info = info,
                     hasUpdate = hasUpdate(currentVersion, currentVersionCode, info)
@@ -207,10 +219,13 @@ object UpdateChecker {
                 } else {
                     cachedInfo = info
                     cachedAt = System.currentTimeMillis()
-                    UpdateCheckResult.Success(
-                        info = info,
-                        hasUpdate = hasUpdate(currentVersion, currentVersionCode, info)
+                    val update = hasUpdate(currentVersion, currentVersionCode, info)
+                    Log.d(
+                        TAG,
+                        "check() 成功 source=${info.source} latest=${info.latestVersion} " +
+                            "remoteCode=${info.versionCode} hasUpdate=$update"
                     )
+                    UpdateCheckResult.Success(info = info, hasUpdate = update)
                 }
             } catch (e: Exception) {
                 val reason = "检查过程异常：${e.javaClass.simpleName}"

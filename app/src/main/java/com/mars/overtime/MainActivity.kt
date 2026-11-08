@@ -128,6 +128,7 @@ class MainActivity : ComponentActivity() {
         try {
             val observer = object : OnBackAnimationCallback {
                 override fun onBackStarted(backEvent: BackEvent) {
+                    Log.d("MainActivity", "onBackStarted swipeEdge=${backEvent.swipeEdge}")
                     backProgress.floatValue = backEvent.progress
                     applyBackEdge(backEvent.swipeEdge)
                 }
@@ -156,6 +157,7 @@ class MainActivity : ComponentActivity() {
                 observer
             )
             backObserver = observer
+            Log.d("MainActivity", "返回观察者注册成功 (API ${Build.VERSION.SDK_INT})")
         } catch (t: Throwable) {
             Log.w("MainActivity", "返回手势观察者注册失败，降级为触摸边缘推断", t)
         }
@@ -179,11 +181,21 @@ class MainActivity : ComponentActivity() {
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
             backProgress.floatValue = 0f
-            val width = resources.displayMetrics.widthPixels
-            val zone = width * 0.15f
-            when {
-                ev.x <= zone -> backSwipeEdge.intValue = NavigationEvent.EDGE_LEFT
-                ev.x >= width - zone -> backSwipeEdge.intValue = NavigationEvent.EDGE_RIGHT
+            // 窗口实际宽度优先：分屏 / 小窗 / 折叠屏上 displayMetrics.widthPixels
+            // 是屏幕宽而非窗口宽，右边缘起手时 x 永远够不到 width-zone，
+            // 导致方向恒为初始左值（表现为「怎么滑都往右退」）。decorView 未布局
+            // （宽度为 0）时才回退到屏幕宽。
+            val windowWidth = window.decorView.width.takeIf { it > 0 }
+                ?: resources.displayMetrics.widthPixels
+            val zone = windowWidth * 0.15f
+            val edge = when {
+                ev.x <= zone -> NavigationEvent.EDGE_LEFT
+                ev.x >= windowWidth - zone -> NavigationEvent.EDGE_RIGHT
+                else -> null
+            }
+            if (edge != null) {
+                Log.d("MainActivity", "touch DOWN edge=$edge x=${ev.x.toInt()} width=$windowWidth")
+                backSwipeEdge.intValue = edge
             }
         }
         return super.dispatchTouchEvent(ev)

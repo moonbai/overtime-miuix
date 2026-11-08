@@ -1,7 +1,7 @@
 # OvertimeMiuix 加班记
 
 > 简洁实用的加班记录与薪资计算工具，基于 MIUIX 0.9.4 Compose 框架开发。
-> 当前版本 `1.0.0`（versionCode 1），最低支持 Android 13（API 33）。
+> 最低支持 Android 13（API 33）。
 
 [![MIUIX](https://img.shields.io/badge/MIUIX-0.9.4-blue)](https://github.com/moonbai/miuix)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-purple)](https://kotlinlang.org)

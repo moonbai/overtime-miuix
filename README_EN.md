@@ -3,7 +3,7 @@
 > [中文版](README.md)
 >
 > A streamlined overtime record & salary calculator built with the MIUIX 0.9.4 Compose framework.
-> Current version `1.0.0` (versionCode 1); requires Android 13 (API 33) or later.
+> Requires Android 13 (API 33) or later.
 
 [![MIUIX](https://img.shields.io/badge/MIUIX-0.9.4-blue)](https://github.com/moonbai/miuix)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-purple)](https://kotlinlang.org)
