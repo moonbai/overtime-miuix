@@ -28,9 +28,9 @@ jobs:
         echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
         echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1
-        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-37" "build-tools;37.0.0"
 
-    # 不使用 gradle/actions/setup-gradle：项目自带 Gradle Wrapper (9.3.1)
+    # 不使用 gradle/actions/setup-gradle：项目自带 Gradle Wrapper (9.8.2)
     # setup-gradle 依赖 GitHub Actions Cache Service 缓存/下载 Gradle 分发版，
     # 该服务近期频繁 400/503 导致构建失败（"Our services aren't available"）
     - name: Grant execute permission for gradlew
@@ -51,7 +51,7 @@ jobs:
         for attempt in 1 2 3; do
           if ./gradlew --version; then exit 0; fi
           echo "::warning::Gradle download failed (attempt ${attempt}/3), retrying"
-          rm -f "${GRADLE_USER_HOME:-$HOME/.gradle}"/wrapper/dists/gradle-9.3.1-bin/*/*.part
+          rm -f "${GRADLE_USER_HOME:-$HOME/.gradle}"/wrapper/dists/gradle-9.8.2-bin/*/*.part
         done
         exit 1
 
