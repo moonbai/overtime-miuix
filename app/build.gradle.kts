@@ -94,6 +94,16 @@ android {
         buildConfig = true
     }
 
+    // 新版 Kotlin Compose 插件会在 finalizeDsl 校验：Compose Preview 需要已编译的
+    // Android 资源，要求单元测试包含资源（isIncludeAndroidResources = true）。
+    // 该选项默认 false，会导致配置 ':app' 直接失败。项目无 unit test，置 true
+    // 仅为满足该前置检查，不影响最终产物。
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+
     // Room KSP 配置
     sourceSets["main"].java.srcDirs("build/generated/ksp/main/kotlin")
 
