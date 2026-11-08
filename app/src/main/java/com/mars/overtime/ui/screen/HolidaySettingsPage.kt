@@ -138,7 +138,7 @@ fun HolidaySettingsPage(
             SettingsGroup(title = "日期判定") {
                 SettingsSwitchItem(
                     title = "忽略节假日",
-                    summary = "只按周末判定加班类型，不读取法定节假日规则",
+                    summary = "只按休息日判定加班类型，不读取法定节假日规则",
                     checked = ignoreHoliday,
                     onCheckedChange = {
                         scope.launch { settingsRepository.setHolidayIgnoreHoliday(it) }

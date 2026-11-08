@@ -2,7 +2,7 @@ package com.mars.overtime.data.model
 
 enum class OvertimeType(val label: String) {
     WORKDAY("工作日加班"),
-    WEEKEND("周末加班"),
+    WEEKEND("休息日加班"),
     HOLIDAY("节假日加班")
 }
 

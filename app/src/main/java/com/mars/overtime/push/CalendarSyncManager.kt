@@ -128,7 +128,7 @@ object CalendarSyncManager {
 
     private fun typeStr(type: OvertimeType): String = when (type) {
         OvertimeType.WORKDAY -> "工作日延时"
-        OvertimeType.WEEKEND -> "周末加班"
+        OvertimeType.WEEKEND -> "休息日加班"
         OvertimeType.HOLIDAY -> "节假日加班"
     }
 

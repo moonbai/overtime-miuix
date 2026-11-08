@@ -66,8 +66,8 @@ private enum class DayCategory(val label: String) {
  * 分类依据（优先级由高到低）：
  *  1. 设置「忽略节假日」= true：完全不读节假日缓存，只按星期判定；
  *  2. HolidayManager 缓存命中：按其统一档位映射（与 infoToType / 添加记录页的自动判定
- *     同口径）——0 工作日（含调休上班日）、1/2 休息日（周末及普通休息日）、
- *     3 法定节假日（整个法定休假区间都归此类，即使落在周末）；
+ *     同口径）——0 工作日（含调休上班日）、1/2 休息日、
+ *     3 法定节假日（整个法定休假区间都归此类，即使落在休息日）；
  *  3. 缓存未命中（未拉取 / 拉取失败 / 该年无数据 / 异步完成前）：按 GMT+8 本地星期兜底，
  *     周六周日=休息日，其余=工作日；此时无法识别法定节假日与调休上班日。
  * 星期口径固定 GMT+8 / Locale.CHINA，与 HolidayManager.isWeekend 一致。
@@ -420,7 +420,7 @@ fun StatisticsPage(
                         "预估薪资" to (stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00"),
                         "记录数" to "${stats?.recordCount ?: 0}条",
                         "工作日加班" to (stats?.let { SalaryCalculator.formatHours(it.workdayHours) } ?: "0小时"),
-                        "周末加班" to (stats?.let { SalaryCalculator.formatHours(it.weekendHours) } ?: "0小时"),
+                        "休息日加班" to (stats?.let { SalaryCalculator.formatHours(it.weekendHours) } ?: "0小时"),
                         "节假日加班" to (stats?.let { SalaryCalculator.formatHours(it.holidayHours) } ?: "0小时")
                     )
                 )
@@ -609,7 +609,7 @@ private fun LegendRow(typeColor: (OvertimeType) -> Color) {
     ) {
         LegendItem(MiuixTheme.colorScheme.error, "请假")
         LegendItem(typeColor(OvertimeType.WORKDAY), "工作日")
-        LegendItem(typeColor(OvertimeType.WEEKEND), "周末")
+        LegendItem(typeColor(OvertimeType.WEEKEND), "休息日")
         LegendItem(typeColor(OvertimeType.HOLIDAY), "节假日")
     }
 }
@@ -763,7 +763,7 @@ private fun TypeRatioCard(
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     RatioItem(typeColor(OvertimeType.WORKDAY), "工作日", workday, total)
-                    RatioItem(typeColor(OvertimeType.WEEKEND), "周末", weekend, total)
+                    RatioItem(typeColor(OvertimeType.WEEKEND), "休息日", weekend, total)
                     RatioItem(typeColor(OvertimeType.HOLIDAY), "节假日", holiday, total)
                 }
             }
@@ -852,7 +852,7 @@ private fun CalendarCard(
                                 val isToday = isCurrentMonth && day == todayDay
                                 // 每一天都可点击查看当日明细：无记录时弹窗展示空态，
                                 // 避免用户误以为该日期无法查看。底色按「日期属性」而非
-                                // 「是否有记录」着色，所以无记录的周末/节假日同样有底色。
+                                // 「是否有记录」着色，所以无记录的休息日/节假日同样有底色。
                                 // 今日改用主色描边 + 加粗日期文字，叠加在分类底色之上，
                                 // 不再用主色填充（默认主色与工作日蓝同色相会混淆）。
                                 Surface(

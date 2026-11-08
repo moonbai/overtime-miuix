@@ -121,7 +121,7 @@ object HolidayManager {
      * 不能用于判定休息日；权威字段是 legal_holiday_type：
      *  - rest            法定休假 -> 法定节假日档（3）
      *  - workday_adjust  法定调休上班 -> 工作日档（0），名称带「调休」供推送载荷识别
-     * 其余按 is_workday / is_weekend 区分普通工作日与周末。
+     * 其余按 is_workday / is_weekend 区分普通工作日与休息日。
      * 整个法定休假区间按法定节假日档处理（与旧 Timor 的行为一致）。
      *
      * @return 实际写入缓存的日期条数，供 fetchHolidays 判定是否真的解析成功。
@@ -144,7 +144,7 @@ object HolidayManager {
                     legalType == "workday_adjust" ->
                         Triple(0, if (legalName.isNotEmpty()) "$legalName 调休" else "调休", false)
                     isWorkday -> Triple(0, "", false)
-                    // 周末或其他休息日（is_rest_day），按休息日档
+                    // 休息日或其他休息日（is_rest_day），按休息日档
                     else -> Triple(
                         if (isWeekend || item.optBoolean("is_rest_day", false)) 1 else 0,
                         "",
@@ -281,7 +281,7 @@ object HolidayManager {
     }
 
     suspend fun getOvertimeType(dateStr: String): OvertimeType = withContext(Dispatchers.IO) {
-        // 忽略节假日：只按周末判定，不读取节假日规则、也不发起网络请求
+        // 忽略节假日：只按休息日判定，不读取节假日规则、也不发起网络请求
         if (cachedIgnoreHoliday == true) {
             return@withContext if (isWeekend(dateStr)) OvertimeType.WEEKEND else OvertimeType.WORKDAY
         }
@@ -323,7 +323,7 @@ object HolidayManager {
                 return@withContext infoToType(info)
             }
 
-            // 无缓存时按周末判断
+            // 无缓存时按休息日判断
             if (isWeekend(dateStr)) {
                 holidayCache[dateStr] = HolidayInfo(dateStr, true, type = 1)
                 OvertimeType.WEEKEND

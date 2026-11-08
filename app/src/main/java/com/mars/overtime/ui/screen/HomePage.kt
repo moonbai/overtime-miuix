@@ -222,7 +222,7 @@ fun HomePage(
                     FilterChip("工作日", recordFilter is RecordFilter.Type && (recordFilter as RecordFilter.Type).t == OvertimeType.WORKDAY) {
                         recordFilter = RecordFilter.Type(OvertimeType.WORKDAY)
                     }
-                    FilterChip("周末", recordFilter is RecordFilter.Type && (recordFilter as RecordFilter.Type).t == OvertimeType.WEEKEND) {
+                    FilterChip("休息日", recordFilter is RecordFilter.Type && (recordFilter as RecordFilter.Type).t == OvertimeType.WEEKEND) {
                         recordFilter = RecordFilter.Type(OvertimeType.WEEKEND)
                     }
                     FilterChip("节假日", recordFilter is RecordFilter.Type && (recordFilter as RecordFilter.Type).t == OvertimeType.HOLIDAY) {

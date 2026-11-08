@@ -119,7 +119,7 @@ fun AddEditRecordPage(
     var pickMonth by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.MONTH) + 1) }
     var pickDay by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.DAY_OF_MONTH)) }
 
-    // 时长选择器：以 0.5 小时为梯度；工作日最多 8h，休息日（周末/节假日）最多 12h
+    // 时长选择器：以 0.5 小时为梯度；工作日最多 8h，休息日（休息日/节假日）最多 12h
     var pickDurationIndex by remember { mutableIntStateOf(3) }
     val maxDurationHours = maxDurationFor(selectedType)
     val durationOptions = remember(maxDurationHours) {
@@ -592,7 +592,7 @@ private fun FullWidthDropdownItem(
     }
 }
 
-/** 加班时长上限：工作日最多 8h，休息日（周末/节假日）最多 12h。 */
+/** 加班时长上限：工作日最多 8h，休息日/节假日 最多 12h。 */
 private fun maxDurationFor(type: OvertimeType): Double =
     if (type == OvertimeType.WORKDAY) 8.0 else 12.0
 
