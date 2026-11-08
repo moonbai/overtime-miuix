@@ -1,6 +1,8 @@
 package com.mars.overtime.ui.screen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +21,8 @@ import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.util.HolidayDataSource
+import com.mars.overtime.util.HolidayManager
 import com.mars.overtime.util.SalaryCalculator
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
@@ -43,6 +47,63 @@ private data class DayAggregate(
 )
 
 private enum class StatsViewMode { MONTH, YEAR }
+
+/**
+ * 统计页「阅读视图」（月度日历卡片）中每个日期格子的三类属性。
+ * 与 HolidayManager 的统一档位一一对应：0=工作日 / 1、2=休息日 / 3=法定节假日。
+ */
+private enum class DayCategory(val label: String) {
+    WORKDAY("工作日"),
+    REST_DAY("休息日"),
+    HOLIDAY("节假日")
+}
+
+/** 三类底色：色相沿用用户配置的类型色，不透明度按「工作日 < 休息日 < 节假日」递进。 */
+private const val WORKDAY_BG_ALPHA = 0.10f
+private const val REST_BG_ALPHA = 0.14f
+private const val HOLIDAY_BG_ALPHA = 0.18f
+
+/**
+ * 整月日期分类。显示范围：仅 selectedMonth 的 1..当月天数（28 / 29 / 30 / 31，含闰年 2/29）。
+ *
+ * 分类依据（优先级由高到低）：
+ *  1. 设置「忽略节假日」= true：完全不读节假日缓存，只按星期判定；
+ *  2. HolidayManager 缓存命中：按其统一档位映射（与 infoToType / 添加记录页的自动判定
+ *     同口径）——0 工作日（含调休上班日）、1/2 休息日（周末及普通休息日）、
+ *     3 法定节假日（整个法定休假区间都归此类，即使落在周末）；
+ *  3. 缓存未命中（未拉取 / 拉取失败 / 该年无数据 / 异步完成前）：按 GMT+8 本地星期兜底，
+ *     周六周日=休息日，其余=工作日；此时无法识别法定节假日与调休上班日。
+ * 星期口径固定 GMT+8 / Locale.CHINA，与 HolidayManager.isWeekend 一致。
+ */
+private fun buildDayCategories(selectedMonth: String, ignoreHoliday: Boolean): Map<Int, DayCategory> {
+    val parts = selectedMonth.split("-")
+    val year = parts[0].toInt()
+    val month = parts[1].toInt()
+    val cal = Calendar.getInstance(TimeZone.getTimeZone("GMT+8"), Locale.CHINA).apply {
+        clear()
+        set(year, month - 1, 1)
+    }
+    val totalDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val result = HashMap<Int, DayCategory>(totalDays)
+    for (day in 1..totalDays) {
+        cal.set(Calendar.DAY_OF_MONTH, day)
+        val dow = cal.get(Calendar.DAY_OF_WEEK)
+        val offline = if (dow == Calendar.SATURDAY || dow == Calendar.SUNDAY) {
+            DayCategory.REST_DAY
+        } else {
+            DayCategory.WORKDAY
+        }
+        val key = String.format(Locale.CHINA, "%04d-%02d-%02d", year, month, day)
+        val info = if (ignoreHoliday) null else HolidayManager.getDayInfo(key)
+        result[day] = if (info == null) offline else when (info.type) {
+            0 -> DayCategory.WORKDAY
+            1, 2 -> DayCategory.REST_DAY
+            3 -> DayCategory.HOLIDAY
+            else -> if (info.isHoliday) DayCategory.REST_DAY else DayCategory.WORKDAY
+        }
+    }
+    return result
+}
 
 @Composable
 fun StatisticsPage(
@@ -87,6 +148,58 @@ fun StatisticsPage(
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
     val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
     val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
+
+    // 日期底色与「添加记录」页的自动类型判定同源：读取同一份节假日配置，
+    // 复用 HolidayManager 的缓存 / 拉取结果，保证两页对同一天给出相同结论。
+    val holidayDataSource by settingsRepository.holidayDataSource
+        .collectAsState(initial = HolidayDataSource.UAPIS.name)
+    val holidayCustomUrl by settingsRepository.holidayCustomUrl.collectAsState(initial = "")
+    val holidayMxnzpAppId by settingsRepository.holidayMxnzpAppId.collectAsState(initial = "")
+    val holidayMxnzpAppSecret by settingsRepository.holidayMxnzpAppSecret.collectAsState(initial = "")
+    val holidayIgnoreHoliday by settingsRepository.holidayIgnoreHoliday.collectAsState(initial = false)
+
+    // 拉取成功后 +1 触发重算；同一年份只尝试一次，避免缓存为空时切月反复发请求
+    var holidayRevision by remember { mutableIntStateOf(0) }
+    val attemptedYears = remember { mutableSetOf<String>() }
+    val dayCategories: Map<Int, DayCategory> = remember(
+        selectedMonth, holidayIgnoreHoliday, holidayRevision
+    ) {
+        buildDayCategories(selectedMonth, holidayIgnoreHoliday)
+    }
+
+    // 三类底色：色相取自用户配置的类型色，不透明度按类别递进——即使三色被设成
+    // 近似色，深浅梯度仍可区分。今日不再用主色半透明填充（默认主色与工作日蓝
+    // 同色相会混淆），改为主色描边叠加在分类底色之上。
+    val dayBackground: (DayCategory) -> Color = { category ->
+        when (category) {
+            DayCategory.WORKDAY -> Color(typeColorWorkday).copy(alpha = WORKDAY_BG_ALPHA)
+            DayCategory.REST_DAY -> Color(typeColorWeekend).copy(alpha = REST_BG_ALPHA)
+            DayCategory.HOLIDAY -> Color(typeColorHoliday).copy(alpha = HOLIDAY_BG_ALPHA)
+        }
+    }
+
+    // 只补一次整年缓存：先查该年是否已有数据，没有才拉取；失败时保持本地星期兜底，
+    // 不逐日重试（逐日 getOvertimeType 在缓存为空时会触发 N 次失败请求）。
+    LaunchedEffect(
+        selectedMonth, holidayDataSource, holidayCustomUrl,
+        holidayMxnzpAppId, holidayMxnzpAppSecret, holidayIgnoreHoliday
+    ) {
+        val source = try {
+            HolidayDataSource.valueOf(holidayDataSource)
+        } catch (_: Exception) {
+            HolidayDataSource.UAPIS
+        }
+        HolidayManager.configure(
+            source, holidayCustomUrl, holidayMxnzpAppId,
+            holidayMxnzpAppSecret, holidayIgnoreHoliday
+        )
+        if (holidayIgnoreHoliday) return@LaunchedEffect
+        val year = selectedMonth.substring(0, 4)
+        if (HolidayManager.getDayInfo("$year-01-01") == null && year !in attemptedYears) {
+            attemptedYears.add(year)
+            if (HolidayManager.fetchHolidays(year)) holidayRevision++
+        }
+    }
 
     // 日期详情弹窗：选中的日期及当天记录
     var showDayDetail by remember { mutableStateOf(false) }
@@ -275,18 +388,24 @@ fun StatisticsPage(
             }
         }
 
-        // 图例：类型颜色说明
+        // 图例：类型颜色说明（记录文字 / 色条），月/年视图都显示
         item {
             LegendRow(typeColor = typeColor)
         }
 
-        // 月度视图专属：日历卡片
+        // 月度视图专属：日期底色图例 + 日历卡片。
+        // 年度视图没有日历格子，因此不显示底色图例、也不做任何日期着色。
         if (viewMode == StatsViewMode.MONTH) {
+            item {
+                DayBackgroundLegend(dayBackground = dayBackground)
+            }
             item {
                 CalendarCard(
                     selectedMonth = selectedMonth,
                     dayAgg = dayAgg,
                     typeColor = typeColor,
+                    dayCategories = dayCategories,
+                    dayBackground = dayBackground,
                     onDayClick = { day ->
                         detailDay = day
                         showDayDetail = true
@@ -516,6 +635,49 @@ private fun LegendItem(color: Color, label: String) {
     }
 }
 
+/**
+ * 日期底色图例：只随月度日历一起出现。色块用真实底色 + 实色描边，
+ * 避免 10~18% 的淡色在浅色卡片上看不见。
+ */
+@Composable
+private fun DayBackgroundLegend(dayBackground: (DayCategory) -> Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AppDimens.spaceXxs),
+        horizontalArrangement = Arrangement.spacedBy(AppDimens.spaceXs),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "日期底色",
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+        )
+        DayCategory.entries.forEach { category ->
+            DayBackgroundLegendItem(dayBackground(category), category.label)
+        }
+    }
+}
+
+@Composable
+private fun DayBackgroundLegendItem(color: Color, label: String) {
+    val shape = RoundedCornerShape(AppDimens.chartBarRadius)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(color, shape)
+                .border(0.5.dp, color.copy(alpha = 1f), shape)
+        )
+        Spacer(modifier = Modifier.width(AppDimens.spaceXxs))
+        Text(
+            text = label,
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+        )
+    }
+}
+
 @Composable
 private fun YearTrendCard(yearTrend: List<Pair<Int, Double>>) {
     Card(modifier = Modifier.fillMaxWidth(), cornerRadius = AppDimens.cardCorner) {
@@ -635,6 +797,8 @@ private fun CalendarCard(
     selectedMonth: String,
     dayAgg: Map<Int, DayAggregate>,
     typeColor: (OvertimeType) -> Color,
+    dayCategories: Map<Int, DayCategory>,
+    dayBackground: (DayCategory) -> Color,
     onDayClick: (Int) -> Unit = {}
 ) {
     val parts = selectedMonth.split("-")
@@ -688,15 +852,21 @@ private fun CalendarCard(
                                 Spacer(modifier = Modifier.height(40.dp))
                             } else {
                                 val agg = dayAgg[day]
+                                val category = dayCategories[day] ?: DayCategory.WORKDAY
                                 val isToday = isCurrentMonth && day == todayDay
                                 // 每一天都可点击查看当日明细：无记录时弹窗展示空态，
-                                // 避免用户误以为该日期无法查看。MIUIX Surface(onClick)
-                                // 统一承载今日高亮底色与框架标准按压反馈
+                                // 避免用户误以为该日期无法查看。底色按「日期属性」而非
+                                // 「是否有记录」着色，所以无记录的周末/节假日同样有底色。
+                                // 今日改用主色描边 + 加粗日期文字，叠加在分类底色之上，
+                                // 不再用主色填充（默认主色与工作日蓝同色相会混淆）。
                                 Surface(
                                     onClick = { onDayClick(day) },
-                                    color = if (isToday) MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                    else Color.Transparent,
+                                    color = dayBackground(category),
                                     shape = AppShapes.radiusSm,
+                                    border = if (isToday) BorderStroke(
+                                        AppDimens.dayTodayBorderWidth,
+                                        MiuixTheme.colorScheme.primary
+                                    ) else null,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(

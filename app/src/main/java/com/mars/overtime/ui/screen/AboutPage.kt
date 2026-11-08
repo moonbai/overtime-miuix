@@ -1,5 +1,6 @@
 package com.mars.overtime.ui.screen
 import com.mars.overtime.ui.theme.AppDimens
+import com.mars.overtime.ui.theme.AppIconSize
 import com.mars.overtime.ui.theme.AppShapes
 
 import android.content.Context
@@ -16,12 +17,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.mars.overtime.BuildConfig
+import com.mars.overtime.ui.component.AppFeaturePalette
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.snackbar.CHECKING_SNACKBAR_MESSAGE
 import com.mars.overtime.ui.snackbar.dismissCheckingSnackbar
@@ -76,6 +78,7 @@ fun AboutPage(navController: NavHostController) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = LocalSnackbarHostState.current
+    // Hero 展示应用自身的启动图标，不替换为自绘图形
     val appIcon = remember { loadMipmapIcon(context) }
     val versionName = remember { getVersionName(context) }
 
@@ -111,11 +114,15 @@ fun AboutPage(navController: NavHostController) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // 展示应用自身的启动图标（渐变时钟 + 橙色日历贴纸），不做任何替换。
+                    // 承载底色由浅蓝 primaryContainer 改为纯白：图标是透明底 + 高饱和渐变，
+                    // 蓝底会与图标撞色、压灰图案；白底在浅色主题下与卡片自然融合，
+                    // 深色主题下也能让彩色图标保持原貌。
                     Box(
                         modifier = Modifier
                             .size(88.dp)
                             .clip(AppShapes.radiusXxl)
-                            .background(MiuixTheme.colorScheme.primaryContainer),
+                            .background(Color.White),
                         contentAlignment = Alignment.Center
                     ) {
                         appIcon?.let { bitmap ->
@@ -385,37 +392,49 @@ fun AboutPage(navController: NavHostController) {
     }
 }
 
+/**
+ * 功能色板：六个功能各给一个低饱和色，容器取 12% 淡底、图标取实色。
+ * 取代原来「六个一模一样的实心蓝圆」——既单调，实心高饱和块还会压过文字。
+ * 色板是固定的品牌功能色，不随主题强调色变化，避免用户换主题后六格糊成一片。
+ */
+private data class AboutFeature(
+    val title: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val tint: Color
+)
+
 @Composable
 private fun FeatureGrid() {
+    // 图标按语义重新选配：本地记录=Notes、推送=Send、智能识别=Scan、
+    // 云端备份=UploadCloud、薪资计算=BankCards、日历同步=Months。
+    // 旧版用 Info / Alarm / AppRecording 表达记录 / 推送 / 识别，语义完全错配。
     val features = listOf(
-        "本地记录" to MiuixIcons.Info,
-        "多渠道推送" to MiuixIcons.Alarm,
-        "智能识别" to MiuixIcons.AppRecording,
-        "云端备份" to MiuixIcons.CloudFill,
-        "薪资计算" to MiuixIcons.BankCards,
-        "日历同步" to MiuixIcons.Months
+        AboutFeature("本地记录", MiuixIcons.Notes, AppFeaturePalette.record),
+        AboutFeature("多渠道推送", MiuixIcons.Send, AppFeaturePalette.push),
+        AboutFeature("智能识别", MiuixIcons.Scan, AppFeaturePalette.smart),
+        AboutFeature("云端备份", MiuixIcons.UploadCloud, AppFeaturePalette.cloud),
+        AboutFeature("薪资计算", MiuixIcons.BankCards, AppFeaturePalette.salary),
+        AboutFeature("日历同步", MiuixIcons.Months, AppFeaturePalette.calendar)
     )
-    // 2 列网格，单元格直接铺在分组卡片内（不再各自套卡片），
-    // 保留图标 + 文字的概览形式，同时与全局卡片规范一致。
     val rows = features.chunked(2)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = AppDimens.spaceXs)
     ) {
         rows.forEachIndexed { index, rowItems ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(AppDimens.spaceSm)
             ) {
-                rowItems.forEach { (title, icon) ->
-                    FeatureCell(title = title, icon = icon, modifier = Modifier.weight(1f))
+                rowItems.forEach { feature ->
+                    FeatureCell(feature = feature, modifier = Modifier.weight(1f))
                 }
                 // 末行奇数个时用占位补齐，保持两列对齐
                 if (rowItems.size == 1) Spacer(modifier = Modifier.weight(1f))
             }
             if (index != rows.lastIndex) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(AppDimens.spaceSm))
             }
         }
     }
@@ -423,31 +442,30 @@ private fun FeatureGrid() {
 
 @Composable
 private fun FeatureCell(
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    feature: AboutFeature,
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier.padding(8.dp),
+        modifier = modifier.padding(vertical = AppDimens.spaceXxs),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(MiuixTheme.colorScheme.primaryContainer),
+                .size(44.dp)
+                .clip(AppShapes.radiusMd)
+                .background(feature.tint.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = icon,
+                imageVector = feature.icon,
                 contentDescription = null,
-                tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(22.dp)
+                tint = feature.tint,
+                modifier = Modifier.size(AppIconSize.md)
             )
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(AppDimens.spaceXxs2))
         Text(
-            text = title,
+            text = feature.title,
             style = MiuixTheme.textStyles.body2,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center
@@ -456,6 +474,13 @@ private fun FeatureCell(
 }
 
 // 辅助函数
+
+/**
+ * 读取应用自身的启动图标（渐变时钟 + 橙色日历）。Hero 必须展示真实应用图标，
+ * 不能用自绘图形替代；优先按密度取 mipmap 位图，失败时再退回 PackageManager
+ * 的 application icon，并统一转成 Bitmap。先量尺寸再按 2 的幂降采样：
+ * xxxhdpi 全尺寸 ARGB_8888 单张可占 2MB+ 堆内存。
+ */
 private fun loadMipmapIcon(context: Context): Bitmap? {
     val resources = context.resources
     val packageName = context.packageName
@@ -468,8 +493,6 @@ private fun loadMipmapIcon(context: Context): Bitmap? {
             val resId = resources.getIdentifier(resName, "mipmap", packageName)
             if (resId != 0) {
                 try {
-                    // 公平内存：先量尺寸、再按 2 的幂降采样，输出压到 256px 级别；
-                    // 全尺寸 ARGB_8888 图标（xxxhdpi 768px）单张可占 2MB+ 堆内存
                     val bound = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeResource(resources, resId, bound)
                     var sampleSize = 1
@@ -493,12 +516,6 @@ private fun loadMipmapIcon(context: Context): Bitmap? {
     } catch (_: Exception) { null }
 }
 
-private fun getVersionName(context: Context): String {
-    return try {
-        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0"
-    } catch (_: PackageManager.NameNotFoundException) { "1.0.0" }
-}
-
 private fun drawableToBitmap(drawable: Drawable): Bitmap? {
     return when (drawable) {
         is BitmapDrawable -> drawable.bitmap
@@ -512,4 +529,10 @@ private fun drawableToBitmap(drawable: Drawable): Bitmap? {
             bitmap
         }
     }
+}
+
+private fun getVersionName(context: Context): String {
+    return try {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0"
+    } catch (_: PackageManager.NameNotFoundException) { "1.0.0" }
 }

@@ -19,6 +19,7 @@ import androidx.navigation.NavHostController
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
 import com.mars.overtime.ui.component.AppFab
+import com.mars.overtime.ui.component.LocalFabAnchor
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.snackbar.showCustomToast
 import com.mars.overtime.ui.theme.AppDimens
@@ -176,6 +177,13 @@ fun MainScreen(
         val normalFabBottom = paddingValues.calculateBottomPadding() +
             AppDimens.pageVertical
 
+        // 入口加号 FAB 的「实际」底部偏移：统一发布给「添加记录」页的确认按钮。
+        // 普通底栏取 Scaffold 实测高度、悬浮底栏取胶囊几何 + 导航栏 inset，
+        // 两页共用同一个测量值，确认按钮才能落在与加号完全相同的屏幕坐标。
+        val activeFabBottom = if (useFloatingNav) floatingFabBottom else normalFabBottom
+        val fabAnchor = LocalFabAnchor.current
+        SideEffect { fabAnchor.bottom = activeFabBottom }
+
         // 内容底部留白：
         // - 普通底栏：Scaffold 已为其预留空间（paddingValues 含底栏高度），内容自然不被遮挡；
         // - 悬浮底栏（彻底悬浮）：内容层底部不预留空间，可滚动至底栏「背后」，
@@ -244,7 +252,7 @@ fun MainScreen(
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(end = AppDimens.pageHorizontal, bottom = floatingFabBottom)
+                            .padding(end = AppDimens.pageHorizontal, bottom = activeFabBottom)
                     ) {
                         AppFab(
                             quickSubmit = quickSubmit,
@@ -263,7 +271,7 @@ fun MainScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(end = AppDimens.pageHorizontal, bottom = normalFabBottom)
+                        .padding(end = AppDimens.pageHorizontal, bottom = activeFabBottom)
                 ) {
                     AppFab(
                         quickSubmit = quickSubmit,

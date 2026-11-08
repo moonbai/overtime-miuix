@@ -35,6 +35,8 @@ import com.mars.overtime.data.database.AppDatabase
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
 import com.mars.overtime.mcp.McpHostService
+import com.mars.overtime.ui.component.FabAnchorState
+import com.mars.overtime.ui.component.LocalFabAnchor
 import com.mars.overtime.ui.screen.*
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import androidx.compose.runtime.DisposableEffect
@@ -326,6 +328,11 @@ fun MainNavHost(
     )
     val dispatcher = dispatcherOwner.navigationEventDispatcher
 
+    // 「入口加号 FAB」的屏幕锚点由 MainScreen 发布、AddEditRecordPage 消费。
+    // 必须在 NavHost 之上持有：导航离开首页后 MainScreen 会被移出组合，
+    // 但锚点值需要保留到增改页完成布局。
+    val fabAnchor = remember { FabAnchorState() }
+
     // 将系统预测返回接入 dispatcher 树，让 MIUIX 弹窗（OverlayDialog 内部使用
     // NavigationBackHandler）能拦截返回手势并关闭弹窗：
     //   - 此前 root dispatcher 没有任何系统输入，返回手势从未进入该树，
@@ -378,6 +385,7 @@ fun MainNavHost(
 
     CompositionLocalProvider(
         LocalNavigationEventDispatcherOwner provides dispatcherOwner,
+        LocalFabAnchor provides fabAnchor,
         // 兜底默认值：各目的地都会用 PageSnackbarScope 覆盖为页面级 state
         LocalSnackbarHostState provides remember { SnackbarHostState() }
     ) {

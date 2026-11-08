@@ -15,6 +15,8 @@ import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.ui.component.AppConfirmFab
+import com.mars.overtime.ui.component.LocalFabAnchor
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.snackbar.showCustomToast
 import com.mars.overtime.util.HolidayDataSource
@@ -43,6 +45,13 @@ fun AddEditRecordPage(
     val scope = rememberCoroutineScope()
     val snackbarHostState = LocalSnackbarHostState.current
     val isEdit = recordId != null
+
+    // 对齐参照：首页右下角「加号」FAB 的屏幕锚点（MainScreen 布局时发布）。
+    // 确认按钮改用同一锚点 + 同一 end 边距 + 同一 56dp 直径，
+    // 使「点加号 → 打开本页 → 确认」落在同一坐标，手指无需移动。
+    // 旧位置为 MIUIX Scaffold 默认 FabPosition.End：右 12dp、底 12dp+inset、
+    // 默认 60dp 直径，与入口加号（右 16dp、底 底栏高度+16dp、56dp）不一致。
+    val fabAnchorBottom = LocalFabAnchor.current.bottom
 
     val baseSalary by settingsRepository.baseSalary.collectAsState(initial = 2200.0)
     val workdayRate by settingsRepository.workdayRate.collectAsState(initial = 1.5)
@@ -250,25 +259,24 @@ fun AddEditRecordPage(
                 }
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            // 提交按钮改到右下角悬浮，方便单手点击
-            FloatingActionButton(
-                onClick = { performSave() },
-                containerColor = MiuixTheme.colorScheme.primary
-            ) {
-                Icon(MiuixIcons.Ok, contentDescription = "保存", tint = MiuixTheme.colorScheme.onPrimary)
-            }
-        }
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            // 底部预留空间，避免最后一项被右下角悬浮保存按钮遮挡
-            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        // 外层 Box 与 MainScreen 承载入口加号 FAB 的 Box 同为 Scaffold 的满屏内容层，
+        // 因此两边以 Alignment.BottomEnd + 相同 padding 计算出的屏幕坐标完全一致。
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                // 底部预留随加号锚点联动：确认按钮上移后，末项仍不会被遮挡
+                contentPadding = PaddingValues(
+                    start = AppDimens.pageHorizontal,
+                    top = AppDimens.pageVertical,
+                    end = AppDimens.pageHorizontal,
+                    bottom = fabAnchorBottom + AppDimens.fabSize + AppDimens.pageVertical
+                ),
+                verticalArrangement = Arrangement.spacedBy(AppDimens.groupSpacing)
+            ) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -377,6 +385,17 @@ fun AddEditRecordPage(
                     )
                 }
             }
+        }
+
+        // 确认按钮：与首页「加号」FAB 同一屏幕坐标（同一锚点、同一 end 边距、同一 56dp 直径）。
+        // 不再使用 Scaffold 的 floatingActionButton 槽位——MIUIX 默认 FabPosition.End
+        // 会把按钮固定在「右 12dp / 底 12dp + inset / 60dp」，与入口加号错位。
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = AppDimens.pageHorizontal, bottom = fabAnchorBottom)
+        ) {
+            AppConfirmFab(onClick = { performSave() })
         }
 
         // 以下弹窗必须位于 Scaffold 内容体内，才能访问 Scaffold 提供的弹窗宿主并显示
@@ -528,6 +547,7 @@ fun AddEditRecordPage(
                 }
             }
         }
+        } // 关闭承载确认按钮的满屏 Box
     }
 }
 

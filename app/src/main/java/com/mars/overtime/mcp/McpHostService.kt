@@ -131,7 +131,7 @@ class McpHostService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         return Notification.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_notify)
             .setContentTitle("MCP 服务运行中")
             .setContentText("端口 $port · 点击返回应用")
             .setContentIntent(pendingIntent)

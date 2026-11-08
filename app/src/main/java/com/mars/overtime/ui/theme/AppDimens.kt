@@ -63,6 +63,10 @@ object AppDimens {
     // ── 记录卡左侧类型色条宽度 ──
     val typeBarWidth = 4.dp
 
+    // 统计页日历：今日不再用主色填充（默认主色与工作日底色同色相，会混淆），
+    // 改用主色描边叠加在日期分类底色之上
+    val dayTodayBorderWidth = 1.5.dp
+
     // ── 紧凑/微型间距（页面特有的 6/14dp 等保持原字面量，避免引入过多令牌）──
     val spaceXxs2 = 6.dp
     val itemPaddingH = 14.dp

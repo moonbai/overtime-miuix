@@ -1,20 +1,26 @@
 package com.mars.overtime.ui.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.theme.AppDimens
 import com.mars.overtime.ui.theme.AppIconSize
+import com.mars.overtime.ui.theme.AppShapes
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
@@ -130,7 +136,8 @@ fun SettingsActionItem(
     title: String,
     summary: String,
     onClick: () -> Unit,
-    icon: ImageVector? = null
+    icon: ImageVector? = null,
+    iconTint: Color? = null
 ) {
     // 用局部 val 承接，避免在 composable lambda 里对可空参数做 smart cast
     val vector = icon
@@ -139,7 +146,26 @@ fun SettingsActionItem(
         summary = summary,
         startAction = {
             if (vector != null) {
-                Icon(vector, contentDescription = null)
+                if (iconTint != null) {
+                    // 与「关于」页功能宫格共用同一套淡彩容器：12% 淡底 + 语义色图标。
+                    // 不传 iconTint 时保持原样（裸 Icon），其它页面零变化。
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(AppShapes.radiusSm)
+                            .background(iconTint.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            vector,
+                            contentDescription = null,
+                            tint = iconTint,
+                            modifier = Modifier.size(AppIconSize.sm)
+                        )
+                    }
+                } else {
+                    Icon(vector, contentDescription = null)
+                }
             }
         },
         onClick = onClick

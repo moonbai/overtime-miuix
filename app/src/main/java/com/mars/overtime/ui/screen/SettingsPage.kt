@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.mars.overtime.ui.component.AppFeaturePalette
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 
@@ -27,24 +28,29 @@ fun SettingsPage(navController: NavHostController, bottomReserve: Dp = 0.dp) {
         modifier = Modifier.fillMaxSize(),
         bottomReserve = bottomReserve
     ) {
+        // 入口图标与「关于」页功能宫格同步：语义重新选配 + 共用 AppFeaturePalette 色板，
+        // 旧版用 Update 表示日历同步、Alarm 表示推送、Background 表示外观，语义错配且全是黑白裸图标。
         item {
             SettingsGroup {
                 SettingsActionItem(
                     title = "基础设置",
                     summary = "基础薪资、加班倍率与删除确认",
                     icon = MiuixIcons.BankCards,
+                    iconTint = AppFeaturePalette.salary,
                     onClick = { navController.navigate("salary_settings") }
                 )
                 SettingsActionItem(
                     title = "类型设置",
                     summary = "日期判定数据源、缓存与调休规则",
-                    icon = MiuixIcons.Months,
+                    icon = MiuixIcons.Scan,
+                    iconTint = AppFeaturePalette.smart,
                     onClick = { navController.navigate("holiday_settings") }
                 )
                 SettingsActionItem(
                     title = "日历同步",
                     summary = "保存记录后自动写入系统日历",
-                    icon = MiuixIcons.Update,
+                    icon = MiuixIcons.Months,
+                    iconTint = AppFeaturePalette.calendar,
                     onClick = { navController.navigate("calendar_settings") }
                 )
             }
@@ -55,19 +61,22 @@ fun SettingsPage(navController: NavHostController, bottomReserve: Dp = 0.dp) {
                 SettingsActionItem(
                     title = "备份与恢复",
                     summary = "本地导入导出、自动备份与 WebDAV 同步",
-                    icon = MiuixIcons.CloudFill,
+                    icon = MiuixIcons.Backup,
+                    iconTint = AppFeaturePalette.cloud,
                     onClick = { navController.navigate("backup_settings") }
                 )
                 SettingsActionItem(
                     title = "推送设置",
                     summary = "保存记录后推送到所选渠道",
-                    icon = MiuixIcons.Alarm,
+                    icon = MiuixIcons.Send,
+                    iconTint = AppFeaturePalette.push,
                     onClick = { navController.navigate("push_settings") }
                 )
                 SettingsActionItem(
                     title = "MCP 服务",
                     summary = "允许 AI 助手通过 MCP 读写加班记录",
-                    icon = MiuixIcons.Link,
+                    icon = MiuixIcons.MindMap,
+                    iconTint = AppFeaturePalette.mcp,
                     onClick = { navController.navigate("mcp_settings") }
                 )
             }
@@ -79,7 +88,8 @@ fun SettingsPage(navController: NavHostController, bottomReserve: Dp = 0.dp) {
                 SettingsActionItem(
                     title = "外观设置",
                     summary = "主题、强调色、底栏与快捷操作",
-                    icon = MiuixIcons.Background,
+                    icon = MiuixIcons.Theme,
+                    iconTint = AppFeaturePalette.appearance,
                     onClick = { navController.navigate("appearance_settings") }
                 )
             }
@@ -91,6 +101,7 @@ fun SettingsPage(navController: NavHostController, bottomReserve: Dp = 0.dp) {
                     title = "关于应用",
                     summary = "版本 $versionName",
                     icon = MiuixIcons.Info,
+                    iconTint = AppFeaturePalette.about,
                     onClick = { navController.navigate("about") }
                 )
             }
