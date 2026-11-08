@@ -91,7 +91,8 @@ private val NO_DIALOG = UpdateDialogState(UpdateDialogKind.NONE)
 /**
  * UpdateInfo 不是 Parcelable / Serializable，手写 Saver 逐字段存进 Bundle：
  * 旋转、切换深色、分屏等 Activity 重建场景下，检查成功的弹窗不会凭空消失。
- * rememberSaveable 带 saver 的重载要求非空 T，故用 NONE + 可空 info 表示「无弹窗」。
+ * 自定义 Saver 必须传给 stateSaver 重载（init 返回 MutableState<T>）；
+ * 若误传 saver 重载（init 返回 T），by 委托会因没有 getValue 而编译失败。
  */
 private val UpdateDialogStateSaver = Saver<UpdateDialogState, Bundle>(
     save = { state ->
@@ -171,8 +172,9 @@ fun AboutPage(navController: NavHostController) {
     val versionName = remember { getVersionName(context) }
 
     var checking by remember { mutableStateOf(false) }
-    // 两类结果弹窗共用一个状态：互斥；rememberSaveable 保证 Activity 重建后弹窗不丢
-    var dialogState by rememberSaveable(saver = UpdateDialogStateSaver) {
+    // 两类结果弹窗共用一个状态：互斥；rememberSaveable 保证 Activity 重建后弹窗不丢。
+    // 必须用 stateSaver：该重载的 init 返回 MutableState<T>，才能配合 by 委托。
+    var dialogState by rememberSaveable(stateSaver = UpdateDialogStateSaver) {
         mutableStateOf(NO_DIALOG)
     }
 
