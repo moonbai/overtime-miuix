@@ -51,16 +51,41 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x ./gradlew
 
-    # 仓库默认分发地址指向腾讯镜像（供 CNB 国内流水线加速）。
-    # GitHub-hosted runner 位于海外，跨境拉取该镜像常在读超时前无法完成，
-    # 导致 wrapper 抛 SocketTimeoutException、构建尚未进入 Gradle 即失败。
-    # 此处仅在本工作流内切到官方 CDN，CNB 侧配置不受影响。
+    # 持久化 Gradle 依赖缓存：kotlin-compiler-embeddable 约 60MB，命中缓存后
+    # 整条依赖链都不需要再走远端下载。缓存服务 400/503 时跳过即可，不阻断构建。
+    - name: Cache Gradle dependencies
+      uses: actions/cache@v4
+      continue-on-error: true
+      with:
+        path: |
+          ~/.gradle/caches/modules-2
+          ~/.gradle/caches/metadata-*
+        key: gradle-deps-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties', 'settings.gradle.kts', '**/*.gradle.kts') }}
+        restore-keys: |
+          gradle-deps-${{ runner.os }}-
+
+    # 仓库默认分发地址指向腾讯云镜像（供 CNB 国内流水线加速）。
+    # GitHub-hosted runner 位于海外，跨境拉取该镜像偶发读超时，
+    # 因此仅在本工作流内切到官方 CDN；CNB 侧配置不受影响。
+    # 注意实际地址是 mirrors.cloud.tencent.com —— 旧写法 mirrors.tencent.com
+    # 匹配不到，会让本步骤静默变成空操作（CI 日志仍显示从腾讯镜像下载）。
     - name: Use official Gradle distribution on GitHub runners
       run: |
-        sed -i 's#mirrors.tencent.com/gradle/#services.gradle.org/distributions/#' gradle/wrapper/gradle-wrapper.properties
+        sed -i 's#mirrors\.cloud\.tencent\.com/gradle/#services.gradle.org/distributions/#' gradle/wrapper/gradle-wrapper.properties
         grep '^distributionUrl' gradle/wrapper/gradle-wrapper.properties
 
-    # 预热 wrapper 缓存：CDN 偶发抖动时重试，避免整个构建因单次下载失败中断
+    # kotlin-compiler-embeddable（约 60MB）从 repo.maven.apache.org 拉取时偶发被
+    # 导向 GitHub Release 资产的未鉴权下载，返回 504 使 compileReleaseKotlin 失败
+    # （堆栈顶层的 ClasspathEntrySnapshotTransform 只是表象）。
+    # 仅在本工作流内把 Maven Central 直连镜像插到 mavenCentral() 之前：该端点
+    # 直连返回 200 且不跳转；原 mavenCentral() 保留作兜底，本地与 CNB 不受影响。
+    - name: Prefer direct Maven Central mirror on GitHub runners
+      run: |
+        sed -i 's#^\([[:space:]]*\)mavenCentral()#\1maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2") }\n\1mavenCentral()#' settings.gradle.kts
+        grep -n 'storage-download.googleapis.com' settings.gradle.kts
+
+    # 预热 wrapper 缓存：CDN 偶发抖动时重试；官方 CDN 三次都失败则回退腾讯云镜像，
+    # 避免把「下载分发版」这一点网络抖动升级成整条流水线失败。
     - name: Warm Gradle wrapper (retry on CDN timeout)
       run: |
         for attempt in 1 2 3; do
@@ -68,7 +93,9 @@ jobs:
           echo "::warning::Gradle download failed (attempt ${attempt}/3), retrying"
           rm -f "${GRADLE_USER_HOME:-$HOME/.gradle}"/wrapper/dists/gradle-9.8.2-bin/*/*.part
         done
-        exit 1
+        echo "::warning::官方 CDN 三次均失败，回退腾讯云镜像"
+        sed -i 's#services.gradle.org/distributions/#mirrors.cloud.tencent.com/gradle/#' gradle/wrapper/gradle-wrapper.properties
+        ./gradlew --version
 
     - name: Sync version from tag
       if: startsWith(github.ref, 'refs/tags/v')
@@ -91,7 +118,24 @@ jobs:
         # GitHub 官方 releases.atom 订阅源（不受 REST API 配额限制），不再请求第三方镜像。
         GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         # 更新检查只使用 GitHub 官方数据源，无需再注入 CNB_TOKEN
-      run: ./gradlew assembleRelease --no-daemon --stacktrace --refresh-dependencies --warning-mode all
+      # 不再使用 --refresh-dependencies：它会让每次构建强制重解析全部依赖，
+      # 在冷缓存 runner 上等于每次重下 60MB 编译器 jar，把网络抖动放大成必现失败。
+      # 保留重试：Gradle 增量构建让重试很便宜，足以吸收偶发的 5xx / 读超时。
+      run: |
+        for attempt in 1 2 3; do
+          echo "::group::Gradle build (attempt ${attempt}/3)"
+          if ./gradlew assembleRelease --no-daemon --stacktrace; then
+            echo "::endgroup::"
+            exit 0
+          fi
+          echo "::endgroup::"
+          if [ "$attempt" -lt 3 ]; then
+            echo "::warning::构建失败（第 ${attempt}/3 次），疑似网络抖动，10 秒后重试"
+            sleep 10
+          fi
+        done
+        echo "::error::连续 3 次构建失败"
+        exit 1
 
     # 构建产物门禁：签名、包元信息、体积、校验和统一校验并写入构建摘要。
     # 任何一项失败立即中断，避免把未签名/压缩异常的包传到 Release。
