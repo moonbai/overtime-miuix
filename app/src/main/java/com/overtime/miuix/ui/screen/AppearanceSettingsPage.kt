@@ -1,5 +1,7 @@
 package com.overtime.miuix.ui.screen
 
+import android.os.Build
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -34,6 +36,21 @@ enum class BackTransition(val label: String) {
     NONE("无动画")
 }
 
+/**
+ * 横向返回的退出方向，仅在动画类型为「横向滑动」时显示并生效。
+ * FOLLOW_GESTURE 跟随手势来源边缘（默认，与历史行为一致）；
+ * ALWAYS_RIGHT / ALWAYS_LEFT 无论从哪侧滑入，当前页都恒定向右 / 恒定向左退出。
+ */
+enum class BackExitDirection(val label: String) {
+    FOLLOW_GESTURE("跟随手势"),
+    ALWAYS_RIGHT("恒定向右"),
+    ALWAYS_LEFT("恒定向左");
+
+    companion object {
+        fun fromValueOrDefault(value: String) = entries.find { it.name == value } ?: FOLLOW_GESTURE
+    }
+}
+
 // 主题模式选项：value → label，其中 monet_* 映射到 ColorSchemeMode.MonetLight/MonetDark
 private val THEME_OPTIONS = listOf(
     "system" to "跟随系统",
@@ -61,6 +78,8 @@ fun AppearanceSettingsPage(
     val accentColor by settingsRepository.accentColor.collectAsState(initial = 0xFF3482FF.toInt())
     val backTransition by settingsRepository.predictiveBackTransition
         .collectAsState(initial = BackTransition.SCALE_FADE.name)
+    val backExitDirection by settingsRepository.backExitDirection
+        .collectAsState(initial = BackExitDirection.FOLLOW_GESTURE.name)
     val predictiveBackEnabled by settingsRepository.predictiveBackEnabled
         .collectAsState(initial = true)
 
@@ -81,6 +100,13 @@ fun AppearanceSettingsPage(
     }
     val backTransitionSelected = remember(backTransition) {
         BackTransition.entries.indexOfFirst { it.name == backTransition }.coerceAtLeast(0)
+    }
+
+    val backExitDirectionItems = remember {
+        BackExitDirection.entries.map { DropdownItem(text = it.label) }
+    }
+    val backExitDirectionSelected = remember(backExitDirection) {
+        BackExitDirection.entries.indexOfFirst { it.name == backExitDirection }.coerceAtLeast(0)
     }
 
     SettingsScreen(
@@ -206,7 +232,30 @@ fun AppearanceSettingsPage(
                             }
                         }
                     )
+                    // 退出方向只对横向滑动有意义，其余动画类型隐藏避免误导
+                    AnimatedVisibility(
+                        visible = backTransition == BackTransition.SLIDE_HORIZONTAL.name
+                    ) {
+                        OverlaySpinnerPreference(
+                            items = backExitDirectionItems,
+                            selectedIndex = backExitDirectionSelected,
+                            title = "退出方向",
+                            summary = "横向滑动时当前页面的退出方向",
+                            onSelectedIndexChange = { index ->
+                                scope.launch {
+                                    settingsRepository.setBackExitDirection(
+                                        BackExitDirection.entries[index].name
+                                    )
+                                }
+                            }
+                        )
+                    }
                     SettingsNote(text = "切换后立即生效")
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        SettingsNote(
+                            text = "Android 14 及以上支持手势实时预览；当前系统将在松手后播放动画"
+                        )
+                    }
                 } else {
                     SettingsNote(text = "返回预测已关闭，返回时不做任何动画（瞬时返回）")
                 }

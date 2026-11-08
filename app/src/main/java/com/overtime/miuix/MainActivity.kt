@@ -13,6 +13,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -147,34 +148,62 @@ private fun resolveBackTransition(mode: String): BackTransition =
     BackTransition.entries.firstOrNull { it.name == mode } ?: BackTransition.SCALE_FADE
 
 /**
+ * 返回转场的落定（settle）曲线：200ms + 强 ease-in（0.2,0,0,1）。
+ * 手势预览期间进度由系统跟手驱动，本规格只作用于松手 commit / 程序化返回的收尾，
+ * 让落定更干脆；取消回弹由 NavHost 按手势进度反向驱动，不受此规格影响。
+ */
+private val BACK_SETTLE_EASING = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+private fun backTween(): androidx.compose.animation.core.FiniteAnimationSpec<Float> =
+    tween(200, easing = BACK_SETTLE_EASING)
+
+/** 未识别的退出方向值回退到跟随手势，兼容旧备份与未知字符串。 */
+private fun resolveExitDirection(direction: String): String =
+    if (direction == "ALWAYS_RIGHT" || direction == "ALWAYS_LEFT") direction else "FOLLOW_GESTURE"
+
+/**
  * 返回（含预测性返回手势预览）转场规格。
  * @param edge 最近一次返回手势的来源边缘：[NavigationEvent.EDGE_RIGHT] 时横向方向翻转，
  *             即手势从右侧返回则页面从右向左收束，从左侧返回则保持默认（左向右）。
+ * @param exitDirection 横向返回的退出方向：FOLLOW_GESTURE 跟随手势边缘（默认），
+ *                      ALWAYS_RIGHT / ALWAYS_LEFT 恒定向右 / 恒定向左退出，忽略手势来源。
+ *                      仅 SLIDE_HORIZONTAL 使用，其余动画类型方向无意义。
  */
-private fun backEnter(mode: String, edge: Int): EnterTransition = when (resolveBackTransition(mode)) {
-    BackTransition.SLIDE_HORIZONTAL ->
-        // 右边缘手势：上一页从右侧进入；左边缘手势：从左侧进入
-        if (edge == NavigationEvent.EDGE_RIGHT)
-            slideInHorizontally(animationSpec = tween(300)) { it / 4 } + fadeIn(tween(300))
-        else
-            slideInHorizontally(animationSpec = tween(300)) { -it / 4 } + fadeIn(tween(300))
-    BackTransition.SLIDE_VERTICAL -> slideInVertically(animationSpec = tween(300)) { -it / 4 } + fadeIn(tween(300))
-    BackTransition.FADE -> fadeIn(tween(300))
+private fun backEnter(mode: String, edge: Int, exitDirection: String): EnterTransition = when (resolveBackTransition(mode)) {
+    BackTransition.SLIDE_HORIZONTAL -> when (resolveExitDirection(exitDirection)) {
+        // 恒定向左退出：上一页从右侧进入
+        "ALWAYS_LEFT" -> slideInHorizontally(animationSpec = backTween()) { it / 4 } + fadeIn(backTween())
+        // 恒定向右退出：上一页从左侧进入
+        "ALWAYS_RIGHT" -> slideInHorizontally(animationSpec = backTween()) { -it / 4 } + fadeIn(backTween())
+        // 跟随手势：右边缘手势上一页从右侧进入；左边缘从左侧进入
+        else ->
+            if (edge == NavigationEvent.EDGE_RIGHT)
+                slideInHorizontally(animationSpec = backTween()) { it / 4 } + fadeIn(backTween())
+            else
+                slideInHorizontally(animationSpec = backTween()) { -it / 4 } + fadeIn(backTween())
+    }
+    BackTransition.SLIDE_VERTICAL -> slideInVertically(animationSpec = backTween()) { -it / 4 } + fadeIn(backTween())
+    BackTransition.FADE -> fadeIn(backTween())
     BackTransition.NONE -> EnterTransition.None
-    else -> scaleIn(animationSpec = tween(300), initialScale = 0.92f) + fadeIn(tween(300))
+    else -> scaleIn(animationSpec = backTween(), initialScale = 0.92f) + fadeIn(backTween())
 }
 
-private fun backExit(mode: String, edge: Int): ExitTransition = when (resolveBackTransition(mode)) {
-    BackTransition.SLIDE_HORIZONTAL ->
-        // 右边缘手势：当前页向左收束；左边缘手势：向右收束
-        if (edge == NavigationEvent.EDGE_RIGHT)
-            slideOutHorizontally(animationSpec = tween(300)) { -it / 4 } + fadeOut(tween(300))
-        else
-            slideOutHorizontally(animationSpec = tween(300)) { it / 4 } + fadeOut(tween(300))
-    BackTransition.SLIDE_VERTICAL -> slideOutVertically(animationSpec = tween(300)) { it / 4 } + fadeOut(tween(300))
-    BackTransition.FADE -> fadeOut(tween(300))
+private fun backExit(mode: String, edge: Int, exitDirection: String): ExitTransition = when (resolveBackTransition(mode)) {
+    BackTransition.SLIDE_HORIZONTAL -> when (resolveExitDirection(exitDirection)) {
+        // 恒定向左退出：当前页向左收束
+        "ALWAYS_LEFT" -> slideOutHorizontally(animationSpec = backTween()) { -it / 4 } + fadeOut(backTween())
+        // 恒定向右退出：当前页向右收束
+        "ALWAYS_RIGHT" -> slideOutHorizontally(animationSpec = backTween()) { it / 4 } + fadeOut(backTween())
+        // 跟随手势：右边缘手势当前页向左收束；左边缘向右收束
+        else ->
+            if (edge == NavigationEvent.EDGE_RIGHT)
+                slideOutHorizontally(animationSpec = backTween()) { -it / 4 } + fadeOut(backTween())
+            else
+                slideOutHorizontally(animationSpec = backTween()) { it / 4 } + fadeOut(backTween())
+    }
+    BackTransition.SLIDE_VERTICAL -> slideOutVertically(animationSpec = backTween()) { it / 4 } + fadeOut(backTween())
+    BackTransition.FADE -> fadeOut(backTween())
     BackTransition.NONE -> ExitTransition.None
-    else -> scaleOut(animationSpec = tween(300), targetScale = 0.88f) + fadeOut(tween(300))
+    else -> scaleOut(animationSpec = backTween(), targetScale = 0.88f) + fadeOut(backTween())
 }
 
 /**
@@ -247,15 +276,18 @@ fun MainNavHost(
     // 预测性返回总开关：关闭后返回瞬时无动画
     val predictiveBackEnabled by settingsRepository.predictiveBackEnabled
         .collectAsState(initial = true)
+    // 横向返回的退出方向（跟随手势 / 恒定向右 / 恒定向左）
+    val backExitDirection by settingsRepository.backExitDirection
+        .collectAsState(initial = "FOLLOW_GESTURE")
     // 直接交由 NavHost 的「原生预测性返回」驱动 popEnter / popExit：
     // 手势进行中 NavHost 会同时组合上一页（popEnter）与当前页（popExit），
     // 并将转场进度绑定到手势进度——既「跟手」又能在当前页滑出时露出上一页内容。
     // 之前用手写整页平移 + gesturePop 抑制 NavHost 转场，会导致上一页不显示（白屏/背景）。
     val popEnter: EnterTransition =
-        if (predictiveBackEnabled) backEnter(backTransition, backSwipeEdge.intValue)
+        if (predictiveBackEnabled) backEnter(backTransition, backSwipeEdge.intValue, backExitDirection)
         else EnterTransition.None
     val popExit: ExitTransition =
-        if (predictiveBackEnabled) backExit(backTransition, backSwipeEdge.intValue)
+        if (predictiveBackEnabled) backExit(backTransition, backSwipeEdge.intValue, backExitDirection)
         else ExitTransition.None
 
     CompositionLocalProvider(

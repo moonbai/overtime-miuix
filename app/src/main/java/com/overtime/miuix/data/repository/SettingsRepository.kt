@@ -38,6 +38,10 @@ class SettingsRepository(private val context: Context) {
     val predictiveBackTransition: Flow<String> = context.dataStore.data
         .map { it[KEY_PREDICTIVE_BACK_TRANSITION] ?: DEFAULT_PREDICTIVE_BACK_TRANSITION }
 
+    // 横向返回的退出方向：跟随手势 / 恒定向右 / 恒定向左，仅在动画为 SLIDE_HORIZONTAL 时生效
+    val backExitDirection: Flow<String> = context.dataStore.data
+        .map { it[KEY_BACK_EXIT_DIRECTION] ?: DEFAULT_BACK_EXIT_DIRECTION }
+
     // 薪资计算口径：月计薪天数 / 每日工时，可在「薪资与记录」中调整
     val workingDaysPerMonth: Flow<Double> = context.dataStore.data
         .map { it[KEY_WORKING_DAYS_PER_MONTH] ?: DEFAULT_WORKING_DAYS_PER_MONTH }
@@ -113,6 +117,9 @@ class SettingsRepository(private val context: Context) {
     suspend fun setPredictiveBackTransition(mode: String) {
         context.dataStore.edit { it[KEY_PREDICTIVE_BACK_TRANSITION] = mode }
     }
+    suspend fun setBackExitDirection(direction: String) {
+        context.dataStore.edit { it[KEY_BACK_EXIT_DIRECTION] = direction }
+    }
     suspend fun setWorkingDaysPerMonth(days: Double) {
         context.dataStore.edit { it[KEY_WORKING_DAYS_PER_MONTH] = days }
     }
@@ -180,6 +187,8 @@ class SettingsRepository(private val context: Context) {
                             (value.toIntOrNull() ?: DEFAULT_FLOATING_NAV_BOTTOM_OFFSET).coerceIn(0, 64)
                     KEY_PREDICTIVE_BACK_TRANSITION.name ->
                         prefs[KEY_PREDICTIVE_BACK_TRANSITION] = value
+                    KEY_BACK_EXIT_DIRECTION.name ->
+                        prefs[KEY_BACK_EXIT_DIRECTION] = value
                     KEY_PREDICTIVE_BACK_ENABLED.name ->
                         prefs[KEY_PREDICTIVE_BACK_ENABLED] = value.toBoolean()
                     KEY_WORKING_DAYS_PER_MONTH.name ->
@@ -241,6 +250,7 @@ class SettingsRepository(private val context: Context) {
             KEY_FLOATING_NAV.name to useFloatingNav.first().toString(),
             KEY_FLOATING_NAV_BOTTOM_OFFSET.name to floatingNavBottomOffset.first().toString(),
             KEY_PREDICTIVE_BACK_TRANSITION.name to predictiveBackTransition.first(),
+            KEY_BACK_EXIT_DIRECTION.name to backExitDirection.first(),
             KEY_PREDICTIVE_BACK_ENABLED.name to predictiveBackEnabled.first().toString(),
             KEY_WORKING_DAYS_PER_MONTH.name to workingDaysPerMonth.first().toString(),
             KEY_HOURS_PER_DAY.name to hoursPerDay.first().toString(),
@@ -297,6 +307,8 @@ class SettingsRepository(private val context: Context) {
         private const val DEFAULT_PREDICTIVE_BACK_ENABLED = true
         private val KEY_PREDICTIVE_BACK_TRANSITION = stringPreferencesKey("predictive_back_transition")
         private const val DEFAULT_PREDICTIVE_BACK_TRANSITION = "SCALE_FADE"
+        private val KEY_BACK_EXIT_DIRECTION = stringPreferencesKey("back_exit_direction")
+        private const val DEFAULT_BACK_EXIT_DIRECTION = "FOLLOW_GESTURE"
         private val KEY_WORKING_DAYS_PER_MONTH = doublePreferencesKey("working_days_per_month")
         private val KEY_HOURS_PER_DAY = doublePreferencesKey("hours_per_day")
         private const val DEFAULT_WORKING_DAYS_PER_MONTH = 21.75
