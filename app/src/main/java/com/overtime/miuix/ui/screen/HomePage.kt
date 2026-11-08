@@ -22,9 +22,13 @@ import com.overtime.miuix.data.model.OvertimeType
 import com.overtime.miuix.data.repository.OvertimeRepository
 import com.overtime.miuix.data.repository.SettingsRepository
 import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
+import com.overtime.miuix.ui.snackbar.dismissDeleteSnackbars
 import com.overtime.miuix.ui.snackbar.showCustomToast
 import com.overtime.miuix.util.SalaryCalculator
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -70,22 +74,58 @@ fun HomePage(
     var selectedRecord by remember { mutableStateOf<OvertimeRecord?>(null) }
 
     /**
-     * 删除并给出 4 秒撤销窗口。确认删除与「关闭二次确认」后的直接删除共用此逻辑，
-     * 保证两种路径的撤销行为完全一致。
+     * 连续删除的撤销批次：关闭二次确认后用户可能快速连点删除，
+     * 这些记录统一交给「最新一条」撤销提示承载，撤销时一次性全部恢复。
+     */
+    val pendingDeletes = remember { mutableListOf<OvertimeRecord>() }
+    // 串行化批次更新，避免多个删除协程交错导致提示残留或批次错乱
+    val deleteMutex = remember { Mutex() }
+    var undoJob by remember { mutableStateOf<Job?>(null) }
+    var undoGeneration by remember { mutableStateOf(0) }
+
+    /**
+     * 删除并给出 4 秒撤销窗口。确认删除与「关闭二次确认」后的直接删除共用此逻辑。
+     *
+     * MIUIX 0.9.4 的 SnackbarHost 会渲染队列中的全部条目，showSnackbar 每次都是
+     * 「新增一条」而非「替换当前条」，因此连续删除会逐条叠加通知条。这里改为：
+     * 先取消并收起上一条，只显示最新的一条；连续删除的记录合并进同一批次，
+     * 既不堆叠，也不会因为旧提示被顶掉而丢失撤销能力。
      */
     fun performDelete(record: OvertimeRecord) {
         scope.launch {
-            repository.delete(record)
-            // 撤销由 MIUIX 原生 Snackbar 承载：Scaffold 的 SnackbarHost 统一渲染，
-            // 避免自绘 Surface 的 shadowElevation 在 Android 17 上被绘制成底部黑块。
-            val result = snackbarHostState.showSnackbar(
-                message = "已删除记录",
-                actionLabel = "撤销",
-                duration = SnackbarDuration.Custom(4000)
-            )
-            if (result == SnackbarResult.ActionPerformed) {
-                repository.insert(record.copy(id = 0))
-                snackbarHostState.showCustomToast("已撤销删除")
+            deleteMutex.withLock {
+                repository.delete(record)
+                pendingDeletes.add(record)
+
+                // 代次先递增：旧协程被 dismiss 唤醒后据此直接退出，不会误清新批次
+                val generation = ++undoGeneration
+                undoJob?.cancel()
+                snackbarHostState.dismissDeleteSnackbars()
+
+                val count = pendingDeletes.size
+                undoJob = scope.launch {
+                    val result = snackbarHostState.showSnackbar(
+                        message = if (count > 1) "已删除 $count 条记录" else "已删除记录",
+                        actionLabel = "撤销",
+                        duration = SnackbarDuration.Custom(4000)
+                    )
+                    // 已被后续删除取代：批次交由最新的提示处理，本协程不触碰
+                    if (undoGeneration != generation) return@launch
+                    if (result == SnackbarResult.ActionPerformed) {
+                        // 结果确定时立刻取走并清空批次，避免后续删除混入本次撤销
+                        val batch = deleteMutex.withLock {
+                            val snapshot = pendingDeletes.toList()
+                            pendingDeletes.clear()
+                            snapshot
+                        }
+                        batch.forEach { repository.insert(it.copy(id = 0)) }
+                        snackbarHostState.showCustomToast(
+                            if (batch.size > 1) "已撤销 ${batch.size} 条删除" else "已撤销删除"
+                        )
+                    } else {
+                        deleteMutex.withLock { pendingDeletes.clear() }
+                    }
+                }
             }
         }
     }

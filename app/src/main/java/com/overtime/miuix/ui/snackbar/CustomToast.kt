@@ -22,3 +22,25 @@ val LocalSnackbarHostState = compositionLocalOf<SnackbarHostState> {
 suspend fun SnackbarHostState.showCustomToast(message: String) {
     showSnackbar(message, duration = SnackbarDuration.Custom(2000))
 }
+
+/** 删除撤销提示的消息前缀，用于精确识别本类提示，避免误伤其他 Toast。 */
+const val DELETE_SNACKBAR_PREFIX = "已删除"
+
+/**
+ * 收起队列中尚未消失的「删除撤销」提示，只保留最新一条。
+ *
+ * MIUIX 0.9.4 的 [SnackbarHostState] 是多条目队列：每次 showSnackbar 都会
+ * `entries.add(0, entry)`，SnackbarHost 再用 LazyColumn 渲染全部可见条目；
+ * 且 showSnackbar 内部没有 finally 清理，协程被取消时条目仍会留到自身超时，
+ * 因此单纯 cancel 协程不足以消除堆叠，必须显式 [top.yukonga.miuix.kmp.basic.SnackbarData.dismiss]。
+ *
+ * [newestSnackbarData] 返回队列中最新的可见条目，循环 dismiss 即可逐条收起；
+ * 遇到非删除类提示立即停止，不影响其他页面的消息。上限防止异常情况下死循环。
+ */
+suspend fun SnackbarHostState.dismissDeleteSnackbars() {
+    repeat(16) {
+        val data = newestSnackbarData() ?: return
+        if (!data.visuals.message.startsWith(DELETE_SNACKBAR_PREFIX)) return
+        data.dismiss()
+    }
+}
