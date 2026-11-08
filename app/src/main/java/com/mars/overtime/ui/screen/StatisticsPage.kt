@@ -1,4 +1,4 @@
-package com.overtime.miuix.ui.screen
+package com.mars.overtime.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.activity.compose.BackHandler
@@ -15,19 +15,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.overtime.miuix.data.database.OvertimeRecord
-import com.overtime.miuix.data.model.OvertimeType
-import com.overtime.miuix.data.repository.OvertimeRepository
-import com.overtime.miuix.data.repository.SettingsRepository
-import com.overtime.miuix.util.SalaryCalculator
+import com.mars.overtime.data.database.OvertimeRecord
+import com.mars.overtime.data.model.OvertimeType
+import com.mars.overtime.data.repository.OvertimeRepository
+import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.util.SalaryCalculator
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.overtime.miuix.ui.theme.AppDimens
-import com.overtime.miuix.ui.theme.AppShapes
+import com.mars.overtime.ui.theme.AppDimens
+import com.mars.overtime.ui.theme.AppShapes
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
@@ -80,8 +80,8 @@ fun StatisticsPage(
     var selectedMonth by remember { mutableStateOf(SalaryCalculator.getCurrentYearMonth()) }
     var selectedYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR).toString()) }
     var viewMode by remember { mutableStateOf(StatsViewMode.MONTH) }
-    var stats by remember { mutableStateOf<com.overtime.miuix.data.repository.MonthlyStats?>(null) }
-    var yearlyStats by remember { mutableStateOf<com.overtime.miuix.data.repository.YearlyStats?>(null) }
+    var stats by remember { mutableStateOf<com.mars.overtime.data.repository.MonthlyStats?>(null) }
+    var yearlyStats by remember { mutableStateOf<com.mars.overtime.data.repository.YearlyStats?>(null) }
     var monthRecords by remember { mutableStateOf<List<OvertimeRecord>>(emptyList()) }
 
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())

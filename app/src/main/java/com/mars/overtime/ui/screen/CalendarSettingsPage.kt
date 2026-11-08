@@ -1,4 +1,4 @@
-package com.overtime.miuix.ui.screen
+package com.mars.overtime.ui.screen
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -8,11 +8,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
-import com.overtime.miuix.data.repository.OvertimeRepository
-import com.overtime.miuix.data.repository.SettingsRepository
-import com.overtime.miuix.push.CalendarSyncManager
-import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
-import com.overtime.miuix.ui.snackbar.showCustomToast
+import com.mars.overtime.data.repository.OvertimeRepository
+import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.push.CalendarSyncManager
+import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
+import com.mars.overtime.ui.snackbar.showCustomToast
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*

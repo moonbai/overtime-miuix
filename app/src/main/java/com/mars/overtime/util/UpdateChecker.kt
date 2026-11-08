@@ -1,4 +1,4 @@
-package com.overtime.miuix.util
+package com.mars.overtime.util
 
 import android.content.Context
 import android.content.pm.PackageManager
@@ -9,7 +9,7 @@ import android.util.Xml
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.overtime.miuix.BuildConfig
+import com.mars.overtime.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.get

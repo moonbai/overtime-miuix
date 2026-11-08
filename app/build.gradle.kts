@@ -19,11 +19,11 @@ fun signProp(name: String): String? =
     System.getenv(name) ?: localProperties.getProperty(name)
 
 android {
-    namespace = "com.overtime.miuix"
+    namespace = "com.mars.overtime"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.overtime.miuix"
+        applicationId = "com.mars.overtime"
         // minSdk 33（Android 13）：与 miuix-blur AAR minSdk 对齐，甩掉存储/通知旧权限模型（2026-11 提升）
         minSdk = 33
         targetSdk = 37

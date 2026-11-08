@@ -1,11 +1,11 @@
-package com.overtime.miuix.ui.snackbar
+package com.mars.overtime.ui.snackbar
 
 import androidx.compose.runtime.compositionLocalOf
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 
 /**
- * 全局共享的 [SnackbarHostState]，由 [com.overtime.miuix.MainNavHost] 提供。
+ * 全局共享的 [SnackbarHostState]，由 [com.mars.overtime.MainNavHost] 提供。
  * 各页面 Scaffold 通过 [top.yukonga.miuix.kmp.basic.SnackbarHost] 挂载后，
  * 任意位置均可调用 [SnackbarHostState.showCustomToast] 弹出 2 秒自定义提示。
  */

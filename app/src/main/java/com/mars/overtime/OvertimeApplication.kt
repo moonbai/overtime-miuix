@@ -1,11 +1,11 @@
-package com.overtime.miuix
+package com.mars.overtime
 
 import android.app.Application
 import android.content.ComponentCallbacks2
-import com.overtime.miuix.data.database.AppDatabase
-import com.overtime.miuix.data.repository.OvertimeRepository
-import com.overtime.miuix.data.repository.SettingsRepository
-import com.overtime.miuix.util.FairMemoryManager
+import com.mars.overtime.data.database.AppDatabase
+import com.mars.overtime.data.repository.OvertimeRepository
+import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.util.FairMemoryManager
 
 class OvertimeApplication : Application() {
     lateinit var database: AppDatabase

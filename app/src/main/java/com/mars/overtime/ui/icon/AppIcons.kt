@@ -5,7 +5,7 @@
 // 为避免为单个图标强行拉升整条依赖链，此处按官方矢量路径原样内置，
 // 视觉与官方 Regular 变体完全一致；待框架整体升级到 0.9.3+ 后可直接切回
 // top.yukonga.miuix.kmp.icon.extended.Home 并删除本文件。
-package com.overtime.miuix.ui.icon
+package com.mars.overtime.ui.icon
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathFillType

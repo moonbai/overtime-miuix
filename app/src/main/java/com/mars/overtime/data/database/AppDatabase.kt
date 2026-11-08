@@ -1,4 +1,4 @@
-package com.overtime.miuix.data.database
+package com.mars.overtime.data.database
 
 import android.content.Context
 import androidx.room.Database
@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
-import com.overtime.miuix.data.model.OvertimeType
+import com.mars.overtime.data.model.OvertimeType
 
 class Converters {
     @TypeConverter

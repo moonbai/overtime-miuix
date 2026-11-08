@@ -1,4 +1,4 @@
-package com.overtime.miuix.ui.component
+package com.mars.overtime.ui.component
 
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.background
@@ -8,7 +8,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
-import com.overtime.miuix.ui.theme.AppBody1Medium
+import com.mars.overtime.ui.theme.AppBody1Medium
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -17,9 +17,9 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.overtime.miuix.ui.theme.AppDimens
-import com.overtime.miuix.ui.theme.AppIconSize
-import com.overtime.miuix.ui.theme.AppShapes
+import com.mars.overtime.ui.theme.AppDimens
+import com.mars.overtime.ui.theme.AppIconSize
+import com.mars.overtime.ui.theme.AppShapes
 
 /**
  * App 级复用组件层（基于 MiuiX 原语封装，尺寸/圆角/图标全部走令牌层）。

@@ -1,5 +1,5 @@
-package com.overtime.miuix.ui.screen
-import com.overtime.miuix.ui.theme.AppShapes
+package com.mars.overtime.ui.screen
+import com.mars.overtime.ui.theme.AppShapes
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -10,10 +10,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.overtime.miuix.data.repository.SettingsRepository
-import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
-import com.overtime.miuix.ui.snackbar.showCustomToast
-import com.overtime.miuix.util.SalaryCalculator
+import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
+import com.mars.overtime.ui.snackbar.showCustomToast
+import com.mars.overtime.util.SalaryCalculator
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog

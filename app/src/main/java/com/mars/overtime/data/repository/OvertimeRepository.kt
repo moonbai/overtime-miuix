@@ -1,8 +1,8 @@
-package com.overtime.miuix.data.repository
+package com.mars.overtime.data.repository
 
-import com.overtime.miuix.data.database.AppDatabase
-import com.overtime.miuix.data.database.OvertimeRecord
-import com.overtime.miuix.data.model.OvertimeType
+import com.mars.overtime.data.database.AppDatabase
+import com.mars.overtime.data.database.OvertimeRecord
+import com.mars.overtime.data.model.OvertimeType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat

@@ -1,4 +1,4 @@
-package com.overtime.miuix.ui.screen
+package com.mars.overtime.ui.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.activity.compose.BackHandler
@@ -11,23 +11,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.overtime.miuix.data.database.OvertimeRecord
-import com.overtime.miuix.data.model.OvertimeType
-import com.overtime.miuix.data.repository.OvertimeRepository
-import com.overtime.miuix.data.repository.SettingsRepository
-import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
-import com.overtime.miuix.ui.snackbar.showCustomToast
-import com.overtime.miuix.util.HolidayDataSource
-import com.overtime.miuix.util.HolidayManager
-import com.overtime.miuix.util.RecordSyncHelper
-import com.overtime.miuix.util.SalaryCalculator
+import com.mars.overtime.data.database.OvertimeRecord
+import com.mars.overtime.data.model.OvertimeType
+import com.mars.overtime.data.repository.OvertimeRepository
+import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
+import com.mars.overtime.ui.snackbar.showCustomToast
+import com.mars.overtime.util.HolidayDataSource
+import com.mars.overtime.util.HolidayManager
+import com.mars.overtime.util.RecordSyncHelper
+import com.mars.overtime.util.SalaryCalculator
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.overtime.miuix.ui.theme.AppDimens
+import com.mars.overtime.ui.theme.AppDimens
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToLong
@@ -56,6 +56,10 @@ fun AddEditRecordPage(
     var isLeave by remember { mutableStateOf(false) }
     // 请假时长：只提供半天 4 小时 / 全天 8 小时两档，存负值表示工资扣减
     var leaveDuration by remember { mutableStateOf(-4.0) }
+    // 一次性保存锁：JVM 级原子布尔，不依赖 Compose 状态快照与重组时机，
+    // 连点在重组发生前派发也能可靠拦下。成功保存后立即返回首页（页面销毁，
+    // 锁随实例消失），仅入库前失败时解锁允许重试。
+    val saveGuard = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     // 用户是否手动改过加班类型：为 true 时不再按日期自动覆盖
     var typeManuallyChanged by remember { mutableStateOf(false) }
     // 当前日期自动判定得到的类型标签（用于展示提示）
@@ -178,43 +182,58 @@ fun AddEditRecordPage(
         }
     }
 
-    // 统一保存逻辑：顶栏与右下角悬浮按钮共用
+    // 统一保存逻辑：右下角悬浮确认按钮入口
+    // compareAndSet 是原子操作：同一瞬间无论派发多少次点击，只有第一次能拿到锁，
+    // 后续全部直接返回，不依赖 Compose 重组或状态快照的时序。
     fun performSave() {
+        if (!saveGuard.compareAndSet(false, true)) return
         scope.launch {
-            val oldRecord = if (recordId != null) repository.getRecordById(recordId) else null
-            val saved = saveRecord(
-                repository,
-                recordId,
-                selectedDate,
-                selectedType,
-                durationHours,
-                baseSalary,
-                when (selectedType) {
-                    OvertimeType.WORKDAY -> workdayRate
-                    OvertimeType.WEEKEND -> weekendRate
-                    OvertimeType.HOLIDAY -> holidayRate
-                },
-                note,
-                isLeave,
-                leaveDuration
-            )
-            saved?.let {
-                // 同步动作在当前协程内串行执行并整体兜底：
-                // 记录本身已入库，后续推送/日历/备份的任何异常都不得影响保存结果与页面跳转。
-                val calendarResult = try {
-                    RecordSyncHelper.afterSave(context, repository, settingsRepository, it, oldRecord)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    null
-                }
-                // 先返回首页，再显示吐司，确保吐司在首页上可见
-                navController.navigate("main") {
-                    popUpTo(0) { inclusive = true }
-                }
-                val baseMsg = if (recordId != null) "已更新记录" else "已保存记录"
-                snackbarHostState.showCustomToast(
-                    RecordSyncHelper.calendarHint(calendarResult) ?: baseMsg
+            var inserted = false
+            try {
+                val oldRecord = if (recordId != null) repository.getRecordById(recordId) else null
+                val saved = saveRecord(
+                    repository,
+                    recordId,
+                    selectedDate,
+                    selectedType,
+                    durationHours,
+                    baseSalary,
+                    when (selectedType) {
+                        OvertimeType.WORKDAY -> workdayRate
+                        OvertimeType.WEEKEND -> weekendRate
+                        OvertimeType.HOLIDAY -> holidayRate
+                    },
+                    note,
+                    isLeave,
+                    leaveDuration
                 )
+                if (saved != null) {
+                    // 记录已入库（新建 insert / 编辑 update 均成功），此后任何异常
+                    // 都不得解锁，否则用户重试会再产生一条记录。
+                    inserted = true
+                    // 同步动作在当前协程内串行执行并整体兜底：
+                    // 记录本身已入库，后续推送/日历/备份的任何异常都不得影响保存结果与页面跳转。
+                    val calendarResult = try {
+                        RecordSyncHelper.afterSave(context, repository, settingsRepository, saved, oldRecord)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        null
+                    }
+                    // 先返回首页，再显示吐司，确保吐司在首页上可见
+                    navController.navigate("main") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                    val baseMsg = if (recordId != null) "已更新记录" else "已保存记录"
+                    snackbarHostState.showCustomToast(
+                        RecordSyncHelper.calendarHint(calendarResult) ?: baseMsg
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                // 仅"入库前失败"解锁允许重试；成功路径页面已返回首页并销毁，
+                // 锁随页面实例一起消失，无需复位。
+                if (!inserted) saveGuard.set(false)
             }
         }
     }

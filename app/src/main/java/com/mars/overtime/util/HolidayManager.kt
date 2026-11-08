@@ -1,7 +1,7 @@
-package com.overtime.miuix.util
+package com.mars.overtime.util
 
 import android.util.Log
-import com.overtime.miuix.data.model.OvertimeType
+import com.mars.overtime.data.model.OvertimeType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient

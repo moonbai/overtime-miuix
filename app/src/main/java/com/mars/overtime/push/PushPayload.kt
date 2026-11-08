@@ -1,9 +1,9 @@
-package com.overtime.miuix.push
+package com.mars.overtime.push
 
-import com.overtime.miuix.data.database.OvertimeRecord
-import com.overtime.miuix.data.model.OvertimeType
-import com.overtime.miuix.util.HolidayManager
-import com.overtime.miuix.util.SalaryCalculator
+import com.mars.overtime.data.database.OvertimeRecord
+import com.mars.overtime.data.model.OvertimeType
+import com.mars.overtime.util.HolidayManager
+import com.mars.overtime.util.SalaryCalculator
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date

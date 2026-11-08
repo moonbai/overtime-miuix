@@ -1,10 +1,10 @@
-package com.overtime.miuix.util
+package com.mars.overtime.util
 
 import android.app.Application
 import android.content.ComponentCallbacks2
 import android.os.Debug
 import android.util.Log
-import com.overtime.miuix.push.PushManager
+import com.mars.overtime.push.PushManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

@@ -1,4 +1,4 @@
-package com.overtime.miuix.ui.screen
+package com.mars.overtime.ui.screen
 
 import android.content.Context
 import android.content.pm.PackageManager

@@ -1,4 +1,4 @@
-package com.overtime.miuix.data.model
+package com.mars.overtime.data.model
 
 enum class OvertimeType(val label: String) {
     WORKDAY("工作日加班"),

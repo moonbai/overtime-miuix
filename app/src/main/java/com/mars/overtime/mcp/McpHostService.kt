@@ -1,4 +1,4 @@
-package com.overtime.miuix.mcp
+package com.mars.overtime.mcp
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -9,20 +9,20 @@ import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
-import com.overtime.miuix.R
+import com.mars.overtime.R
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonNull
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.overtime.miuix.data.database.AppDatabase
-import com.overtime.miuix.data.database.OvertimeRecord
-import com.overtime.miuix.data.model.OvertimeType
-import com.overtime.miuix.data.repository.OvertimeRepository
-import com.overtime.miuix.data.repository.SettingsRepository
-import com.overtime.miuix.util.RecordSyncHelper
-import com.overtime.miuix.util.SalaryCalculator
+import com.mars.overtime.data.database.AppDatabase
+import com.mars.overtime.data.database.OvertimeRecord
+import com.mars.overtime.data.model.OvertimeType
+import com.mars.overtime.data.repository.OvertimeRepository
+import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.util.RecordSyncHelper
+import com.mars.overtime.util.SalaryCalculator
 import io.ktor.server.application.*
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.EmbeddedServer

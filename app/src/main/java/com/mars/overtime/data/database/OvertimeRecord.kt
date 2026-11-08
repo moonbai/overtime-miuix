@@ -1,8 +1,8 @@
-package com.overtime.miuix.data.database
+package com.mars.overtime.data.database
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.overtime.miuix.data.model.OvertimeType
+import com.mars.overtime.data.model.OvertimeType
 
 @Entity(tableName = "overtime_records")
 data class OvertimeRecord(

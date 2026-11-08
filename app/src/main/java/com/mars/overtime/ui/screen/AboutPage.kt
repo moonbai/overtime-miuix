@@ -1,6 +1,6 @@
-package com.overtime.miuix.ui.screen
-import com.overtime.miuix.ui.theme.AppDimens
-import com.overtime.miuix.ui.theme.AppShapes
+package com.mars.overtime.ui.screen
+import com.mars.overtime.ui.theme.AppDimens
+import com.mars.overtime.ui.theme.AppShapes
 
 import android.content.Context
 import android.content.Intent
@@ -30,13 +30,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.overtime.miuix.BuildConfig
-import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
-import com.overtime.miuix.ui.snackbar.CHECKING_SNACKBAR_MESSAGE
-import com.overtime.miuix.ui.snackbar.dismissCheckingSnackbar
-import com.overtime.miuix.ui.snackbar.showCustomToast
-import com.overtime.miuix.util.UpdateCheckResult
-import com.overtime.miuix.util.UpdateChecker
+import com.mars.overtime.BuildConfig
+import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
+import com.mars.overtime.ui.snackbar.CHECKING_SNACKBAR_MESSAGE
+import com.mars.overtime.ui.snackbar.dismissCheckingSnackbar
+import com.mars.overtime.ui.snackbar.showCustomToast
+import com.mars.overtime.util.UpdateCheckResult
+import com.mars.overtime.util.UpdateChecker
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

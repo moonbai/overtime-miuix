@@ -1,7 +1,7 @@
-package com.overtime.miuix.data.database
+package com.mars.overtime.data.database
 
 import androidx.room.*
-import com.overtime.miuix.data.model.OvertimeType
+import com.mars.overtime.data.model.OvertimeType
 import kotlinx.coroutines.flow.Flow
 
 @Dao

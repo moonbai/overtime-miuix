@@ -1,4 +1,4 @@
-package com.overtime.miuix.ui.theme
+package com.mars.overtime.ui.theme
 
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp

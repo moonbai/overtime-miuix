@@ -1,5 +1,5 @@
-package com.overtime.miuix.ui.screen
-import com.overtime.miuix.ui.theme.AppShapes
+package com.mars.overtime.ui.screen
+import com.mars.overtime.ui.theme.AppShapes
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,14 +8,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.overtime.miuix.data.database.OvertimeRecord
-import com.overtime.miuix.data.model.OvertimeType
-import com.overtime.miuix.data.repository.OvertimeRepository
-import com.overtime.miuix.data.repository.SettingsRepository
-import com.overtime.miuix.util.HolidayDataSource
-import com.overtime.miuix.util.HolidayManager
-import com.overtime.miuix.util.RecordSyncHelper
-import com.overtime.miuix.util.SalaryCalculator
+import com.mars.overtime.data.database.OvertimeRecord
+import com.mars.overtime.data.model.OvertimeType
+import com.mars.overtime.data.repository.OvertimeRepository
+import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.util.HolidayDataSource
+import com.mars.overtime.util.HolidayManager
+import com.mars.overtime.util.RecordSyncHelper
+import com.mars.overtime.util.SalaryCalculator
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
@@ -31,7 +31,8 @@ import java.util.*
  *
  * - 日期固定为当天
  * - 加班类型按当天日期自动判定（工作日/休息日/节假日），可手动切换
- * - 提供常用时长快捷选项，也可微调
+ * - 提供常用时长快捷选项，也可左右滑动微调（0.5h 步进，0.5~24h）
+ * - 单次弹窗会话只允许提交一次，避免连点产生重复记录
  * - 保存后自动触发推送 / 日历同步 / 自动备份
  */
 @Composable
@@ -72,12 +73,12 @@ fun QuickSubmitSheet(
     var autoDetected by remember { mutableStateOf(false) }
     var durationHours by remember { mutableStateOf(2.0) }
     var note by remember { mutableStateOf("") }
+    // 仅用于「提交中...」文案等 UI 反馈，不承担防重复职责
     var saving by remember { mutableStateOf(false) }
-    // 一次性提交锁：本次弹窗会话只允许入库一次。成功入库后不解锁，
-    // 覆盖「保存完成 → onDismiss → 弹窗退出动画」期间按钮仍可见可点的连点窗口；
-    // 快速双击时重组尚未发生，靠这个快照状态拦截比按钮 enabled 更可靠。
-    // 弹窗关闭后本组件仍留在组合树中（show 只控制显隐），下次打开时统一复位。
-    var submitted by remember { mutableStateOf(false) }
+    // 一次性提交锁：JVM 级原子布尔，连点在重组前派发也只能有一次拿到锁。
+    // 成功入库后不解锁，覆盖「保存完成 → onDismiss → 弹窗退出动画」期间
+    // 按钮仍可见可点的窗口。弹窗关闭后本组件仍在组合树中，下次打开时复位。
+    val submitGuard = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     // 请假模式：快速提报也支持记请假
     var isLeave by remember { mutableStateOf(false) }
     var leaveDuration by remember { mutableStateOf(-4.0) }
@@ -92,7 +93,7 @@ fun QuickSubmitSheet(
     LaunchedEffect(show) {
         if (show) {
             saving = false
-            submitted = false
+            submitGuard.set(false)
             if (!typeManuallyChanged) {
                 val source = try { HolidayDataSource.valueOf(holidayDataSource) } catch (_: Exception) { HolidayDataSource.TIMOR }
                 HolidayManager.configure(
@@ -259,24 +260,38 @@ fun QuickSubmitSheet(
                     }
                 }
             }
-            // 时长微调只对加班开放：请假固定半天 / 全天两档，
-            // 保留 ±0.5h 会绕过选项产生 3.5h、8.5h 之类的时长。
+            // 加班时长：左右拖动滑块选择，0.5h 步进吸附，范围 0.5~24h。
+            // 请假固定半天 / 全天两档，不提供滑块（避免时长与档位不一致）。
             if (!isLeave) {
+                Slider(
+                    value = durationHours.toFloat(),
+                    onValueChange = { value ->
+                        // 吸附到 0.5h 档位，避免出现 2.3h 这类与上方快捷档位不一致的值
+                        durationHours = (kotlin.math.round(value.toDouble() * 2) / 2.0)
+                            .coerceIn(0.5, 24.0)
+                    },
+                    onValueChangeFinished = {},
+                    valueRange = 0.5f..24f,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Button(
-                        onClick = { durationHours = (durationHours - 0.5).coerceAtLeast(0.5) },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("-0.5h") }
-                    Button(
-                        onClick = { durationHours = (durationHours + 0.5).coerceAtMost(24.0) },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("+0.5h") }
+                    Text(
+                        text = "0.5h",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                    Text(
+                        text = "24h",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
                 }
             }
 
@@ -306,12 +321,11 @@ fun QuickSubmitSheet(
                 )
                 Button(
                     onClick = {
-                        // 一次性锁：协程启动前就置位，连点在重组发生前也会被拦下；
-                        // 成功入库后不解锁，覆盖弹窗退出动画期间按钮仍可见的窗口。
-                        if (saving || submitted) return@Button
+                        // 原子锁：同一瞬间无论派发多少次点击，只有第一次能拿到锁
+                        if (!submitGuard.compareAndSet(false, true)) return@Button
                         saving = true
-                        submitted = true
                         scope.launch {
+                            var inserted = false
                             try {
                                 val finalDuration = if (isLeave) leaveDuration else durationHours
                                 val amount = if (isLeave) {
@@ -333,6 +347,7 @@ fun QuickSubmitSheet(
                                     isLeave = isLeave
                                 )
                                 val id = repository.insert(record)
+                                inserted = true
                                 // 记录已入库，同步环节的失败不应影响提交结果，仅转为提示文案
                                 val calendarResult = try {
                                     RecordSyncHelper.afterSave(
@@ -346,19 +361,26 @@ fun QuickSubmitSheet(
                                     RecordSyncHelper.calendarHint(calendarResult) ?: "已提报今日加班"
                                 )
                                 onDismiss()
-                                // 不复位 saving / submitted：弹窗关闭后本组件仍在组合树中，
+                                // 不复位 saving / submitGuard：弹窗关闭后本组件仍在组合树中，
                                 // 状态由下次打开时的 LaunchedEffect(show) 统一复位。
                             } catch (e: Exception) {
                                 e.printStackTrace()
-                                // 仅入库失败才允许重试；成功路径绝不解锁
-                                saving = false
-                                submitted = false
+                                if (inserted) {
+                                    // 已入库：即便提示/关闭回调异常也不解锁，绝不产生第二条记录；
+                                    // 尝试关闭弹窗，失败也保持锁定直到下次打开时复位。
+                                    try { onDismiss() } catch (_: Exception) {}
+                                } else {
+                                    // 入库前失败才允许重试
+                                    saving = false
+                                    submitGuard.set(false)
+                                }
                             }
                         }
                     },
+                    // MIUIX Button 默认是灰色次要配色，主操作按钮需显式指定主色
+                    colors = ButtonDefaults.buttonColorsPrimary(),
                     modifier = Modifier.weight(1f)
                 ) {
-                    // 由 Button 透传内容色，不手写 onPrimary（否则在部分主题下文字发灰）
                     Text(if (saving) "提交中..." else "提交")
                 }
             }

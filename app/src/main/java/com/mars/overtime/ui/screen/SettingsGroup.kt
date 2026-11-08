@@ -1,5 +1,5 @@
-package com.overtime.miuix.ui.screen
-import com.overtime.miuix.ui.theme.AppDimens
+package com.mars.overtime.ui.screen
+import com.mars.overtime.ui.theme.AppDimens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable

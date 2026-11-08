@@ -1,4 +1,4 @@
-package com.overtime.miuix.ui.screen
+package com.mars.overtime.ui.screen
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -16,14 +16,14 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.overtime.miuix.data.repository.OvertimeRepository
-import com.overtime.miuix.data.repository.SettingsRepository
-import com.overtime.miuix.ui.component.AppFab
-import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
-import com.overtime.miuix.ui.snackbar.showCustomToast
-import com.overtime.miuix.ui.theme.AppDimens
-import com.overtime.miuix.ui.theme.AppIconSize
-import com.overtime.miuix.ui.theme.AppShapes
+import com.mars.overtime.data.repository.OvertimeRepository
+import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.ui.component.AppFab
+import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
+import com.mars.overtime.ui.snackbar.showCustomToast
+import com.mars.overtime.ui.theme.AppDimens
+import com.mars.overtime.ui.theme.AppIconSize
+import com.mars.overtime.ui.theme.AppShapes
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
@@ -32,8 +32,8 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
-import com.overtime.miuix.ui.icon.AppIcons
-import com.overtime.miuix.ui.icon.Home
+import com.mars.overtime.ui.icon.AppIcons
+import com.mars.overtime.ui.icon.Home
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -248,7 +248,10 @@ fun MainScreen(
                     ) {
                         AppFab(
                             quickSubmit = quickSubmit,
-                            onAddRecord = { navController.navigate("add_record") },
+                            onAddRecord = {
+                                // 连点加号时避免把多个 add_record 实例压入回退栈
+                                navController.navigate("add_record") { launchSingleTop = true }
+                            },
                             onQuickSubmit = { showQuickSubmit = true }
                         )
                     }
@@ -264,7 +267,10 @@ fun MainScreen(
                 ) {
                     AppFab(
                         quickSubmit = quickSubmit,
-                        onAddRecord = { navController.navigate("add_record") },
+                        onAddRecord = {
+                            // 连点加号时避免把多个 add_record 实例压入回退栈
+                            navController.navigate("add_record") { launchSingleTop = true }
+                        },
                         onQuickSubmit = { showQuickSubmit = true }
                     )
                 }

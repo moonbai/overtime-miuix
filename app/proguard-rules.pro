@@ -1,7 +1,7 @@
 # ProGuard rules for OvertimeMiuix
--keep class com.overtime.miuix.data.model.** { *; }
--keep class com.overtime.miuix.data.database.** { *; }
--keep class com.overtime.miuix.mcp.** { *; }
+-keep class com.mars.overtime.data.model.** { *; }
+-keep class com.mars.overtime.data.database.** { *; }
+-keep class com.mars.overtime.mcp.** { *; }
 -keep class androidx.room.** { *; }
 -dontwarn io.netty.**
 -dontwarn org.slf4j.**
@@ -17,8 +17,8 @@
 
 # Gson 反射目标：备份数据模型与记录实体。混淆字段名或丢失泛型签名
 # 会导致备份导入/导出失败（静默丢数据，比崩溃更难排查）。
--keep class com.overtime.miuix.util.BackupData { *; }
--keep class com.overtime.miuix.util.BackupManager$BackupData { *; }
+-keep class com.mars.overtime.util.BackupData { *; }
+-keep class com.mars.overtime.util.BackupManager$BackupData { *; }
 -keep class com.google.gson.** { *; }
 -keep class * implements com.google.gson.TypeAdapterFactory { *; }
 -keep class * implements com.google.gson.JsonSerializer { *; }

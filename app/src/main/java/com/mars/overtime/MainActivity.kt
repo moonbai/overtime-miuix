@@ -1,4 +1,4 @@
-package com.overtime.miuix
+package com.mars.overtime
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -35,12 +35,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
-import com.overtime.miuix.data.database.AppDatabase
-import com.overtime.miuix.data.repository.OvertimeRepository
-import com.overtime.miuix.data.repository.SettingsRepository
-import com.overtime.miuix.mcp.McpHostService
-import com.overtime.miuix.ui.screen.*
-import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
+import com.mars.overtime.data.database.AppDatabase
+import com.mars.overtime.data.repository.OvertimeRepository
+import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.mcp.McpHostService
+import com.mars.overtime.ui.screen.*
+import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -48,8 +48,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigationevent.NavigationEvent
 import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.OnBackInvokedOverlayInput
-import com.overtime.miuix.ui.theme.OvertimeTheme
-import com.overtime.miuix.util.SalaryCalculator
+import com.mars.overtime.ui.theme.OvertimeTheme
+import com.mars.overtime.util.SalaryCalculator
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch

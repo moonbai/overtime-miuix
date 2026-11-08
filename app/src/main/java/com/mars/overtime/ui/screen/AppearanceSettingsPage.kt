@@ -1,4 +1,4 @@
-package com.overtime.miuix.ui.screen
+package com.mars.overtime.ui.screen
 
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
@@ -19,8 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
 import kotlin.math.roundToInt
 import androidx.navigation.NavHostController
-import com.overtime.miuix.data.model.BottomBarStyle
-import com.overtime.miuix.data.repository.SettingsRepository
+import com.mars.overtime.data.model.BottomBarStyle
+import com.mars.overtime.data.repository.SettingsRepository
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference

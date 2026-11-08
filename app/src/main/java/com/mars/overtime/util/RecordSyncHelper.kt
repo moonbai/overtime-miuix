@@ -1,11 +1,11 @@
-package com.overtime.miuix.util
+package com.mars.overtime.util
 
 import android.content.Context
-import com.overtime.miuix.data.database.OvertimeRecord
-import com.overtime.miuix.data.repository.OvertimeRepository
-import com.overtime.miuix.data.repository.SettingsRepository
-import com.overtime.miuix.push.CalendarSyncManager
-import com.overtime.miuix.push.PushManager
+import com.mars.overtime.data.database.OvertimeRecord
+import com.mars.overtime.data.repository.OvertimeRepository
+import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.push.CalendarSyncManager
+import com.mars.overtime.push.PushManager
 import kotlinx.coroutines.flow.first
 
 /**

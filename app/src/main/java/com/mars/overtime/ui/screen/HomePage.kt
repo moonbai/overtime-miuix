@@ -1,4 +1,4 @@
-package com.overtime.miuix.ui.screen
+package com.mars.overtime.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.activity.compose.BackHandler
@@ -18,14 +18,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.overtime.miuix.data.database.OvertimeRecord
-import com.overtime.miuix.data.model.OvertimeType
-import com.overtime.miuix.data.repository.OvertimeRepository
-import com.overtime.miuix.data.repository.SettingsRepository
-import com.overtime.miuix.ui.snackbar.LocalSnackbarHostState
-import com.overtime.miuix.ui.snackbar.dismissDeleteSnackbars
-import com.overtime.miuix.ui.snackbar.showCustomToast
-import com.overtime.miuix.util.SalaryCalculator
+import com.mars.overtime.data.database.OvertimeRecord
+import com.mars.overtime.data.model.OvertimeType
+import com.mars.overtime.data.repository.OvertimeRepository
+import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
+import com.mars.overtime.ui.snackbar.dismissDeleteSnackbars
+import com.mars.overtime.ui.snackbar.showCustomToast
+import com.mars.overtime.util.SalaryCalculator
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -36,13 +36,13 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.overtime.miuix.ui.theme.AppBody1Medium
-import com.overtime.miuix.ui.theme.AppBody1Semibold
-import com.overtime.miuix.ui.theme.AppDimens
-import com.overtime.miuix.ui.theme.AppIconSize
-import com.overtime.miuix.ui.theme.AppShapes
-import com.overtime.miuix.ui.theme.AppTitle3Bold
-import com.overtime.miuix.ui.theme.AppTitle3Semibold
+import com.mars.overtime.ui.theme.AppBody1Medium
+import com.mars.overtime.ui.theme.AppBody1Semibold
+import com.mars.overtime.ui.theme.AppDimens
+import com.mars.overtime.ui.theme.AppIconSize
+import com.mars.overtime.ui.theme.AppShapes
+import com.mars.overtime.ui.theme.AppTitle3Bold
+import com.mars.overtime.ui.theme.AppTitle3Semibold
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -191,7 +191,10 @@ fun HomePage(
                         )
                     }
                     Button(
-                        onClick = { navController.navigate("add_record") },
+                        onClick = {
+                            // 连点时避免把多个 add_record 实例压入回退栈
+                            navController.navigate("add_record") { launchSingleTop = true }
+                        },
                         colors = ButtonDefaults.buttonColorsPrimary(),
                         cornerRadius = AppDimens.controlCorner,
                         insideMargin = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
@@ -364,7 +367,7 @@ private fun MonthlyOverviewCard(
     month: String,
     records: List<OvertimeRecord>
 ) {
-    var stats by remember { mutableStateOf<com.overtime.miuix.data.repository.MonthlyStats?>(null) }
+    var stats by remember { mutableStateOf<com.mars.overtime.data.repository.MonthlyStats?>(null) }
 
     // 以 month 与 records 为 key：当前月内新增/删除记录时自动重算概览
     LaunchedEffect(month, records) {
