@@ -23,6 +23,7 @@ import kotlin.math.roundToInt
 import androidx.navigation.NavHostController
 import com.mars.overtime.data.model.BottomBarStyle
 import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.data.repository.THEME_MODES
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
@@ -55,13 +56,8 @@ enum class BackExitDirection(val label: String) {
 
 // 主题模式选项：value → label。monet_* 前缀同时开启 Monet 动态取色，
 // 其中 monet_system 深浅跟随系统，monet_light / monet_dark 固定浅色 / 深色。
-private val THEME_OPTIONS = listOf(
-    "system" to "跟随系统",
-    "light" to "浅色模式",
-    "dark" to "深色模式",
-    "monet_system" to "Monet 跟随系统",
-    "monet_light" to "Monet 浅色",
-    "monet_dark" to "Monet 深色"
+private val THEME_OPTIONS = THEME_MODES.zip(
+    listOf("跟随系统", "浅色", "深色", "Monet 跟随系统", "Monet 浅色", "Monet 深色")
 )
 
 @Composable
@@ -134,11 +130,8 @@ fun AppearanceSettingsPage(
                     summary = "跟随系统、浅色、深色，以及 Monet 跟随系统 / 浅色 / 深色",
                     onSelectedIndexChange = { index ->
                         val value = THEME_OPTIONS[index].first
-                        scope.launch {
-                            settingsRepository.setThemeMode(value)
-                            // 同步 monet_enabled 用于备份兼容与主题逻辑
-                            settingsRepository.setMonetEnabled(value.startsWith("monet_"))
-                        }
+                        // 一次 edit 同时写 theme_mode 与 monet_enabled，避免半生效状态
+                        scope.launch { settingsRepository.setTheme(value) }
                     }
                 )
             }

@@ -12,6 +12,14 @@ import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
+/**
+ * 主题模式白名单与展示顺序：外观设置页的选项、持久化校验、备份导入共用这一份，
+ * 避免旧备份或异常写入的非法值落到主题分支里。
+ */
+val THEME_MODES = listOf(
+    "system", "light", "dark", "monet_system", "monet_light", "monet_dark"
+)
+
 class SettingsRepository(private val context: Context) {
     /**
      * DataStore 每次写入都会发出一个新的 [Preferences] 实例，即使内容完全一致。
@@ -21,8 +29,11 @@ class SettingsRepository(private val context: Context) {
     private val settingsFlow: Flow<Preferences> = context.dataStore.data
         .distinctUntilChanged { old, new -> old.asMap() == new.asMap() }
 
-    // Theme settings
-    val themeMode: Flow<String> = settingsFlow.map { it[KEY_THEME_MODE] ?: "system" }
+    // Theme settings：非法值统一回退到「跟随系统」
+    val themeMode: Flow<String> = settingsFlow.map {
+        val mode = it[KEY_THEME_MODE] ?: "system"
+        if (mode in THEME_MODES) mode else "system"
+    }
     val accentColor: Flow<Int> = settingsFlow.map { it[KEY_ACCENT_COLOR] ?: 0xFF3482FF.toInt() }
     val bottomBarStyle: Flow<String> = settingsFlow.map { it[KEY_BOTTOM_BAR_STYLE] ?: "ICON_TEXT" }
     val quickSubmit: Flow<Boolean> = settingsFlow.map { it[KEY_QUICK_SUBMIT] ?: false }
@@ -157,6 +168,18 @@ class SettingsRepository(private val context: Context) {
     val holidayIgnoreHoliday: Flow<Boolean> = settingsFlow.map { it[KEY_HOLIDAY_IGNORE_HOLIDAY] ?: false }
 
     suspend fun setThemeMode(mode: String) { context.dataStore.edit { it[KEY_THEME_MODE] = mode } }
+
+    /**
+     * 主题模式与 Monet 开关必须在同一次 edit 中写入：分两次写时若中间被打断，
+     * 会出现「模式已切到 Monet 但 monet_enabled 仍为 false」的半生效状态。
+     */
+    suspend fun setTheme(mode: String) {
+        val safe = if (mode in THEME_MODES) mode else "system"
+        context.dataStore.edit {
+            it[KEY_THEME_MODE] = safe
+            it[KEY_MONET_ENABLED] = safe.startsWith("monet_")
+        }
+    }
     suspend fun setAccentColor(color: Int) { context.dataStore.edit { it[KEY_ACCENT_COLOR] = color } }
     suspend fun setBottomBarStyle(style: String) { context.dataStore.edit { it[KEY_BOTTOM_BAR_STYLE] = style } }
     suspend fun setQuickSubmit(enabled: Boolean) { context.dataStore.edit { it[KEY_QUICK_SUBMIT] = enabled } }
