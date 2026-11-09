@@ -25,6 +25,7 @@ import androidx.navigation.NavHostController
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.ui.component.AppEmptyState
 import com.mars.overtime.data.repository.OvertimeRepository
+import com.mars.overtime.ui.component.rememberAppRecords
 import com.mars.overtime.data.repository.SettingsRepository
 import com.mars.overtime.util.AppDefaults
 import com.mars.overtime.data.repository.DEFAULT_HOME_LAYOUT
@@ -63,7 +64,7 @@ fun HomePage(
     // 「是否已加载」与「记录内容」必须来自同一份快照：旧写法用 initial=emptyList()
     // 加独立 LaunchedEffect 打标记，两者更新不同步时会出现 loaded=true 但 records
     // 仍为空的一帧，于是切回首页/记录页恰好闪一下「无记录」空状态。
-    val recordsSnapshot by repository.getAllRecords().collectAsState(initial = null)
+    val recordsSnapshot by rememberAppRecords(repository)
     val recordsLoaded = recordsSnapshot != null
     val records = recordsSnapshot.orEmpty()
     val currentMonth = remember { SalaryCalculator.getCurrentYearMonth() }

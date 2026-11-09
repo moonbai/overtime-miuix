@@ -18,6 +18,7 @@ import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
 import com.mars.overtime.ui.component.AppFab
 import com.mars.overtime.ui.component.LocalFabAnchor
+import com.mars.overtime.ui.component.LocalRecords
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.snackbar.showCustomToast
 import com.mars.overtime.ui.theme.AppDimens
@@ -55,6 +56,8 @@ fun MainScreen(
     // 只订阅 COUNT(*)：首页仅用它决定 FAB 显隐，订阅全表会在每次记录变更时拉回整张表
     val recordCount by repository.observeRecordCount().collectAsState(initial = 0)
     val hasRecords = recordCount > 0
+    // 常驻页面共用一份记录快照：首页/记录/统计/快速提报不再各自订阅全表 Flow
+    val sharedRecords = repository.getAllRecords().collectAsState(initial = null)
     val context = androidx.compose.ui.platform.LocalContext.current
 
     // 快速提报对话框显隐

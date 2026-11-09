@@ -21,6 +21,7 @@ import androidx.navigation.NavHostController
 import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.data.repository.OvertimeRepository
+import com.mars.overtime.ui.component.rememberAppRecords
 import com.mars.overtime.data.repository.SettingsRepository
 import com.mars.overtime.util.AppDefaults
 import com.mars.overtime.ui.component.AppEmptyState
@@ -182,7 +183,7 @@ fun RecordsPage(
     // 「是否已加载」与「记录内容」取自同一份快照：initial=null 表示尚未加载。
     // 旧写法用 initial=emptyList() + 独立 LaunchedEffect 打标记，两者更新不同步时
     // 会出现 loaded=true 但 records 仍为空的一帧，切 tab 时恰好闪一下「还没有记录」。
-    val recordsSnapshot by repository.getAllRecords().collectAsState(initial = null)
+    val recordsSnapshot by rememberAppRecords(repository)
     val recordsLoaded = recordsSnapshot != null
     val records = recordsSnapshot.orEmpty()
 
