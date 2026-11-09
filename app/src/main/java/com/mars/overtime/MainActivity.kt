@@ -7,8 +7,14 @@ import android.util.Log
 import android.view.MotionEvent
 import android.window.BackEvent
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import android.window.OnBackAnimationCallback
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.ComponentActivity
@@ -86,11 +92,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // 把窗口背景设为透明：主题（浅↔深）切换时 Compose 重组会有一瞬旧浅色 surface 消失、
-        // 新深色 surface 尚未铺满的间隙，默认白色 window 背景会在这帧露现造成「白闪」。
-        // 透明窗口让该间隙露出的是桌面/下层而非白色，从根本上消除切换闪白。
+        // 窗口背景设为「跟随主题的不透明色」（具体颜色在 setContent 内按 darkTheme 同步）。
+        // 不能用全透明：预测性返回手势会缩放/淡出整个窗口，透明窗口会露出桌面或下层窗口的
+        // 深色，浅色模式下表现为「返回预览闪一下深色」。不透明底色既挡住该深色，
+        // 又因与 Compose 背景同色，主题切换时不会露出旧的白色/黑色，白闪同样消除。
         window.setBackgroundDrawable(
-            android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+            android.graphics.drawable.ColorDrawable(0xFFFFFFFF.toInt())
         )
 
         // 通知点击冷启动：从 intent 读取目标路由（如 MCP 服务子界面）
@@ -126,7 +133,13 @@ class MainActivity : ComponentActivity() {
                 // 此处显式跟随 darkTheme 翻转（深色主题用浅色图标、浅色主题用深色图标）。
                 val view = LocalView.current
                 val window = (view.context as ComponentActivity).window
+                // 当前主题的真实背景色：用它刷 window 背景，保证预测性返回缩放窗口时
+                // 露出的是同色底而非桌面深色；主题切换时随 darkTheme 一起更新，避免残留旧色。
+                val windowBg = MiuixTheme.colorScheme.background.toArgb()
                 SideEffect {
+                    window.setBackgroundDrawable(
+                        android.graphics.drawable.ColorDrawable(windowBg)
+                    )
                     WindowCompat.setDecorFitsSystemWindows(window, false)
                     val wic = WindowInsetsControllerCompat(window, view)
                     wic.isAppearanceLightStatusBars = !darkTheme
@@ -454,9 +467,17 @@ fun MainNavHost(
         // 兜底默认值：各目的地都会用 PageSnackbarScope 覆盖为页面级 state
         LocalSnackbarHostState provides remember { SnackbarHostState() }
     ) {
+        // 转场兜底底色：预测性返回时 popExit 会淡出/缩放当前页，若两页内容尚未铺满，
+        // 这层不透明主题底色可挡住 window 之后的下层深色，避免浅色模式闪深色。
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MiuixTheme.colorScheme.background)
+        ) {
         NavHost(
             navController = navController,
             startDestination = "main",
+            modifier = Modifier.fillMaxSize(),
             popEnterTransition = { popEnter },
             popExitTransition = { popExit }
         ) {
@@ -579,6 +600,7 @@ fun MainNavHost(
         }
         composable("about") {
             PageSnackbarScope { AboutPage(navController = navController) }
+        }
         }
         }
     }
