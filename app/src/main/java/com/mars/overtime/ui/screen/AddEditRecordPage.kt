@@ -1,5 +1,6 @@
 package com.mars.overtime.ui.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.LazyColumn
@@ -7,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +28,10 @@ import com.mars.overtime.util.RecordSyncHelper
 import com.mars.overtime.util.SalaryCalculator
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
+import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -250,32 +256,56 @@ fun AddEditRecordPage(
         }
     }
 
+    // 与主界面 / 设置二级页一致：内容层延伸到顶栏背后作为毛玻璃采样源；
+    // 窗口背景透明时由 Scaffold 自己铺满主题背景，避免深色下透出黑底。
+    val navBackdrop = rememberLayerBackdrop()
+    val blurSupported = isRuntimeShaderSupported()
     Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MiuixTheme.colorScheme.background),
         topBar = {
-            SmallTopAppBar(
-                title = if (isEdit) "编辑记录" else "添加记录",
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
-                    }
-                }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .textureBlur(
+                        backdrop = navBackdrop,
+                        shape = AppShapes.radiusZero,
+                        blurRadius = 40f,
+                        enabled = blurSupported
+                    )
+            ) {
+                SmallTopAppBar(
+                    title = if (isEdit) "编辑记录" else "添加记录",
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
+                        }
+                    },
+                    color = if (blurSupported) Color.Transparent
+                    else MiuixTheme.colorScheme.surface
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         // 外层 Box 与 MainScreen 承载入口加号 FAB 的 Box 同为 Scaffold 的满屏内容层，
         // 因此两边以 Alignment.BottomEnd + 相同 padding 计算出的屏幕坐标完全一致。
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(navBackdrop)
+        ) {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
+                modifier = Modifier.fillMaxSize(),
+                // 列表自己避让状态栏/顶栏/系统导航栏，内容仍延伸到顶栏背后供毛玻璃采样；
                 // 底部预留随加号锚点联动：确认按钮上移后，末项仍不会被遮挡
                 contentPadding = PaddingValues(
                     start = AppDimens.pageHorizontal,
-                    top = AppDimens.pageVertical,
+                    top = AppDimens.pageVertical + paddingValues.calculateTopPadding(),
                     end = AppDimens.pageHorizontal,
-                    bottom = fabAnchorBottom + AppDimens.fabSize + AppDimens.pageVertical
+                    bottom = fabAnchorBottom + AppDimens.fabSize + AppDimens.pageVertical +
+                        paddingValues.calculateBottomPadding()
                 ),
                 verticalArrangement = Arrangement.spacedBy(AppDimens.groupSpacing)
             ) {
