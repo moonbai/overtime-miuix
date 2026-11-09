@@ -85,6 +85,7 @@ object AppDimens {
     val aboutIconFallback = 68.dp
     val featureIconBox = 44.dp
     val releaseNotesMaxHeight = 200.dp
+    val dayCellHeight = 40.dp           // 统计页日历单个日期格高度
 
     // ── 首页空状态插画 ──
     val emptyCanvas = 156.dp

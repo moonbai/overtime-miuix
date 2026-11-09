@@ -914,7 +914,7 @@ private fun CalendarCard(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = AppDimens.cardCorner
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(AppDimens.cardInnerPadding)) {
             val weekdays = listOf("日", "一", "二", "三", "四", "五", "六")
             Row(modifier = Modifier.fillMaxWidth()) {
                 weekdays.forEach { w ->
@@ -927,18 +927,18 @@ private fun CalendarCard(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AppDimens.spaceXs))
             calendar.weeks.forEach { week ->
                 Row(modifier = Modifier.fillMaxWidth()) {
                     week.forEach { day ->
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(2.dp),
+                                .padding(AppDimens.chartBarRadius),
                             contentAlignment = Alignment.Center
                         ) {
                             if (day == null) {
-                                Spacer(modifier = Modifier.height(40.dp))
+                                Spacer(modifier = Modifier.height(AppDimens.dayCellHeight))
                             } else {
                                 val agg = dayAgg[day]
                                 val category = dayCategories[day] ?: DayCategory.WORKDAY
@@ -962,12 +962,12 @@ private fun CalendarCard(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 4.dp)
+                                            .padding(vertical = AppDimens.spaceXxs)
                                     ) {
                                         Text(
                                             text = day.toString(),
-                                            style = MiuixTheme.textStyles.footnote1,
-                                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                                            style = if (isToday) AppFootnote1Bold()
+                                            else MiuixTheme.textStyles.footnote1,
                                             color = if (isToday) MiuixTheme.colorScheme.primary
                                             else MiuixTheme.colorScheme.onSurface
                                         )
@@ -978,13 +978,12 @@ private fun CalendarCard(
                                             val net = agg.netHours
                                             Text(
                                                 text = compactHours(net),
-                                                style = MiuixTheme.textStyles.footnote1,
-                                                fontWeight = FontWeight.Medium,
+                                                style = AppFootnote1Medium(),
                                                 color = if (net < 0) MiuixTheme.colorScheme.error
                                                 else MiuixTheme.colorScheme.onSurface
                                             )
                                         } else {
-                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Spacer(modifier = Modifier.height(AppDimens.spaceMd))
                                         }
                                     }
                                 }
@@ -992,7 +991,7 @@ private fun CalendarCard(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AppDimens.spaceXxs))
             }
         }
     }

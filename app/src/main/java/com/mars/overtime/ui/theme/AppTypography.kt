@@ -50,6 +50,10 @@ fun AppFootnote1Bold(): TextStyle =
     MiuixTheme.textStyles.footnote1.copy(fontWeight = FontWeight.Bold)
 
 @Composable
+fun AppFootnote1Medium(): TextStyle =
+    MiuixTheme.textStyles.footnote1.copy(fontWeight = FontWeight.Medium)
+
+@Composable
 fun AppHeadline1Bold(): TextStyle =
     MiuixTheme.textStyles.headline1.copy(fontWeight = FontWeight.Bold)
 
