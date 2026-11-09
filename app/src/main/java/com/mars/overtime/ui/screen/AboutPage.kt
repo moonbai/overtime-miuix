@@ -1,5 +1,7 @@
 package com.mars.overtime.ui.screen
+import com.mars.overtime.ui.theme.AppBody1Medium
 import com.mars.overtime.ui.theme.AppDimens
+import com.mars.overtime.ui.theme.AppHeadline2Bold
 import com.mars.overtime.ui.theme.AppIconSize
 import com.mars.overtime.ui.theme.AppShapes
 
