@@ -222,7 +222,7 @@ fun AboutPage(navController: NavHostController) {
                     // 深色主题下也能让彩色图标保持原貌。
                     Box(
                         modifier = Modifier
-                            .size(104.dp)
+                            .size(AppDimens.aboutIconBox)
                             .clip(AppShapes.radiusXxl)
                             .background(Color.White),
                         contentAlignment = Alignment.Center

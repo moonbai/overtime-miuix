@@ -207,7 +207,7 @@ fun StatisticsPage(
 ) {
     // 全部记录：用于动态计算可统计的月份范围（最早记录月 ~ 当前月）。
     // initial=null 区分「尚未加载」与「确无记录」，与记录页口径一致。
-    val recordsSnapshot by repository.getAllRecords().collectAsState(initial = null)
+    val recordsSnapshot by rememberAppRecords(repository)
     val allRecords = recordsSnapshot.orEmpty()
 
     // 这里只依赖 allRecords 一个输入，用 remember 计算即可；

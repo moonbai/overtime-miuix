@@ -208,6 +208,7 @@ fun MainScreen(
             }
         }
     ) { paddingValues ->
+        CompositionLocalProvider(LocalRecords provides sharedRecords) {
         // 普通底栏模式：FAB 底部偏移取 Scaffold 实测的底栏高度 + 统一间距
         val normalFabBottom = paddingValues.calculateBottomPadding() +
             AppDimens.pageVertical
@@ -350,6 +351,7 @@ fun MainScreen(
                 }
             )
         }
+        } // CompositionLocalProvider(LocalRecords)
     }
 }
 

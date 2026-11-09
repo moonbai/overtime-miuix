@@ -68,7 +68,8 @@ fun QuickSubmitSheet(
     val dateLabel = remember { SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault()).format(today) }
 
     // 今日已有记录（用于「今日已记录」提示）
-    val allRecords by repository.getAllRecords().collectAsState(initial = emptyList())
+    val allRecordsSnapshot by rememberAppRecords(repository)
+    val allRecords = allRecordsSnapshot.orEmpty()
     val todayRecords = remember(allRecords, dateStr) {
         allRecords.filter { dayFormatter.format(Date(it.date)) == dateStr }
     }
