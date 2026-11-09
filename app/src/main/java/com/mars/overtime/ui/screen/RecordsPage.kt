@@ -34,8 +34,7 @@ import com.mars.overtime.ui.theme.AppBody1Medium
 import com.mars.overtime.ui.theme.AppBody1Semibold
 import com.mars.overtime.util.SalaryCalculator
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.launch
@@ -196,10 +195,10 @@ fun RecordsPage(
     // 搜索与筛选：输入框实时回显，过滤条件去抖后再触发一次全表扫描
     var searchQuery by remember { mutableStateOf("") }
     var debouncedQuery by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) {
-        snapshotFlow { searchQuery }
-            .debounce(150L)
-            .collect { debouncedQuery = it }
+    // 每次输入重启协程并取消上一次：等价去抖，且不依赖 FlowPreview 的 debounce
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.isNotEmpty()) delay(150L)
+        debouncedQuery = searchQuery
     }
     var recordFilter by remember { mutableStateOf<RecordFilter>(RecordFilter.All) }
 
