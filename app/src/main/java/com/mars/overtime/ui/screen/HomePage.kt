@@ -20,16 +20,14 @@ import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.launch
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
 import com.mars.overtime.data.repository.DEFAULT_HOME_LAYOUT
 import com.mars.overtime.data.repository.WidgetPlacement
+import com.mars.overtime.ui.theme.AppBody1Medium
 import com.mars.overtime.ui.theme.AppDimens
 import com.mars.overtime.ui.theme.AppIconSize
 import com.mars.overtime.ui.theme.AppShapes
@@ -41,10 +39,6 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
 /**
  * 首页：信息面板。
@@ -60,8 +54,8 @@ fun HomePage(
     repository: OvertimeRepository,
     settingsRepository: SettingsRepository,
     onOpenRecords: () -> Unit = {},
-    topReserve: androidx.compose.ui.unit.Dp = 0.dp,
-    bottomReserve: androidx.compose.ui.unit.Dp = 0.dp,
+    topReserve: androidx.compose.ui.unit.Dp = AppDimens.zero,
+    bottomReserve: androidx.compose.ui.unit.Dp = AppDimens.zero,
     listState: LazyListState = rememberLazyListState()
 ) {
     // 「是否已加载」与「记录内容」必须来自同一份快照：旧写法用 initial=emptyList()
@@ -129,9 +123,8 @@ fun HomePage(
     ) {
         item {
             MonthlyOverviewCard(
-                repository = repository,
                 month = currentMonth,
-                records = records,
+                agg = agg,
                 mode = overviewMode,
                 typeColor = typeColor
             )
@@ -189,7 +182,10 @@ fun HomePage(
                         shape = AppShapes.radiusLg
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(
+                                horizontal = AppDimens.spaceMd,
+                                vertical = AppDimens.spaceXxs2
+                            ),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -197,7 +193,7 @@ fun HomePage(
                                 contentDescription = null,
                                 modifier = Modifier.size(AppIconSize.xs)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(AppDimens.spaceXxs))
                             Text(
                                 text = if (editingState.value) "完成" else "编辑",
                                 style = MiuixTheme.textStyles.footnote1
@@ -256,8 +252,8 @@ private fun HomeWidgetGrid(
                 key(item.id) {
                 val rect = rects[index]
                 val isDragged = draggingIdState.value == item.id
-                val dxDp = if (isDragged) density.run { dragOffsetPxState.value.x.toDp() } else 0.dp
-                val dyDp = if (isDragged) density.run { dragOffsetPxState.value.y.toDp() } else 0.dp
+                val dxDp = if (isDragged) density.run { dragOffsetPxState.value.x.toDp() } else AppDimens.zero
+                val dyDp = if (isDragged) density.run { dragOffsetPxState.value.y.toDp() } else AppDimens.zero
                 // 拖动中只更新偏移，排序统一在松手时做一次：旧实现每次 onDrag 都重排
                 // draft，rects 随之变化导致整组卡片跟着抖动、像多个组件同时被拖动。
                 fun finishDrag(applyReorder: Boolean) {
@@ -275,7 +271,7 @@ private fun HomeWidgetGrid(
                                 .filter { it.index != idx }
                                 .minByOrNull { (it.value.cx - cx) * (it.value.cx - cx) + (it.value.cy - cy) * (it.value.cy - cy) }
                                 ?.index
-                            val minDragPx = density.run { 24.dp.toPx() }
+                            val minDragPx = density.run { AppDimens.spaceLg.toPx() }
                             if (target != null && offset.getDistance() > minDragPx) {
                                 val moved = startRef.draft.toMutableList()
                                 val dragged = moved.removeAt(idx)
@@ -293,10 +289,13 @@ private fun HomeWidgetGrid(
                         .offset(x = rect.x + dxDp, y = rect.y + dyDp)
                         .size(rect.w, rect.h)
                         .zIndex(if (isDragged) 1f else 0f)
-                        .shadow(if (isDragged) 8.dp else 0.dp, AppShapes.radiusLg)
+                        .shadow(
+                            if (isDragged) AppDimens.widgetDragElevation else AppDimens.zero,
+                            AppShapes.radiusLg
+                        )
                         .then(
                             if (editingState.value) Modifier.border(
-                                1.dp,
+                                AppDimens.hairline,
                                 MiuixTheme.colorScheme.primary.copy(alpha = 0.35f),
                                 AppShapes.radiusLg
                             ) else Modifier
@@ -321,7 +320,7 @@ private fun HomeWidgetGrid(
                     Card(
                         modifier = Modifier.fillMaxSize(),
                         cornerRadius = AppDimens.cardCorner,
-                        insideMargin = PaddingValues(14.dp),
+                        insideMargin = WIDGET_CARD_PADDING,
                         onClick = { if (!editingState.value) onCardClick(item.id) },
                         showIndication = true,
                         pressFeedbackType = PressFeedbackType.Sink
@@ -331,7 +330,9 @@ private fun HomeWidgetGrid(
                     if (editingState.value) {
                         // 左上：拖拽提示
                         Box(
-                            Modifier.align(Alignment.TopStart).padding(6.dp).size(20.dp),
+                            Modifier.align(Alignment.TopStart)
+                                .padding(AppDimens.spaceXxs2)
+                                .size(AppIconSize.sm),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -343,7 +344,9 @@ private fun HomeWidgetGrid(
                         }
                         // 右上：删除
                         Box(
-                            Modifier.align(Alignment.TopEnd).padding(4.dp).size(24.dp)
+                            Modifier.align(Alignment.TopEnd)
+                                .padding(AppDimens.spaceXxs)
+                                .size(AppIconSize.md)
                                 .clip(AppShapes.pill)
                                 .background(MiuixTheme.colorScheme.error.copy(alpha = 0.12f))
                                 .clickable { onChange(draft.filter { it.id != item.id }) },
@@ -367,47 +370,29 @@ private fun HomeWidgetGrid(
 
 @Composable
 private fun MonthlyOverviewCard(
-    repository: OvertimeRepository,
     month: String,
-    records: List<OvertimeRecord>,
+    agg: Aggregate,
     mode: String,
     typeColor: (OvertimeType) -> Color
 ) {
-    var stats by remember { mutableStateOf<com.mars.overtime.data.repository.MonthlyStats?>(null) }
-
-    // 以 month 与 records 为 key：当前月内新增/删除记录时自动重算概览
-    LaunchedEffect(month, records) {
-        stats = repository.getMonthlyStats(month)
-    }
-
-    // 分类模式：本月三类加班工时（请假为负数的休息日，不单独分色，仅体现在净时长）
-    val typeHours = remember(records, month) {
-        val cal = Calendar.getInstance()
-        var workday = 0.0; var weekend = 0.0; var holiday = 0.0; var leave = 0.0
-        records.forEach { rec ->
-            cal.timeInMillis = rec.date
-            val m = "${cal.get(Calendar.YEAR)}-${(cal.get(Calendar.MONTH) + 1).toString().padStart(2, '0')}"
-            if (m == month) {
-                if (rec.isLeave) leave += rec.durationHours
-                else when (rec.type) {
-                    OvertimeType.WORKDAY -> workday += rec.durationHours
-                    OvertimeType.WEEKEND -> weekend += rec.durationHours
-                    OvertimeType.HOLIDAY -> holiday += rec.durationHours
-                }
-            }
-        }
-        Triple(workday, weekend, holiday) to leave
-    }
-    val maxType = maxOf(typeHours.first.first, typeHours.first.second, typeHours.first.third, 0.001)
+    // 概览与小组件共用同一份聚合：不再额外查一次数据库、也不再全表遍历两次，
+    // 同时消除 DB 结果回来前显示「0H」的首帧闪烁。口径与 getMonthlyStats 一致
+    // （请假为负、分类工时排除请假）。
+    val typeHours = listOf(
+        OvertimeType.WORKDAY to agg.typeWd,
+        OvertimeType.WEEKEND to agg.typeWe,
+        OvertimeType.HOLIDAY to agg.typeHo
+    )
+    val maxType = maxOf(agg.typeWd, agg.typeWe, agg.typeHo, 0.001)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp),
+            .padding(horizontal = AppDimens.spaceXxs),
         cornerRadius = AppDimens.cardCorner
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(AppDimens.spaceMd)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -420,57 +405,50 @@ private fun MonthlyOverviewCard(
                     modifier = Modifier.weight(1f)
                 )
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AppDimens.spaceSm))
             if (mode == "by_type") {
                 // 分类模式：净时长为主数字，三类加班以类型色条并列展示
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatItem(
-                        "加班时长",
-                        stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0H"
-                    )
-                    StatItem("加班薪资", stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
-                    StatItem("加班次数", "${stats?.recordCount ?: 0}次")
+                    StatItem("加班时长", SalaryCalculator.formatHours(agg.monthNet))
+                    StatItem("加班薪资", SalaryCalculator.formatAmount(agg.monthAmount))
+                    StatItem("加班次数", "${agg.monthCount}次")
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-                listOf(
-                    OvertimeType.WORKDAY to typeHours.first.first,
-                    OvertimeType.WEEKEND to typeHours.first.second,
-                    OvertimeType.HOLIDAY to typeHours.first.third
-                ).forEach { (type, hours) ->
+                Spacer(modifier = Modifier.height(AppDimens.spaceSm))
+                typeHours.forEach { (type, hours) ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 3.dp),
+                            .padding(vertical = AppDimens.spaceXxs),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = type.label,
                             style = MiuixTheme.textStyles.footnote1,
                             color = typeColor(type),
-                            modifier = Modifier.width(48.dp)
+                            modifier = Modifier.width(AppDimens.overviewLabelWidth)
                         )
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(8.dp)
+                                .height(AppDimens.spaceXs)
                                 .background(MiuixTheme.colorScheme.secondaryContainer, AppShapes.radiusSm)
                         ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth((hours / maxType).toFloat().coerceIn(0f, 1f))
-                                    .height(8.dp)
+                                    .height(AppDimens.spaceXs)
                                     .background(typeColor(type), AppShapes.radiusSm)
                             )
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(AppDimens.spaceXs))
                         Text(
                             text = SalaryCalculator.formatHours(hours),
                             style = MiuixTheme.textStyles.footnote1,
                             color = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.width(56.dp),
+                            modifier = Modifier.width(AppDimens.overviewValueWidth),
                             textAlign = androidx.compose.ui.text.style.TextAlign.End
                         )
                     }
@@ -480,9 +458,9 @@ private fun MonthlyOverviewCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatItem("总时长", stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0H")
-                    StatItem("加班薪资", stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
-                    StatItem("记录数", "${stats?.recordCount ?: 0}条")
+                    StatItem("总时长", SalaryCalculator.formatHours(agg.monthNet))
+                    StatItem("加班薪资", SalaryCalculator.formatAmount(agg.monthAmount))
+                    StatItem("记录数", "${agg.monthCount}条")
                 }
             }
         }
@@ -517,18 +495,18 @@ private fun HomeEmptyState(onAdd: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 48.dp),
+            .padding(vertical = AppDimens.spaceLg * 2),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(AppDimens.spaceMd)
     ) {
         Box(
-            modifier = Modifier.size(156.dp),
+            modifier = Modifier.size(AppDimens.emptyCanvas),
             contentAlignment = Alignment.Center
         ) {
             // 主圆（淡色容器）
             Box(
                 modifier = Modifier
-                    .size(140.dp)
+                    .size(AppDimens.emptyCircle)
                     .clip(AppShapes.pill)
                     .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.7f))
             )
@@ -536,8 +514,8 @@ private fun HomeEmptyState(onAdd: () -> Unit) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .size(42.dp)
-                    .offset(x = 10.dp, y = (-8).dp)
+                    .size(AppDimens.emptyDotLarge)
+                    .offset(x = AppDimens.spaceXs, y = -AppDimens.spaceXs)
                     .clip(AppShapes.pill)
                     .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
             )
@@ -545,8 +523,8 @@ private fun HomeEmptyState(onAdd: () -> Unit) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .size(30.dp)
-                    .offset(x = (-12).dp, y = 10.dp)
+                    .size(AppDimens.emptyDotSmall)
+                    .offset(x = -AppDimens.spaceSm, y = AppDimens.spaceXs)
                     .clip(AppShapes.pill)
                     .background(MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.9f))
             )
@@ -555,7 +533,7 @@ private fun HomeEmptyState(onAdd: () -> Unit) {
                 MiuixIcons.Alarm,
                 contentDescription = null,
                 tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(64.dp)
+                modifier = Modifier.size(AppDimens.emptyIcon)
             )
         }
         Text(
@@ -572,15 +550,18 @@ private fun HomeEmptyState(onAdd: () -> Unit) {
             onClick = onAdd,
             colors = ButtonDefaults.buttonColorsPrimary(),
             cornerRadius = AppDimens.controlCorner,
-            insideMargin = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
+            insideMargin = PaddingValues(
+                horizontal = AppDimens.fabExtendedHorizontal,
+                vertical = AppDimens.spaceXs
+            )
         ) {
             Icon(
                 MiuixIcons.Add,
                 contentDescription = null,
                 modifier = Modifier.size(AppIconSize.xs)
             )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("添加记录", fontWeight = FontWeight.Medium)
+            Spacer(modifier = Modifier.width(AppDimens.spaceXxs))
+            Text("添加记录", style = AppBody1Medium())
         }
     }
 }

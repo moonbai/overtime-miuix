@@ -76,4 +76,13 @@ object AppDimens {
     val widgetDragElevation = 8.dp   // 拖动中的抬升阴影
     val widgetCellHeight = 104.dp    // 1x1 卡片高度，2x1 / 2x2 由它推导
     val widgetDonutSize = 96.dp      // 2x2 卡片内环形图直径
+    val overviewLabelWidth = 48.dp  // 概览卡分类行标签列宽
+    val overviewValueWidth = 56.dp  // 概览卡分类行数值列宽
+
+    // ── 首页空状态插画 ──
+    val emptyCanvas = 156.dp
+    val emptyCircle = 140.dp
+    val emptyDotLarge = 42.dp
+    val emptyDotSmall = 30.dp
+    val emptyIcon = 64.dp
 }

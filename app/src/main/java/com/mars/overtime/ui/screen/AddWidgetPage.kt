@@ -25,6 +25,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 添加小组件页：仅展示**尚未添加**的组件，以当前真实数据实时预览卡片样式。
@@ -94,6 +95,13 @@ fun AddWidgetPage(
                 BasicComponent(
                     title = def.title,
                     summary = def.desc,
+                    endActions = {
+                        Text(
+                            text = "${def.fixedSpanX}×${def.fixedSpanY}",
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                    },
                     onClick = {}
                 )
                 // 实时预览：按该组件的固定尺寸等比渲染

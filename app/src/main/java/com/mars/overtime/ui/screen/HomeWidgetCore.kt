@@ -611,6 +611,15 @@ private fun EmptyChartHint(text: String) {
             text = text,
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            modifier = Modifier
+                .background(
+                    MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+                    AppShapes.pill
+                )
+                .padding(
+                    horizontal = AppDimens.spaceSm,
+                    vertical = AppDimens.spaceXxs
+                ),
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis
@@ -618,7 +627,7 @@ private fun EmptyChartHint(text: String) {
     }
 }
 
-/** 添加页/预览用的静态卡片外壳（无交互），内部渲染 [WidgetBody] */
+/** 添加页/预览用的静态卡片外壳（无交互），与首页卡片共用圆角与内边距 */
 @Composable
 fun PreviewWidgetCard(
     id: String,
@@ -630,7 +639,7 @@ fun PreviewWidgetCard(
     Card(
         modifier = modifier,
         cornerRadius = AppDimens.cardCorner,
-        insideMargin = PaddingValues(14.dp)
+        insideMargin = WIDGET_CARD_PADDING
     ) {
         WidgetBody(
             id = id,
