@@ -928,7 +928,7 @@ private fun CalendarCard(
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            cells.chunked(7).forEach { week ->
+            calendar.weeks.forEach { week ->
                 Row(modifier = Modifier.fillMaxWidth()) {
                     week.forEach { day ->
                         Box(
@@ -942,7 +942,7 @@ private fun CalendarCard(
                             } else {
                                 val agg = dayAgg[day]
                                 val category = dayCategories[day] ?: DayCategory.WORKDAY
-                                val isToday = isCurrentMonth && day == todayDay
+                                val isToday = calendar.isCurrentMonth && day == calendar.todayDay
                                 // 每一天都可点击查看当日明细：无记录时弹窗展示空态，
                                 // 避免用户误以为该日期无法查看。底色按「日期属性」而非
                                 // 「是否有记录」着色，所以无记录的休息日/节假日同样有底色。
