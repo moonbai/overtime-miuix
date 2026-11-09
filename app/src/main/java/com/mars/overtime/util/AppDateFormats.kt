@@ -16,6 +16,8 @@ object AppDateFormats {
     private val isoDayFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     private val monthFormatter = SimpleDateFormat("yyyy-MM", Locale.US)
     private val displayDayFormatter = SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault())
+    private val shortDayFormatter = SimpleDateFormat("MM-dd", Locale.getDefault())
+    private val fullDayFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
     fun isoDay(millis: Long): String =
         synchronized(isoDayFormatter) { isoDayFormatter.format(Date(millis)) }

@@ -636,8 +636,7 @@ private fun FeatureCell(
         Spacer(modifier = Modifier.height(AppDimens.spaceXxs2))
         Text(
             text = feature.title,
-            style = MiuixTheme.textStyles.body2,
-            fontWeight = FontWeight.Medium,
+            style = AppBody2Medium(),
             textAlign = TextAlign.Center
         )
     }
