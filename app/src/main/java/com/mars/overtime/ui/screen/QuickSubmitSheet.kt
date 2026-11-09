@@ -93,8 +93,13 @@ fun QuickSubmitSheet(
         if (enabled) leaveDuration = -4.0
     }
 
-    // 弹出时复位提交状态并按当天日期自动判定加班类型
-    LaunchedEffect(show) {
+    // 弹出时复位提交状态并按当天日期自动判定加班类型。
+    // 节假日配置也纳入 key：设置里改了数据源/密钥后，下次弹出立即按新配置重判，
+    // 不再沿用旧缓存直到用户手动重新选择类型。
+    LaunchedEffect(
+        show, holidayDataSource, holidayCustomUrl,
+        holidayMxnzpAppId, holidayMxnzpAppSecret, holidayIgnoreHoliday
+    ) {
         if (show) {
             saving = false
             submitGuard.set(false)

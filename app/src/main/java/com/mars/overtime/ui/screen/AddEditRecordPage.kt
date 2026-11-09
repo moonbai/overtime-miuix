@@ -231,11 +231,11 @@ fun AddEditRecordPage(
                     inserted = true
                     // 同步动作在当前协程内串行执行并整体兜底：
                     // 记录本身已入库，后续推送/日历/备份的任何异常都不得影响保存结果与页面跳转。
-                    val calendarResult = try {
+                    val failures = try {
                         RecordSyncHelper.afterSave(context, repository, settingsRepository, saved, oldRecord)
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        null
+                        listOf("联动同步未完成")
                     }
                     // 先返回首页，再显示吐司，确保吐司在首页上可见
                     navController.navigate("main") {
@@ -243,7 +243,7 @@ fun AddEditRecordPage(
                     }
                     val baseMsg = if (recordId != null) "已更新记录" else "已保存记录"
                     snackbarHostState.showCustomToast(
-                        RecordSyncHelper.calendarHint(calendarResult) ?: baseMsg
+                        RecordSyncHelper.formatHint(baseMsg, failures)
                     )
                 }
             } catch (e: Exception) {
