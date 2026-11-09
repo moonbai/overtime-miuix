@@ -129,6 +129,11 @@ class SettingsRepository(private val context: Context) {
     val autoBackupEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_AUTO_BACKUP_ENABLED] ?: false }
     val autoBackupLocation: Flow<String> = context.dataStore.data.map { it[KEY_AUTO_BACKUP_LOCATION] ?: "local" }
 
+    // 导入时可选择的自定义备份目录（SAF 目录树 URI）。
+    // 仅保存在本机：URI 与设备/授权绑定，换设备或重装后失效，故不写入备份导出映射，
+    // 避免恢复旧备份时把一个无效 URI 覆盖到当前设置。
+    val customBackupDirUri: Flow<String> = context.dataStore.data.map { it[KEY_CUSTOM_BACKUP_DIR_URI] ?: "" }
+
     // Holiday settings
     // Timor 服务已下线：旧配置 / 旧备份里的 TIMOR 与其它未知值统一迁移到默认数据源，
     // 避免各页面 valueOf 失败后回退结果不一致。
@@ -214,6 +219,8 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setAutoBackupEnabled(enabled: Boolean) { context.dataStore.edit { it[KEY_AUTO_BACKUP_ENABLED] = enabled } }
     suspend fun setAutoBackupLocation(location: String) { context.dataStore.edit { it[KEY_AUTO_BACKUP_LOCATION] = location } }
+
+    suspend fun setCustomBackupDirUri(uri: String) { context.dataStore.edit { it[KEY_CUSTOM_BACKUP_DIR_URI] = uri } }
 
     suspend fun setHolidayDataSource(source: String) { context.dataStore.edit { it[KEY_HOLIDAY_DATA_SOURCE] = source } }
     suspend fun setHolidayCustomUrl(url: String) { context.dataStore.edit { it[KEY_HOLIDAY_CUSTOM_URL] = url } }
@@ -412,6 +419,7 @@ class SettingsRepository(private val context: Context) {
 
         private val KEY_AUTO_BACKUP_ENABLED = booleanPreferencesKey("auto_backup_enabled")
         private val KEY_AUTO_BACKUP_LOCATION = stringPreferencesKey("auto_backup_location")
+        private val KEY_CUSTOM_BACKUP_DIR_URI = stringPreferencesKey("custom_backup_dir_uri")
 
         private val KEY_HOLIDAY_DATA_SOURCE = stringPreferencesKey("holiday_data_source")
         private val KEY_HOLIDAY_CUSTOM_URL = stringPreferencesKey("holiday_custom_url")
