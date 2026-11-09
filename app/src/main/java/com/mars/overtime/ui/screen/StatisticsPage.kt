@@ -126,10 +126,9 @@ private fun buildDayCategories(selectedMonth: String, ignoreHoliday: Boolean): M
 /**
  * 主页小组件跳转进入的独立统计页。
  *
- * 底部 tab 内的统计页位于 MainScreen 的 Scaffold 中，由 Scaffold 消费状态栏 insets
- * 并通过 topReserve 下传给列表；而 NavHost 的 "statistics" 是独立目的地，不在该
- * Scaffold 内。这里补上与其他二级页一致的 Scaffold + 返回顶栏，由框架避让状态栏，
- * 否则列表首个日期卡片只有 16dp 留白，会直接压在状态栏上。
+ * 底部 tab 内的统计页位于 MainScreen 的 Scaffold 中；NavHost 的 "statistics" 是
+ * 独立目的地，这里复用同样的 Scaffold + 返回顶栏与顶栏高斯模糊，由框架处理状态栏
+ * 避让，避免首个日期卡片压在状态栏上。
  */
 @Composable
 fun StatisticsDetailScreen(
@@ -139,6 +138,8 @@ fun StatisticsDetailScreen(
     initialMonth: String? = null,
     onBack: () -> Unit
 ) {
+    val navBackdrop = rememberLayerBackdrop()
+    val blurSupported = isRuntimeShaderSupported()
     // 窗口背景透明后，二级页需自己铺满主题背景（含状态栏区域），避免顶栏透出黑底
     Box(
         modifier = Modifier
@@ -147,25 +148,46 @@ fun StatisticsDetailScreen(
     ) {
         Scaffold(
             topBar = {
-                SmallTopAppBar(
-                    title = "统计",
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
-                        }
-                    }
-                )
+                // 与主界面一致：内容层延伸到顶栏背后作为毛玻璃采样源；
+                // 不支持运行时 shader 时回退到不透明 surface，保证标题可读。
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .textureBlur(
+                            backdrop = navBackdrop,
+                            shape = AppShapes.radiusZero,
+                            blurRadius = 40f,
+                            enabled = blurSupported
+                        )
+                ) {
+                    SmallTopAppBar(
+                        title = "统计",
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
+                            }
+                        },
+                        color = if (blurSupported) Color.Transparent
+                        else MiuixTheme.colorScheme.surface
+                    )
+                }
             },
             snackbarHost = { SnackbarHost(LocalSnackbarHostState.current) }
         ) { paddingValues ->
-            // Scaffold 实测 padding 已包含状态栏、顶栏与底部系统栏；
-            // 内容层从这里开始，列表只需自己的 16dp 页边距。
-            Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            // 内容层铺满整屏（延伸到顶栏背后供毛玻璃采样），列表自己用 Scaffold
+            // 实测的顶部/底部 padding 避让状态栏、顶栏与系统导航栏。
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .layerBackdrop(navBackdrop)
+            ) {
                 StatisticsPage(
                     navController = navController,
                     repository = repository,
                     settingsRepository = settingsRepository,
-                    initialMonth = initialMonth
+                    initialMonth = initialMonth,
+                    topReserve = paddingValues.calculateTopPadding(),
+                    bottomReserve = paddingValues.calculateBottomPadding()
                 )
             }
         }
