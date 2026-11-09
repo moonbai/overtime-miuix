@@ -360,17 +360,15 @@ fun QuickSubmitSheet(
                                 val id = repository.insert(record)
                                 inserted = true
                                 // 记录已入库，同步环节的失败不应影响提交结果，仅转为提示文案
-                                val calendarResult = try {
+                                val failures = try {
                                     RecordSyncHelper.afterSave(
                                         context, repository, settingsRepository, record.copy(id = id)
                                     )
                                 } catch (e: Exception) {
                                     e.printStackTrace()
-                                    null
+                                    listOf("联动同步未完成")
                                 }
-                                onSaved(
-                                    RecordSyncHelper.calendarHint(calendarResult) ?: "已提报今日加班"
-                                )
+                                onSaved(RecordSyncHelper.formatHint("已提报今日加班", failures))
                                 onDismiss()
                                 // 不复位 saving / submitGuard：弹窗关闭后本组件仍在组合树中，
                                 // 状态由下次打开时的 LaunchedEffect(show) 统一复位。

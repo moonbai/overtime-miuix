@@ -21,7 +21,7 @@ object RecordSyncHelper {
      *
      * @param record    已保存的记录（含最终 id）
      * @param oldRecord 编辑场景下的旧记录，用于清理日历中的重复事件；新增时传 null
-     * @return 日历同步结果；未开启日历同步时返回 null
+     * @return 需要逐项提示的联动失败短句；全部成功或未开启时返回空列表
      */
     suspend fun afterSave(
         context: Context,
@@ -29,22 +29,27 @@ object RecordSyncHelper {
         settingsRepository: SettingsRepository,
         record: OvertimeRecord,
         oldRecord: OvertimeRecord? = null
-    ): CalendarSyncManager.SyncResult? {
+    ): List<String> {
+        val failures = mutableListOf<String>()
         // 以下三类动作都涉及 ContentResolver / 文件 / 网络 IO，统一切到 IO 线程，
         // 避免保存记录时在主线程做磁盘或 Provider 操作造成掉帧。
 
-        // 1) 推送到所选渠道。推送属于旁路能力，网络异常等失败不应影响后续同步与保存结果。
+        // 1) 推送到所选渠道。旁路能力失败不影响保存结果，但必须回传给 UI 提示。
         try {
             withContext(Dispatchers.IO) {
                 if (settingsRepository.pushEnabled.first()) {
                     val channel = settingsRepository.pushChannel.first()
                     if (channel != "none") {
-                        PushManager.sendToSelectedChannel(channel, settingsRepository.exportSettingsMap(), record)
+                        val ok = PushManager.sendToSelectedChannel(
+                            channel, settingsRepository.exportSettingsMap(), record
+                        )
+                        if (!ok) failures += "推送未成功，请检查推送配置"
                     }
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            failures += "推送未成功：${e.message ?: "未知错误"}"
         }
 
         // 2) 日历同步。失败原因回传给调用方，由 UI 给出可操作的提示，
@@ -60,8 +65,9 @@ object RecordSyncHelper {
                 }
             }
         }
+        calendarFailure(calendarResult)?.let { failures += it }
 
-        // 3) 自动备份（内部会自行检查开关）。同样做兜底，避免备份失败吞掉日历同步结果。
+        // 3) 自动备份（内部会自行检查开关）。
         try {
             withContext(Dispatchers.IO) {
                 val settingsMap = settingsRepository.exportSettingsMap()
@@ -80,16 +86,21 @@ object RecordSyncHelper {
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            failures += "自动备份未成功：${e.message ?: "未知错误"}"
         }
 
-        return calendarResult
+        return failures
     }
 
-    /** 将日历同步结果转换为面向用户的提示文案；成功或未开启时返回 null。 */
-    fun calendarHint(result: CalendarSyncManager.SyncResult?): String? = when (result) {
+    /** 把基础成功文案与逐项失败提示拼成一条完整提示。 */
+    fun formatHint(baseMessage: String, failures: List<String>): String =
+        if (failures.isEmpty()) baseMessage
+        else "$baseMessage（${failures.joinToString("；")}）"
+
+    private fun calendarFailure(result: CalendarSyncManager.SyncResult?): String? = when (result) {
         null, is CalendarSyncManager.SyncResult.Success -> null
-        is CalendarSyncManager.SyncResult.PermissionDenied -> "记录已保存，但未获得日历权限，未同步到日历"
-        is CalendarSyncManager.SyncResult.ProviderRejected -> "记录已保存，但系统拒绝写入日历，请检查日历权限设置"
-        is CalendarSyncManager.SyncResult.Failure -> "记录已保存，日历同步失败：${result.message}"
+        is CalendarSyncManager.SyncResult.PermissionDenied -> "未获得日历权限，未同步到日历"
+        is CalendarSyncManager.SyncResult.ProviderRejected -> "系统拒绝写入日历，请检查权限设置"
+        is CalendarSyncManager.SyncResult.Failure -> "日历同步失败：${result.message}"
     }
 }

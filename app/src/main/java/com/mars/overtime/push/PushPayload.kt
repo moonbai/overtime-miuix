@@ -85,7 +85,7 @@ data class PushPayload(
             when (isMakeUpWork) {
                 true -> "是"
                 false -> "否"
-                null -> "null"
+                null -> "未知"
             }
         ).append('\n')
         append(if (recordMode == "请假") "请假时长：" else "加班时长：")
