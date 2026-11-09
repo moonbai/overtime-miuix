@@ -240,7 +240,7 @@ fun AboutPage(navController: NavHostController) {
                             modifier = Modifier.size(68.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(AppDimens.spaceMd))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center,
@@ -459,7 +459,7 @@ private fun UpdateResultDialogs(
                     color = MiuixTheme.colorScheme.onSurface
                 )
                 if (info.sizeBytes > 0) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AppDimens.spaceXxs))
                     Text(
                         text = "安装包：${info.apkName.ifBlank { "APK" }}（${formatApkSize(info.sizeBytes)}）",
                         style = MiuixTheme.textStyles.footnote1,
@@ -475,7 +475,7 @@ private fun UpdateResultDialogs(
                         fontWeight = FontWeight.Medium,
                         color = MiuixTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AppDimens.spaceXxs))
                     // 与按钮同宽（不再额外水平内缩），限高后可滚动
                     Text(
                         text = notes,
