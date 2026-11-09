@@ -69,6 +69,13 @@ fun RecordsPage(
     listState: LazyListState = rememberLazyListState()
 ) {
     val records by repository.getAllRecords().collectAsState(initial = emptyList())
+    // 从其它页面切回记录页时，collectAsState 的首帧是空列表，若直接按空列表渲染
+    // 会闪一下「还没有加班记录」。记录流真正发出首帧前先显示占位骨架，
+    // 加载完成后再按真实数据决定空态 / 列表（与首页 recordsLoaded 同款保护）。
+    var recordsLoaded by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        repository.getAllRecords().collect { recordsLoaded = true }
+    }
 
     // 用户配置的加班类型配色，用于记录标题与统计保持一致
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
@@ -212,7 +219,9 @@ fun RecordsPage(
             }
         }
 
-        if (records.isEmpty()) {
+        if (!recordsLoaded) {
+            item { RecordsLoadingPlaceholder() }
+        } else if (records.isEmpty()) {
             item {
                 RecordsEmptyState(
                     onAdd = {
@@ -331,6 +340,22 @@ private fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit) {
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
         )
+    }
+}
+
+/** 记录流首帧未到达时的占位骨架：避免出现「还没有记录」的误判空态 */
+@Composable
+private fun RecordsLoadingPlaceholder() {
+    Column(verticalArrangement = Arrangement.spacedBy(AppDimens.groupSpacing)) {
+        repeat(3) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .clip(RoundedCornerShape(AppDimens.cardCorner))
+                    .background(MiuixTheme.colorScheme.surfaceContainer)
+            )
+        }
     }
 }
 
