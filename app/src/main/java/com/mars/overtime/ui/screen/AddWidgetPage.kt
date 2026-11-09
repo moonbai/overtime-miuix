@@ -27,9 +27,9 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 
 /**
- * 添加小组件页：以当前真实数据**实时预览**每种卡片样式。
- * 组件尺寸由 [WIDGET_CATALOG] 按内容固定（不可调整），
- * 已添加的组件可在此移除，排序在首页长按拖动完成。
+ * 添加小组件页：仅展示**尚未添加**的组件，以当前真实数据实时预览卡片样式。
+ * 组件尺寸由 [WIDGET_CATALOG] 按内容固定（不可调整）；
+ * 已添加组件的排序与移除在首页编辑态 /「首页小组件」设置页完成。
  */
 @Composable
 fun AddWidgetPage(
@@ -44,6 +44,14 @@ fun AddWidgetPage(
     val layoutRaw by settingsRepository.homeLayout.collectAsState(initial = DEFAULT_HOME_LAYOUT)
     // 旧版本残留的自定义跨度统一归位到目录固定尺寸
     val layout = remember(layoutRaw) { normalizeLayout(layoutRaw) }
+    // DataStore 回写是异步的：连点多个「添加」时，若每次都基于旧 layout 写入，
+    // 后一次会覆盖前一次。这里先本地累积待添加项，布局 Flow 回来后清空。
+    val pending = remember { mutableStateListOf<WidgetPlacement>() }
+    LaunchedEffect(layout) { pending.clear() }
+    // 已添加项（含本次待写入项）不再出现在添加页
+    val available = WIDGET_CATALOG.filter { def ->
+        layout.none { it.id == def.id } && pending.none { it.id == def.id }
+    }
     val currentMonth = remember { SalaryCalculator.getCurrentYearMonth() }
     val agg = remember(records, currentMonth) { aggregateHome(records, currentMonth) }
 
@@ -68,10 +76,20 @@ fun AddWidgetPage(
         snackbarHostState = snackbarHostState
     ) {
         item {
-            SettingsNote("预览为当前数据实时渲染；组件尺寸按内容自动匹配，无需调整。排序在首页长按组件拖动完成。")
+            SettingsNote("仅展示尚未添加的组件，预览为当前数据实时渲染；组件尺寸按内容自动匹配，无需调整。已添加组件的排序与移除在首页长按编辑或「首页小组件」中完成。")
         }
-        items(items = WIDGET_CATALOG, key = { it.id }) { def ->
-            val present = layout.any { it.id == def.id }
+        if (available.isEmpty()) {
+            item {
+                SettingsGroup {
+                    BasicComponent(
+                        title = "全部组件已添加",
+                        summary = "返回「首页小组件」可查看、排序与移除已添加组件",
+                        onClick = { navController.popBackStack() }
+                    )
+                }
+            }
+        }
+        items(items = available, key = { it.id }) { def ->
             SettingsGroup {
                 BasicComponent(
                     title = def.title,
@@ -102,7 +120,7 @@ fun AddWidgetPage(
                         )
                     }
                 }
-                // 添加 / 移除
+                // 只提供「添加」：已添加项不在此页展示，移除统一在首页 / 设置页
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -110,29 +128,19 @@ fun AddWidgetPage(
                 ) {
                     Button(
                         onClick = {
-                            if (present) {
-                                persist(layout.filter { it.id != def.id })
-                                scope.launch { snackbarHostState.showCustomToast("已移除「${def.title}」") }
-                            } else {
-                                persist(
-                                    layout + WidgetPlacement(
-                                        def.id,
-                                        def.fixedSpanX,
-                                        def.fixedSpanY
-                                    )
-                                )
-                                scope.launch { snackbarHostState.showCustomToast("已添加「${def.title}」") }
-                            }
+                            pending.add(WidgetPlacement(def.id, def.fixedSpanX, def.fixedSpanY))
+                            persist(layout + pending.toList())
+                            scope.launch { snackbarHostState.showCustomToast("已添加「${def.title}」") }
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(
-                            if (present) MiuixIcons.Delete else MiuixIcons.Add,
+                            MiuixIcons.Add,
                             contentDescription = null,
                             modifier = Modifier.size(AppIconSize.xs)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (present) "移除" else "添加")
+                        Spacer(modifier = Modifier.width(AppDimens.spaceXxs))
+                        Text("添加")
                     }
                 }
             }

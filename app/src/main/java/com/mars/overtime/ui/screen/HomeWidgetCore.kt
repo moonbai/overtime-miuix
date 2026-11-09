@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -14,11 +15,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.data.repository.WidgetPlacement
+import com.mars.overtime.ui.theme.AppBody1Semibold
 import com.mars.overtime.ui.theme.AppDimens
 import com.mars.overtime.ui.theme.AppHeadline2Bold
 import com.mars.overtime.ui.theme.AppShapes
@@ -36,7 +36,10 @@ import kotlin.math.abs
 const val GRID_COLUMNS = 2
 
 /** 网格基础单元高度（1x1 卡片高度），由它推导 2x1 / 2x2 */
-val CELL_HEIGHT: Dp = 104.dp
+val CELL_HEIGHT: Dp = AppDimens.widgetCellHeight
+
+/** 首页卡片与添加页预览共用的内边距，保证「预览即所见」 */
+val WIDGET_CARD_PADDING: PaddingValues = PaddingValues(AppDimens.cardInnerPadding)
 
 // ───────────────────────── 组件目录 ─────────────────────────
 
@@ -267,8 +270,13 @@ fun WidgetBody(
     typeColor: (OvertimeType) -> Color,
     modifier: Modifier = Modifier
 ) {
-    // 尺寸已固定，不再整体放大文字（放大字号正是小卡片里文字溢出的元凶）。
-    // 所有文本单行 + 省略号 + 禁止换行，任意数据长度都不会遮挡或越界。
+    // 尺寸已固定：文本统一走设计令牌字号，单行 + 省略号 + 禁止换行，
+    // 任意数据长度都不会遮挡或越界，首页与预览的字号也完全一致。
+    val latest = agg.latest
+    val latestDateLabel = remember(latest?.date) {
+        val cal = Calendar.getInstance().apply { timeInMillis = latest?.date ?: 0L }
+        "${cal.get(Calendar.MONTH) + 1}月${cal.get(Calendar.DAY_OF_MONTH)}日"
+    }
     Column(modifier.fillMaxSize()) {
         Text(
             text = widgetTitle(id),
@@ -278,7 +286,7 @@ fun WidgetBody(
             softWrap = false,
             overflow = TextOverflow.Ellipsis
         )
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(AppDimens.spaceXxs2))
         when (id) {
             "month_hours" -> StatRows(
                 SalaryCalculator.formatHours(agg.monthNet),
@@ -304,19 +312,14 @@ fun WidgetBody(
                 "${agg.monthLeaveCount}次",
                 if (agg.monthLeaveCount > 0) "扣款 ${SalaryCalculator.formatAmount(agg.monthLeaveDeduct)}" else "本月无请假"
             )
-            "latest_record" -> {
-                val latest = agg.latest
-                val cal = Calendar.getInstance().apply { timeInMillis = latest?.date ?: 0L }
-                StatRows(
-                    if (latest != null) {
-                        if (latest.isLeave) "请假" else latest.type.label
-                    } else "暂无记录",
-                    if (latest != null) {
-                        "${cal.get(Calendar.MONTH) + 1}月${cal.get(Calendar.DAY_OF_MONTH)}日 · " +
-                            SalaryCalculator.formatHours(abs(latest.durationHours))
-                    } else "去记录页添加"
-                )
-            }
+            "latest_record" -> StatRows(
+                if (latest != null) {
+                    if (latest.isLeave) "请假" else latest.type.label
+                } else "暂无记录",
+                if (latest != null) {
+                    "$latestDateLabel · ${SalaryCalculator.formatHours(abs(latest.durationHours))}"
+                } else "去记录页添加"
+            )
             "month_type" -> TypeBarChart(buildTypeSegments(agg, typeColor))
             "month_daily" -> DailyBarChart(agg.dailyNet)
             "year_month" -> YearBarChart(agg.monthlyNet, month.substringAfter("-").toIntOrNull() ?: 1)
@@ -331,30 +334,26 @@ fun WidgetBody(
 
 @Composable
 private fun StatRows(value: String, sub: String) {
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val base = AppHeadline2Bold()
-        // 数值字号按可用高度收敛（1x1 内容区约 76dp），给标题、副标题和
-        // 间距留足空间；金额 / 长备注用省略号收尾，绝不换行挤到下一行。
-        val valueSp = minOf(base.fontSize.value, maxHeight.value * 0.42f).sp
-        Column(Modifier.fillMaxSize()) {
-            Text(
-                text = value,
-                style = base.copy(fontSize = valueSp),
-                color = MiuixTheme.colorScheme.primary,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(3.dp))
-            Text(
-                text = sub,
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+    // 数值统一用设计令牌字号，不再按可用高度动态缩放：首页 / 预览 / 不同尺寸
+    // 卡片的排版节奏一致，也省掉每个数值卡一次 BoxWithConstraints 测量。
+    Column(Modifier.fillMaxSize()) {
+        Text(
+            text = value,
+            style = AppHeadline2Bold(),
+            color = MiuixTheme.colorScheme.primary,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.height(AppDimens.spaceXxs))
+        Text(
+            text = sub,
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -364,10 +363,10 @@ private fun LegendItem(seg: TypeSeg, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(
             Modifier
-                .size(7.dp)
+                .size(AppDimens.spaceXxs2)
                 .background(seg.color, AppShapes.radiusXs)
         )
-        Spacer(Modifier.width(5.dp))
+        Spacer(Modifier.width(AppDimens.spaceXxs))
         Text(
             text = seg.label,
             style = MiuixTheme.textStyles.footnote1,
@@ -400,10 +399,10 @@ private fun TypeBarChart(segs: List<TypeSeg>) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(12.dp)
+                .height(AppDimens.spaceSm)
                 .background(MiuixTheme.colorScheme.secondaryContainer, AppShapes.radiusSm)
         ) {
-            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(AppDimens.chartBarRadius)) {
                 segs.forEach { seg ->
                     val frac = (seg.hours / total).toFloat().coerceIn(0f, 1f)
                     Box(

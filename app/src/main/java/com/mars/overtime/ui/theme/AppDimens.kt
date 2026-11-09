@@ -70,4 +70,10 @@ object AppDimens {
     // ── 紧凑/微型间距（页面特有的 6/14dp 等保持原字面量，避免引入过多令牌）──
     val spaceXxs2 = 6.dp
     val itemPaddingH = 14.dp
+
+    // ── 首页小组件网格 ──
+    val hairline = 1.dp              // 编辑态描边、图表细柱间隙
+    val widgetDragElevation = 8.dp   // 拖动中的抬升阴影
+    val widgetCellHeight = 104.dp    // 1x1 卡片高度，2x1 / 2x2 由它推导
+    val widgetDonutSize = 96.dp      // 2x2 卡片内环形图直径
 }
