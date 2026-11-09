@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +31,7 @@ import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.mars.overtime.ui.theme.AppDimens
+import com.mars.overtime.ui.theme.AppShapes
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToLong
@@ -492,7 +494,12 @@ fun AddEditRecordPage(
             title = "选择类型",
             onDismissRequest = { showTypePicker = false }
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            // DropdownImpl 的背景是 drawRect 直角绘制，外层整体裁成圆角卡片
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(AppShapes.radiusMd)
+            ) {
                 val typeEntries = OvertimeType.entries
                 typeEntries.forEachIndexed { index, type ->
                     FullWidthDropdownItem(
