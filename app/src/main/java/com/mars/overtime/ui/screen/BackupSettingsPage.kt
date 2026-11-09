@@ -169,6 +169,10 @@ fun BackupSettingsPage(
 
     // 从云端下载指定备份文件并恢复记录与设置（支持 ZIP 和旧版 JSON）
     suspend fun restoreFromCloud(fileName: String) {
+        if (fileName.isBlank()) {
+            showToast("备份文件名无效")
+            return
+        }
         showToast("正在下载 $fileName ...")
         val isZip = fileName.endsWith(".zip", ignoreCase = true)
         val localPath = DataMigrationUtil.getBackupFilePath(context, "cloud_restore_tmp" + if (isZip) ".zip" else ".json")
@@ -275,7 +279,8 @@ fun BackupSettingsPage(
             e.printStackTrace()
             emptyList<String>()
         }
-        remoteFiles = files.sortedDescending()
+        // 兜底：任何来源都不允许空白文件名进入列表（旧数据/异常服务器）
+        remoteFiles = files.filter { it.isNotBlank() }.sortedDescending()
         loadingRemote = false
         if (remoteFiles.isEmpty()) showToast("云端没有可用的备份文件")
     }

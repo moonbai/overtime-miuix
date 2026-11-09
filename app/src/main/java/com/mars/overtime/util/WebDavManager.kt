@@ -195,15 +195,47 @@ object WebDavManager {
 
             val response = client.newCall(request).execute()
             val body = response.body?.string() ?: ""
-            Log.d("WebDavManager", "列表响应长度: ${body.length}")
+            val code = response.code
+            val success = response.isSuccessful
+            Log.d("WebDavManager", "列表响应: HTTP $code, 长度 ${body.length}")
             response.close()
+            // 207 Multi-Status 是 PROPFIND 的正常返回
+            if (!success && code != 207) {
+                Log.e("WebDavManager", "列出文件失败: HTTP $code")
+                return@withContext emptyList()
+            }
 
-            val pattern = Regex("<d:href>([^<]*)</d:href>")
-            pattern.findAll(body)
-                .map { it.groupValues[1] }
-                .filter { it.endsWith(".json") || it.contains("overtime") }
-                .map { it.substringAfterLast('/') }
+            // PROPFIND Depth:1 会把「目录自身」也作为一个 response 返回，且各服务器
+            // 的 XML 命名空间前缀不一（d: / D: / 无前缀）。旧实现只抓 <d:href> 文本，
+            // 再用 contains("overtime") 过滤，导致远程目录 /overtime_backup/ 被当成文件；
+            // substringAfterLast('/') 对以 / 结尾的 href 返回空字符串，于是列表里多出
+            // 一个空白名字条目，点击它下载的是目录，必然失败。
+            // 根治：按 response 块解析，排除带 collection 的目录，再只保留备份文件名。
+            val ns = "(?:[A-Za-z0-9_-]+:)?"
+            val responsePattern = Regex("<${ns}response\\b[^>]*>([\\s\\S]*?)</${ns}response>", RegexOption.IGNORE_CASE)
+            val hrefPattern = Regex("<${ns}href>([^<]*)</${ns}href>", RegexOption.IGNORE_CASE)
+            val collectionPattern = Regex("<${ns}collection\\b", RegexOption.IGNORE_CASE)
+
+            val blocks = responsePattern.findAll(body).map { it.groupValues[1] }.toList()
+                .ifEmpty { listOf(body) }
+
+            blocks.asSequence()
+                .filterNot { collectionPattern.containsMatchIn(it) }
+                .flatMap { block -> hrefPattern.findAll(block).map { m -> m.groupValues[1] } }
+                .map { raw ->
+                    val decoded = try {
+                        java.net.URLDecoder.decode(raw, "UTF-8")
+                    } catch (e: Exception) {
+                        raw
+                    }
+                    decoded.trim().trimEnd('/').substringAfterLast('/')
+                }
+                .filter { name ->
+                    name.startsWith("overtime_backup_", ignoreCase = true) &&
+                        (name.endsWith(".zip", ignoreCase = true) || name.endsWith(".json", ignoreCase = true))
+                }
                 .distinct()
+                .sortedDescending()
                 .toList()
         } catch (e: Exception) {
             Log.e("WebDavManager", "列出文件失败", e)
