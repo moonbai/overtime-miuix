@@ -209,7 +209,7 @@ fun AboutPage(navController: NavHostController) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 cornerRadius = AppDimens.cardCorner,
-                insideMargin = PaddingValues(2AppDimens.spaceXs)
+                insideMargin = PaddingValues(AppDimens.spaceLg + AppDimens.spaceXxs)
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -237,7 +237,7 @@ fun AboutPage(navController: NavHostController) {
                             MiuixIcons.AppRecording,
                             contentDescription = "应用图标",
                             tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(6AppDimens.spaceXs)
+                            modifier = Modifier.size(68.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
