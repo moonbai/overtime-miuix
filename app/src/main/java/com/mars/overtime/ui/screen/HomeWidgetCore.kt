@@ -274,8 +274,8 @@ fun WidgetBody(
     // 任意数据长度都不会遮挡或越界，首页与预览的字号也完全一致。
     val latest = agg.latest
     val latestDateLabel = remember(latest?.date) {
-        val cal = Calendar.getInstance().apply { timeInMillis = latest?.date ?: 0L }
-        "${cal.get(Calendar.MONTH) + 1}月${cal.get(Calendar.DAY_OF_MONTH)}日"
+        val (_, month, day) = AppDateFormats.dateParts(latest?.date ?: 0L)
+        "${month}月${day}日"
     }
     Column(modifier.fillMaxSize()) {
         Text(

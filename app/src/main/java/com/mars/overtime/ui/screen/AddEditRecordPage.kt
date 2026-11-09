@@ -113,7 +113,7 @@ fun AddEditRecordPage(
     // 依据所选日期自动判定加班类型（除非用户已手动更改、或为请假记录）
     LaunchedEffect(selectedDate, isLeave, typeManuallyChanged) {
         if (isLeave || typeManuallyChanged) return@LaunchedEffect
-        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(selectedDate)
+        val dateStr = AppDateFormats.isoDay(selectedDate.time)
         val autoType = HolidayManager.getOvertimeType(dateStr)
         selectedType = autoType
         autoTypeHint = autoType.label

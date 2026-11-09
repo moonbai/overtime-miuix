@@ -28,6 +28,13 @@ object AppDateFormats {
     fun displayDay(millis: Long): String =
         synchronized(displayDayFormatter) { displayDayFormatter.format(Date(millis)) }
 
+    /** 同年记录卡用「MM-dd」，跨年用「yyyy-MM-dd」 */
+    fun shortDay(millis: Long): String =
+        synchronized(shortDayFormatter) { shortDayFormatter.format(Date(millis)) }
+
+    fun fullDay(millis: Long): String =
+        synchronized(fullDayFormatter) { fullDayFormatter.format(Date(millis)) }
+
     /** 一次取出年月日，避免各处重复 Calendar.getInstance().apply { ... } */
     fun dateParts(millis: Long): Triple<Int, Int, Int> {
         val cal = Calendar.getInstance().apply { timeInMillis = millis }
