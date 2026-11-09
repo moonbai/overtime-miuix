@@ -11,6 +11,7 @@ import androidx.navigation.NavHostController
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.util.AppDefaults
 import com.mars.overtime.data.repository.DEFAULT_HOME_LAYOUT
 import com.mars.overtime.data.repository.WidgetPlacement
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
@@ -56,9 +57,9 @@ fun AddWidgetPage(
     val currentMonth = remember { SalaryCalculator.getCurrentYearMonth() }
     val agg = remember(records, currentMonth) { aggregateHome(records, currentMonth) }
 
-    val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
-    val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
-    val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
+    val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = AppDefaults.PRIMARY_ARGB)
+    val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = AppDefaults.WEEKEND_ARGB)
+    val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = AppDefaults.HOLIDAY_ARGB)
     val typeColor: (OvertimeType) -> Color = { type ->
         when (type) {
             OvertimeType.WORKDAY -> Color(typeColorWorkday)

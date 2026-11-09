@@ -26,6 +26,7 @@ import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.ui.component.AppEmptyState
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.util.AppDefaults
 import com.mars.overtime.data.repository.DEFAULT_HOME_LAYOUT
 import com.mars.overtime.data.repository.WidgetPlacement
 import com.mars.overtime.ui.theme.AppBody1Medium
@@ -67,9 +68,9 @@ fun HomePage(
     val records = recordsSnapshot.orEmpty()
     val currentMonth = remember { SalaryCalculator.getCurrentYearMonth() }
 
-    val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
-    val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
-    val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
+    val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = AppDefaults.PRIMARY_ARGB)
+    val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = AppDefaults.WEEKEND_ARGB)
+    val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = AppDefaults.HOLIDAY_ARGB)
     val overviewMode by settingsRepository.homeOverviewMode.collectAsState(initial = "total")
 
     // 用户配置的类型色（与统计页同源），分类概览与组件色条共用

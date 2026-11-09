@@ -22,6 +22,7 @@ import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.util.AppDefaults
 import com.mars.overtime.ui.component.AppEmptyState
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.snackbar.dismissDeleteSnackbars
@@ -186,9 +187,9 @@ fun RecordsPage(
     val records = recordsSnapshot.orEmpty()
 
     // 用户配置的加班类型配色，用于记录标题与统计保持一致
-    val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
-    val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
-    val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
+    val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = AppDefaults.PRIMARY_ARGB)
+    val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = AppDefaults.WEEKEND_ARGB)
+    val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = AppDefaults.HOLIDAY_ARGB)
     // 「删除二次确认」设置项：关闭时直接删除，仅靠 Snackbar 撤销
     val deleteConfirmEnabled by settingsRepository.deleteConfirmEnabled.collectAsState(initial = true)
 
