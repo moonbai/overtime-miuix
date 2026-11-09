@@ -746,6 +746,18 @@ class McpHostService : Service() {
         private const val SERVER_NAME = "overtime-miuix"
         private const val SERVER_VERSION = "1.0.0"
 
+        /**
+         * 设置页「接入信息」展示的工具摘要。
+         * 与 [toolsList] 同文件维护，新增 / 调整工具时同步更新，避免两处描述漂移。
+         */
+        const val TOOL_SUMMARY =
+            "可用工具：\n" +
+                "add_overtime_record（添加加班/请假记录）\n" +
+                "query_overtime_records（查询记录）\n" +
+                "delete_overtime_record（删除记录）\n" +
+                "get_monthly_stats（月度统计）\n" +
+                "get_yearly_stats（年度统计）"
+
         private const val CODE_PARSE_ERROR = -32700
         private const val CODE_INVALID_REQUEST = -32600
         private const val CODE_METHOD_NOT_FOUND = -32601

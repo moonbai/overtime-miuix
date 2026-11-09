@@ -201,7 +201,7 @@ fun McpSettingsPage(
 
         item {
             SettingsGroup(title = "接入信息") {
-                SettingsNote(text = "可用工具：\n add_overtime_record（添加加班/请假记录）\n query_overtime_records（查询记录）\n get_monthly_stats（月度统计）。")
+                SettingsNote(text = McpHostService.TOOL_SUMMARY)
                 SettingsPreviewText(text = "访问地址：http://$deviceIp:$mcpPort/mcp")
             }
         }
