@@ -44,6 +44,7 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -52,6 +53,104 @@ sealed class RecordFilter {
     object All : RecordFilter()
     object Leave : RecordFilter()
     data class Type(val t: OvertimeType) : RecordFilter()
+}
+
+/** 搜索词中的日期条件；null 表示该维度不限（「8月」不限年份，匹配所有 8 月记录）。 */
+private data class RecordDateQuery(val year: Int?, val month: Int?, val day: Int?)
+
+private val CN_DIGIT_MAP = mapOf(
+    '〇' to 0, '零' to 0, '一' to 1, '二' to 2, '两' to 2, '三' to 3,
+    '四' to 4, '五' to 5, '六' to 6, '七' to 7, '八' to 8, '九' to 9
+)
+private val CN_NUMBER_REGEX = Regex("[〇零一两二三四五六七八九十]+")
+private val DATE_UNIT_REGEX = Regex("[年月日号份/-]")
+private val MULTI_DASH_REGEX = Regex("-+")
+private val DATE_SHAPE_REGEX = Regex("^\\d+(?:-\\d+)*$")
+
+/** 中文数字串转阿拉伯数字：八→8、十一→11、二十三→23、二〇二六→2026。 */
+private fun chineseNumberToArabic(text: String): String? {
+    if ('十' !in text) {
+        val digits = StringBuilder()
+        for (ch in text) digits.append(CN_DIGIT_MAP[ch] ?: return null)
+        return digits.toString()
+    }
+    val parts = text.split('十', limit = 2)
+    val tensText = parts[0]
+    val onesText = parts.getOrNull(1).orEmpty()
+    val tens = when {
+        tensText.isEmpty() -> 1
+        tensText.length == 1 -> CN_DIGIT_MAP[tensText[0]] ?: return null
+        else -> return null
+    }
+    val ones = when {
+        onesText.isEmpty() -> 0
+        onesText.length == 1 -> CN_DIGIT_MAP[onesText[0]] ?: return null
+        else -> return null
+    }
+    return (tens * 10 + ones).toString()
+}
+
+/**
+ * 把日期类搜索词解析成结构化条件。支持：
+ * 8月 / 八月 / 8月份 / 8月5日 / 20日 / 2026年8月 / 2026-08 /
+ * 2026-08-15 / 2026/8/5 / 8-15（不带年份时匹配所有年份的同一天/同月）。
+ *
+ * 纯数字（如「8」「2026」）不解析，继续走备注 / 月份文本 / 时长的包含匹配，
+ * 避免把普通数字或小数时长误判为日期；解析失败同样回退到包含匹配。
+ */
+private fun parseRecordDateQuery(raw: String): RecordDateQuery? {
+    // 无单位、无分隔符的输入不当作日期条件
+    if (!raw.any { it in "年月日号份/-／－" }) return null
+    val dayOnly = raw.trim().let { it.endsWith("日") || it.endsWith("号") }
+
+    val normalized = buildString {
+        for (ch in raw) when {
+            ch in '０'..'９' -> append((ch.code - '０'.code + '0'.code).toChar())
+            ch == '／' -> append('/')
+            ch == '－' -> append('-')
+            ch.isWhitespace() -> Unit
+            else -> append(ch)
+        }
+    }.let { CN_NUMBER_REGEX.replace(it) { m -> chineseNumberToArabic(m.value) ?: m.value } }
+        .let { DATE_UNIT_REGEX.replace(it, "-") }
+        .let { MULTI_DASH_REGEX.replace(it, "-") }
+        .trim('-')
+
+    if (!DATE_SHAPE_REGEX.matches(normalized)) return null
+    val parts = normalized.split("-").map { it.toIntOrNull() ?: return null }
+    return when (parts.size) {
+        1 -> when {
+            parts[0] in 1900..2999 -> RecordDateQuery(parts[0], null, null)
+            dayOnly && parts[0] in 1..31 -> RecordDateQuery(null, null, parts[0])
+            parts[0] in 1..12 -> RecordDateQuery(null, parts[0], null)
+            else -> null
+        }
+        2 -> when {
+            parts[0] in 1900..2999 && parts[1] in 1..12 ->
+                RecordDateQuery(parts[0], parts[1], null)
+            parts[0] in 1..12 && parts[1] in 1..31 ->
+                RecordDateQuery(null, parts[0], parts[1])
+            else -> null
+        }
+        3 -> if (parts[0] in 1900..2999 && parts[1] in 1..12 && parts[2] in 1..31) {
+            RecordDateQuery(parts[0], parts[1], parts[2])
+        } else null
+        else -> null
+    }
+}
+
+/** 复用 [Calendar] 比较记录日期，避免为每条记录新建实例。 */
+private fun matchesRecordDate(cal: Calendar, millis: Long, q: RecordDateQuery): Boolean {
+    cal.timeInMillis = millis
+    return (q.year == null || cal.get(Calendar.YEAR) == q.year) &&
+            (q.month == null || cal.get(Calendar.MONTH) + 1 == q.month) &&
+            (q.day == null || cal.get(Calendar.DAY_OF_MONTH) == q.day)
+}
+
+/** 时长的数字写法（8.5 → "8.5"），让数字输入也能命中「8小时30分钟」。 */
+private fun durationNumberText(hours: Double): String {
+    val v = kotlin.math.abs(hours)
+    return if (v % 1.0 == 0.0) v.toLong().toString() else v.toString()
 }
 
 /**
@@ -155,6 +254,9 @@ fun RecordsPage(
     val grouped by remember(records, searchQuery, recordFilter) {
         derivedStateOf {
             val q = searchQuery.trim()
+            // 日期词先解析一次，逐条记录只做年/月/日比较
+            val dateQuery = parseRecordDateQuery(q)
+            val calendar = Calendar.getInstance()
             records.filter { rec ->
                 val currentFilter = recordFilter
                 val matchFilter = when (currentFilter) {
@@ -165,6 +267,8 @@ fun RecordsPage(
                 val matchQuery = q.isEmpty() || rec.note.contains(q, ignoreCase = true)
                         || monthFormatter.format(Date(rec.date)).contains(q)
                         || SalaryCalculator.formatHours(rec.durationHours).contains(q)
+                        || durationNumberText(rec.durationHours).contains(q)
+                        || (dateQuery != null && matchesRecordDate(calendar, rec.date, dateQuery))
                 matchFilter && matchQuery
             }.groupBy { monthFormatter.format(Date(it.date)) }
                 .toSortedMap(compareByDescending { it })
@@ -184,12 +288,12 @@ fun RecordsPage(
         ),
         verticalArrangement = Arrangement.spacedBy(AppDimens.groupSpacing)
     ) {
-        // 搜索框：按备注 / 月份 / 时长模糊匹配
+        // 搜索框：备注 / 时长模糊匹配 + 日期条件（如「8月」「8月5日」「2026年8月」「2026-08-15」）
         item {
             TextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                label = "搜索备注 / 月份",
+                label = "搜索备注 / 日期 / 时长",
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )

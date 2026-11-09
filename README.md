@@ -10,8 +10,6 @@
 [![API](https://img.shields.io/badge/API-33%2B-orange)](https://developer.android.com)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 
-[English](README_EN.md)
-
 ## 功能特性
 
 ### 核心功能
@@ -66,16 +64,7 @@
 | compileSdk / targetSdk | 37 |
 | minSdk | 33（Android 13，与 miuix-blur 对齐） |
 | JVM Target / Source Compatibility | 17 / Java 17 |
-| versionName / versionCode | 1.0.0 / 1（tag 构建时由流水线同步版本号） |
-| 签名 | release 从环境变量或 `local.properties` 注入 keystore |
 
-### 依赖兼容策略（MiuiX 0.9.4）
-
-MIUIX 是 Compose Multiplatform 库，其 AAR 重打包了 `org.jetbrains.compose.*` 下的 AndroidX Compose 类，与 AndroidX BOM 存在类冲突。`app/build.gradle.kts` 的处理：
-
-1. 四个 miuix 依赖统一 `exclude` 掉 `foundation` / `runtime` / `ui` / `animation` 四组传递依赖，保留 `material3-window-size-class` 等运行时必需部分
-2. 版本交由 AndroidX Compose BOM 2026.09.00 统一管理，并用 `resolutionStrategy.force` 把 `androidx.compose.*` 钉在 **1.12.1**，消除版本冲突告警
-3. 不升版、不 fork、不混入 Material3 —— MiuiX 0.9.4 依赖保持不变
 
 ### 设计令牌与组件层
 

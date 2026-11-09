@@ -143,7 +143,7 @@ fun MainScreen(
                 SmallTopAppBar(
                     title = when (selectedTab) {
                         0 -> "首页"
-                        1 -> "加班记录"
+                        1 -> "记录"
                         2 -> "统计"
                         else -> "设置"
                     },
