@@ -87,49 +87,57 @@ object PushManager {
         }
     }
 
+    /** 官方机器人 hook 特征：仅此类地址支持签名密钥 */
+    private val feishuBotHookRegex = Regex("""open\.feishu\.cn/open-apis/bot/v2/hook""")
+
+    /**
+     * 官方企业版多维表格工作流 webhook（如 https://xxx.feishu.cn/base/workflow/webhook/event/...）。
+     * 同为飞书官方地址：直接透传 JSON，由工作流自行解析字段，签名密钥不适用。
+     */
+    private val feishuWorkflowRegex = Regex("""feishu\.cn/base/workflow/webhook/event/""")
+
     suspend fun sendFeishu(url: String, secret: String, record: OvertimeRecord): Boolean = withContext(Dispatchers.IO) {
         val text = buildText(record)
 
-        if (url.contains("open.feishu.cn/open-apis/bot/v2/hook")) {
-            val json = if (secret.isNotBlank()) {
-                val timestamp = System.currentTimeMillis().toString()
-                val stringToSign = "$timestamp\n$secret"
-                val sign = hmacSha256(secret, stringToSign)
-                """{"msg_type":"text","content":{"text":"${escapeJson(text)}"},"timestamp":"$timestamp","sign":"$sign"}"""
-            } else {
-                """{"msg_type":"text","content":{"text":"${escapeJson(text)}"}}"""
-            }
-            try {
-                val body = json.toRequestBody(mediaType)
-                val req = Request.Builder()
-                    .url(url)
-                    .post(body)
-                    .header("Content-Type", "application/json; charset=utf-8")
-                    .build()
-                val res = client.newCall(req).execute()
-                val response = res.body?.string()
-                Log.d("PushManager", "飞书推送响应: $response")
-                res.close()
-
-                if (response != null) {
-                    val jsonResponse = try {
-                        org.json.JSONObject(response)
-                    } catch (e: Exception) {
-                        null
-                    }
-                    jsonResponse?.let {
-                        val code = it.optInt("code", -1)
-                        val statusCode = it.optInt("StatusCode", -1)
-                        return@withContext code == 0 || statusCode == 0 || res.isSuccessful
-                    }
-                }
-                res.isSuccessful
-            } catch (e: Exception) {
-                Log.e("PushManager", "飞书推送失败", e)
-                false
-            }
+        val isBotHook = feishuBotHookRegex.containsMatchIn(url)
+        val isFeishuWorkflow = feishuWorkflowRegex.containsMatchIn(url)
+        if (isFeishuWorkflow) Log.d("PushManager", "飞书企业工作流 webhook: $url")
+        // 官方机器人 hook 且配置了密钥 → 带签名；其余（含企业工作流、自建中转）→ 纯文本 JSON 透传
+        val json = if (isBotHook && secret.isNotBlank()) {
+            val timestamp = System.currentTimeMillis().toString()
+            val stringToSign = "$timestamp\n$secret"
+            val sign = hmacSha256(secret, stringToSign)
+            """{"msg_type":"text","content":{"text":"${escapeJson(text)}"},"timestamp":"$timestamp","sign":"$sign"}"""
         } else {
-            Log.d("PushManager", "飞书URL格式不正确: $url")
+            """{"msg_type":"text","content":{"text":"${escapeJson(text)}"}}"""
+        }
+        try {
+            val body = json.toRequestBody(mediaType)
+            val req = Request.Builder()
+                .url(url)
+                .post(body)
+                .header("Content-Type", "application/json; charset=utf-8")
+                .build()
+            val res = client.newCall(req).execute()
+            val response = res.body?.string()
+            Log.d("PushManager", "飞书推送响应: $response")
+            res.close()
+
+            if (response != null) {
+                val jsonResponse = try {
+                    org.json.JSONObject(response)
+                } catch (e: Exception) {
+                    null
+                }
+                jsonResponse?.let {
+                    val code = it.optInt("code", -1)
+                    val statusCode = it.optInt("StatusCode", -1)
+                    return@withContext code == 0 || statusCode == 0 || res.isSuccessful
+                }
+            }
+            res.isSuccessful
+        } catch (e: Exception) {
+            Log.e("PushManager", "飞书推送失败", e)
             false
         }
     }
