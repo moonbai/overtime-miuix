@@ -1,335 +1,133 @@
 package com.mars.overtime.ui.screen
 
 import androidx.compose.foundation.background
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
-import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
-import com.mars.overtime.ui.snackbar.dismissDeleteSnackbars
-import com.mars.overtime.ui.snackbar.showCustomToast
-import com.mars.overtime.util.SalaryCalculator
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.*
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import com.mars.overtime.ui.theme.AppBody1Medium
-import com.mars.overtime.ui.theme.AppBody1Semibold
+import com.mars.overtime.data.repository.SettingsRepository.Companion.DEFAULT_HOME_WIDGETS
 import com.mars.overtime.ui.theme.AppDimens
 import com.mars.overtime.ui.theme.AppIconSize
 import com.mars.overtime.ui.theme.AppShapes
-import com.mars.overtime.ui.theme.AppHeadline2Bold
 import com.mars.overtime.ui.theme.AppTitle3Semibold
+import com.mars.overtime.ui.theme.AppHeadline2Bold
+import com.mars.overtime.util.SalaryCalculator
+import top.yukonga.miuix.kmp.basic.*
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
-/** 首页记录筛选：全部 / 请假 / 按类型 */
-private sealed class RecordFilter {
-    object All : RecordFilter()
-    object Leave : RecordFilter()
-    data class Type(val t: OvertimeType) : RecordFilter()
-}
-
+/**
+ * 首页：信息面板。
+ * 结构 = 月度概览卡（总览 / 分类两种模式）+ 可自定义小组件网格（2 列），
+ * 完整的记录浏览 / 搜索 / 筛选 / 删除已拆分到 [RecordsPage]（底栏「记录」）。
+ *
+ * 小组件的启用与排序在「设置 → 首页小组件」配置，
+ * 概览卡右上角的「编辑」入口可直达该配置页。
+ */
 @Composable
 fun HomePage(
     navController: NavHostController,
     repository: OvertimeRepository,
     settingsRepository: SettingsRepository,
-    topReserve: Dp = 0.dp,
-    bottomReserve: Dp = 0.dp,
+    onOpenRecords: () -> Unit = {},
+    topReserve: androidx.compose.ui.unit.Dp = 0.dp,
+    bottomReserve: androidx.compose.ui.unit.Dp = 0.dp,
     listState: LazyListState = rememberLazyListState()
 ) {
     val records by repository.getAllRecords().collectAsState(initial = emptyList())
     val currentMonth = remember { SalaryCalculator.getCurrentYearMonth() }
-    val scope = rememberCoroutineScope()
-    val snackbarHostState = LocalSnackbarHostState.current
 
-    // 用户配置的加班类型配色，用于首页记录标题与统计保持一致
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
     val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
     val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
-    // 「删除二次确认」设置项：关闭时直接删除，仅靠 Snackbar 撤销
-    val deleteConfirmEnabled by settingsRepository.deleteConfirmEnabled.collectAsState(initial = true)
+    val overviewMode by settingsRepository.homeOverviewMode.collectAsState(initial = "total")
+    val widgetIds by settingsRepository.homeWidgets.collectAsState(initial = DEFAULT_HOME_WIDGETS)
 
-    // 搜索与筛选
-    var searchQuery by remember { mutableStateOf("") }
-    var recordFilter by remember { mutableStateOf<RecordFilter>(RecordFilter.All) }
+    // 用户配置的类型色（与统计页同源），分类概览与组件色条共用
+    val typeColor: (OvertimeType) -> Color = { type ->
+        when (type) {
+            OvertimeType.WORKDAY -> Color(typeColorWorkday)
+            OvertimeType.WEEKEND -> Color(typeColorWeekend)
+            OvertimeType.HOLIDAY -> Color(typeColorHoliday)
+        }
+    }
 
-    // 删除确认对话框
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var selectedRecord by remember { mutableStateOf<OvertimeRecord?>(null) }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        state = listState,
+        contentPadding = PaddingValues(
+            start = AppDimens.pageHorizontal,
+            top = AppDimens.pageVertical + topReserve,
+            end = AppDimens.pageHorizontal,
+            bottom = AppDimens.pageVertical + bottomReserve
+        ),
+        verticalArrangement = Arrangement.spacedBy(AppDimens.groupSpacing)
+    ) {
+        item {
+            MonthlyOverviewCard(
+                repository = repository,
+                month = currentMonth,
+                records = records,
+                mode = overviewMode,
+                typeColor = typeColor,
+                onEdit = { navController.navigate("home_widgets") }
+            )
+        }
 
-    /**
-     * 连续删除的撤销批次：关闭二次确认后用户可能快速连点删除，
-     * 这些记录统一交给「最新一条」撤销提示承载，撤销时一次性全部恢复。
-     */
-    val pendingDeletes = remember { mutableListOf<OvertimeRecord>() }
-    // 串行化批次更新，避免多个删除协程交错导致提示残留或批次错乱
-    val deleteMutex = remember { Mutex() }
-    var undoJob by remember { mutableStateOf<Job?>(null) }
-    var undoGeneration by remember { mutableStateOf(0) }
-
-    /**
-     * 删除并给出 4 秒撤销窗口。确认删除与「关闭二次确认」后的直接删除共用此逻辑。
-     *
-     * MIUIX 0.9.4 的 SnackbarHost 会渲染队列中的全部条目，showSnackbar 每次都是
-     * 「新增一条」而非「替换当前条」，因此连续删除会逐条叠加通知条。这里改为：
-     * 先取消并收起上一条，只显示最新的一条；连续删除的记录合并进同一批次，
-     * 既不堆叠，也不会因为旧提示被顶掉而丢失撤销能力。
-     */
-    fun performDelete(record: OvertimeRecord) {
-        scope.launch {
-            deleteMutex.withLock {
-                repository.delete(record)
-                pendingDeletes.add(record)
-
-                // 代次先递增：旧协程被 dismiss 唤醒后据此直接退出，不会误清新批次
-                val generation = ++undoGeneration
-                undoJob?.cancel()
-                snackbarHostState.dismissDeleteSnackbars()
-
-                val count = pendingDeletes.size
-                undoJob = scope.launch {
-                    val result = snackbarHostState.showSnackbar(
-                        message = if (count > 1) "已删除 $count 条记录" else "已删除记录",
-                        actionLabel = "撤销",
-                        duration = SnackbarDuration.Custom(4000)
-                    )
-                    // 已被后续删除取代：批次交由最新的提示处理，本协程不触碰
-                    if (undoGeneration != generation) return@launch
-                    if (result == SnackbarResult.ActionPerformed) {
-                        // 结果确定时立刻取走并清空批次，避免后续删除混入本次撤销
-                        val batch = deleteMutex.withLock {
-                            val snapshot = pendingDeletes.toList()
-                            pendingDeletes.clear()
-                            snapshot
-                        }
-                        batch.forEach { repository.insert(it.copy(id = 0)) }
-                        snackbarHostState.showCustomToast(
-                            if (batch.size > 1) "已撤销 ${batch.size} 条删除" else "已撤销删除"
-                        )
-                    } else {
-                        deleteMutex.withLock { pendingDeletes.clear() }
+        if (records.isEmpty()) {
+            item {
+                HomeEmptyState(
+                    onAdd = {
+                        // 连点时避免把多个 add_record 实例压入回退栈
+                        navController.navigate("add_record") { launchSingleTop = true }
                     }
-                }
-            }
-        }
-    }
-
-    // 过滤 + 按月分组（倒序）
-    val monthFormatter = remember { SimpleDateFormat("yyyy-MM", Locale.getDefault()) }
-    val grouped by remember(records, searchQuery, recordFilter) {
-        derivedStateOf {
-            val q = searchQuery.trim()
-            records.filter { rec ->
-                val currentFilter = recordFilter
-                val matchFilter = when (currentFilter) {
-                    RecordFilter.All -> true
-                    RecordFilter.Leave -> rec.isLeave
-                    is RecordFilter.Type -> !rec.isLeave && rec.type == currentFilter.t
-                }
-                val matchQuery = q.isEmpty() || rec.note.contains(q, ignoreCase = true)
-                        || monthFormatter.format(Date(rec.date)).contains(q)
-                        || SalaryCalculator.formatHours(rec.durationHours).contains(q)
-                matchFilter && matchQuery
-            }.groupBy { monthFormatter.format(Date(it.date)) }
-                .toSortedMap(compareByDescending { it })
-        }
-    }
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            state = listState,
-            contentPadding = PaddingValues(
-                start = AppDimens.pageHorizontal,
-                top = AppDimens.pageVertical + topReserve,
-                end = AppDimens.pageHorizontal,
-                bottom = AppDimens.pageVertical + bottomReserve
-            ),
-            verticalArrangement = Arrangement.spacedBy(AppDimens.groupSpacing)
-        ) {
-            item {
-                MonthlyOverviewCard(repository, currentMonth, records)
-            }
-
-            // 搜索框（添加入口已收敛到底部 FAB，避免与悬浮加号重复）
-            item {
-                TextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    label = "搜索备注 / 月份",
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
                 )
             }
-
-            // 筛选 chips
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip("全部", recordFilter is RecordFilter.All) { recordFilter = RecordFilter.All }
-                    FilterChip("工作日", recordFilter is RecordFilter.Type && (recordFilter as RecordFilter.Type).t == OvertimeType.WORKDAY) {
-                        recordFilter = RecordFilter.Type(OvertimeType.WORKDAY)
-                    }
-                    FilterChip("休息日", recordFilter is RecordFilter.Type && (recordFilter as RecordFilter.Type).t == OvertimeType.WEEKEND) {
-                        recordFilter = RecordFilter.Type(OvertimeType.WEEKEND)
-                    }
-                    FilterChip("节假日", recordFilter is RecordFilter.Type && (recordFilter as RecordFilter.Type).t == OvertimeType.HOLIDAY) {
-                        recordFilter = RecordFilter.Type(OvertimeType.HOLIDAY)
-                    }
-                    FilterChip("请假", recordFilter is RecordFilter.Leave) { recordFilter = RecordFilter.Leave }
-                }
-            }
-
-            if (records.isEmpty()) {
-                item {
-                    HomeEmptyState(
-                        onAdd = {
-                            // 连点时避免把多个 add_record 实例压入回退栈
-                            navController.navigate("add_record") { launchSingleTop = true }
-                        }
-                    )
-                }
-            } else if (grouped.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 40.dp),
-                        contentAlignment = Alignment.Center
+        } else {
+            // 启用的小组件按配置顺序 2 列铺排；不足一行的保持左对齐
+            val rows = widgetIds.chunked(2)
+            rows.forEach { rowIds ->
+                item(key = rowIds.joinToString("_")) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(AppDimens.groupSpacing)
                     ) {
-                        Text(
-                            text = "没有匹配的记录",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        )
-                    }
-                }
-            } else {
-                grouped.forEach { (month, list) ->
-                    val parts = month.split("-")
-                    stickyHeader {
-                        Surface(
-                            color = MiuixTheme.colorScheme.surface,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 6.dp, horizontal = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "${parts[0]}年${parts[1]}月",
-                                    style = AppTitle3Semibold(),
-                                    color = MiuixTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "${list.size}条",
-                                    style = MiuixTheme.textStyles.footnote1,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                )
-                            }
+                        rowIds.forEach { id ->
+                            HomeWidgetCard(
+                                widgetId = id,
+                                records = records,
+                                month = currentMonth,
+                                typeColor = typeColor,
+                                modifier = Modifier.weight(1f),
+                                onOpenStats = { navController.navigate("statistics") },
+                                onOpenRecords = onOpenRecords
+                            )
                         }
-                    }
-                    items(list, key = { it.id }) { record ->
-                        RecordCard(
-                            record = record,
-                            typeColorWorkday = typeColorWorkday,
-                            typeColorWeekend = typeColorWeekend,
-                            typeColorHoliday = typeColorHoliday,
-                            onClick = { navController.navigate("edit_record/${record.id}") },
-                            onDelete = {
-                                if (deleteConfirmEnabled) {
-                                    selectedRecord = record
-                                    showDeleteDialog = true
-                                } else {
-                                    performDelete(record)
-                                }
-                            }
-                        )
+                        // 单数行补位，保持卡片等宽
+                        if (rowIds.size == 1) Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
         }
-    }
-
-    BackHandler(enabled = showDeleteDialog) { showDeleteDialog = false }
-    OverlayDialog(
-        show = showDeleteDialog,
-        title = "确认删除",
-        summary = "确定要删除这条记录吗？",
-        onDismissRequest = { showDeleteDialog = false }
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            TextButton(
-                text = "取消",
-                onClick = { showDeleteDialog = false },
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            TextButton(
-                text = "删除",
-                onClick = {
-                    val rec = selectedRecord
-                    showDeleteDialog = false
-                    rec?.let { performDelete(it) }
-                },
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-}
-
-@Composable
-private fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit) {
-    // MIUIX 的 Surface(onClick) 重载自带标准按压反馈与内容色透传，
-    // 替代原先「Surface + clickable + 手写文字色」的组合
-    Surface(
-        onClick = onClick,
-        color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.secondaryContainer,
-        contentColor = if (selected) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSecondaryContainer,
-        shape = AppShapes.radiusLg
-    ) {
-        Text(
-            text = text,
-            style = MiuixTheme.textStyles.footnote1,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-        )
     }
 }
 
@@ -337,7 +135,10 @@ private fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit) {
 private fun MonthlyOverviewCard(
     repository: OvertimeRepository,
     month: String,
-    records: List<OvertimeRecord>
+    records: List<OvertimeRecord>,
+    mode: String,
+    typeColor: (OvertimeType) -> Color,
+    onEdit: () -> Unit
 ) {
     var stats by remember { mutableStateOf<com.mars.overtime.data.repository.MonthlyStats?>(null) }
 
@@ -345,6 +146,26 @@ private fun MonthlyOverviewCard(
     LaunchedEffect(month, records) {
         stats = repository.getMonthlyStats(month)
     }
+
+    // 分类模式：本月三类加班工时（请假为负数的休息日，不单独分色，仅体现在净时长）
+    val typeHours = remember(records, month) {
+        val cal = Calendar.getInstance()
+        var workday = 0.0; var weekend = 0.0; var holiday = 0.0; var leave = 0.0
+        records.forEach { rec ->
+            cal.timeInMillis = rec.date
+            val m = "${cal.get(Calendar.YEAR)}-${(cal.get(Calendar.MONTH) + 1).toString().padStart(2, '0')}"
+            if (m == month) {
+                if (rec.isLeave) leave += rec.durationHours
+                else when (rec.type) {
+                    OvertimeType.WORKDAY -> workday += rec.durationHours
+                    OvertimeType.WEEKEND -> weekend += rec.durationHours
+                    OvertimeType.HOLIDAY -> holiday += rec.durationHours
+                }
+            }
+        }
+        Triple(workday, weekend, holiday) to leave
+    }
+    val maxType = maxOf(typeHours.first.first, typeHours.first.second, typeHours.first.third, 0.001)
 
     Card(
         modifier = Modifier
@@ -355,19 +176,104 @@ private fun MonthlyOverviewCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Text(
-                text = "$month 概览",
-                style = AppTitle3Semibold(),
-                color = MiuixTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                StatItem("总时长", stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0小时")
-                StatItem("预估薪资", stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
-                StatItem("记录数", "${stats?.recordCount ?: 0}条")
+                Text(
+                    text = "$month 概览",
+                    style = AppTitle3Semibold(),
+                    color = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f)
+                )
+                // 小组件配置快捷入口：直达「设置 → 首页小组件」
+                Surface(
+                    onClick = onEdit,
+                    color = MiuixTheme.colorScheme.secondaryContainer,
+                    contentColor = MiuixTheme.colorScheme.onSecondaryContainer,
+                    shape = AppShapes.radiusLg
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            MiuixIcons.Settings,
+                            contentDescription = "编辑小组件",
+                            modifier = Modifier.size(AppIconSize.xs)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "编辑",
+                            style = MiuixTheme.textStyles.footnote1
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            if (mode == "by_type") {
+                // 分类模式：净时长为主数字，三类加班以类型色条并列展示
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    StatItem(
+                        "净时长",
+                        stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0小时"
+                    )
+                    StatItem("预估薪资", stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
+                    StatItem("记录数", "${stats?.recordCount ?: 0}条")
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                listOf(
+                    OvertimeType.WORKDAY to typeHours.first.first,
+                    OvertimeType.WEEKEND to typeHours.first.second,
+                    OvertimeType.HOLIDAY to typeHours.first.third
+                ).forEach { (type, hours) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = type.label,
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = typeColor(type),
+                            modifier = Modifier.width(48.dp)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(8.dp)
+                                .background(MiuixTheme.colorScheme.secondaryContainer, AppShapes.radiusSm)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth((hours / maxType).toFloat().coerceIn(0f, 1f))
+                                    .height(8.dp)
+                                    .background(typeColor(type), AppShapes.radiusSm)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = SalaryCalculator.formatHours(hours),
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.width(56.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End
+                        )
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    StatItem("总时长", stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0小时")
+                    StatItem("预估薪资", stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
+                    StatItem("记录数", "${stats?.recordCount ?: 0}条")
+                }
             }
         }
     }
@@ -388,6 +294,156 @@ private fun StatItem(label: String, value: String) {
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
         )
+    }
+}
+
+/** 小组件元信息：id → 标题，与 SettingsRepository.HomeWidgetIds 对应 */
+private fun widgetTitle(id: String): String = when (id) {
+    "month_hours" -> "当月工时"
+    "last_month_hours" -> "上月工时"
+    "month_salary" -> "本月薪资"
+    "year_total" -> "年度累计"
+    "month_leave" -> "当月请假"
+    "latest_record" -> "最近记录"
+    else -> id
+}
+
+/**
+ * 单个小组件卡片。数据全部由 records 内存聚合（口径与统计页一致：请假为负抵扣），
+ * 点击跳转：统计类 → 统计页；记录类 → 记录页。
+ */
+@Composable
+private fun HomeWidgetCard(
+    widgetId: String,
+    records: List<OvertimeRecord>,
+    month: String,
+    typeColor: (OvertimeType) -> Color,
+    modifier: Modifier = Modifier,
+    onOpenStats: () -> Unit,
+    onOpenRecords: () -> Unit
+) {
+    // 统一聚合：本月/上月/本年各类数据一次算好，各组件按需取用
+    data class Agg(
+        val monthNet: Double, val monthCount: Int,
+        val lastMonthNet: Double, val lastMonthCount: Int,
+        val monthAmount: Double,
+        val yearNet: Double, val yearAmount: Double,
+        val monthLeaveCount: Int, val monthLeaveDeduct: Double,
+        val latest: OvertimeRecord?
+    )
+    val agg = remember(records, month) {
+        val cal = Calendar.getInstance()
+        val year = month.substringBefore("-").toIntOrNull() ?: cal.get(Calendar.YEAR)
+        val mon = month.substringAfter("-").toIntOrNull() ?: (cal.get(Calendar.MONTH) + 1)
+        val fmt = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+        var mNet = 0.0; var mCount = 0; var lNet = 0.0; var lCount = 0
+        var mAmount = 0.0; var mLeaveCount = 0; var mLeaveDeduct = 0.0
+        var yNet = 0.0; var yAmount = 0.0
+        records.forEach { rec ->
+            cal.timeInMillis = rec.date
+            val y = cal.get(Calendar.YEAR)
+            val m = cal.get(Calendar.MONTH) + 1
+            if (y == year && m == mon) {
+                mNet += rec.durationHours
+                mAmount += rec.amount
+                mCount++
+                if (rec.isLeave) {
+                    mLeaveCount++
+                    mLeaveDeduct += kotlin.math.abs(rec.amount)
+                }
+            } else if (y == year && m == mon - 1 || (mon == 1 && y == year - 1 && m == 12)) {
+                lNet += rec.durationHours
+                lCount++
+            }
+            if (y == year) {
+                yNet += rec.durationHours
+                yAmount += rec.amount
+            }
+        }
+        Agg(mNet, mCount, lNet, lCount, mAmount, yNet, yAmount, mLeaveCount, mLeaveDeduct, records.maxByOrNull { it.date })
+    }
+
+    // 值 / 副文案 / 点击目标按组件类型分别取数
+    val (value, sub, onClick) = when (widgetId) {
+        "month_hours" -> Triple(
+            SalaryCalculator.formatHours(agg.monthNet),
+            when {
+                agg.lastMonthNet <= 0.0 && agg.monthNet <= 0.0 -> "上月无记录"
+                agg.monthNet >= agg.lastMonthNet -> "较上月 +${SalaryCalculator.formatHours(agg.monthNet - agg.lastMonthNet)}"
+                else -> "较上月 -${SalaryCalculator.formatHours(agg.lastMonthNet - agg.monthNet)}"
+            },
+            onOpenStats
+        )
+        "last_month_hours" -> Triple(
+            SalaryCalculator.formatHours(agg.lastMonthNet),
+            "${agg.lastMonthCount}条记录",
+            onOpenStats
+        )
+        "month_salary" -> Triple(
+            SalaryCalculator.formatAmount(agg.monthAmount),
+            "含请假扣款",
+            onOpenStats
+        )
+        "year_total" -> Triple(
+            SalaryCalculator.formatHours(agg.yearNet),
+            SalaryCalculator.formatAmount(agg.yearAmount),
+            onOpenStats
+        )
+        "month_leave" -> Triple(
+            "${agg.monthLeaveCount}次",
+            if (agg.monthLeaveCount > 0) "扣款 ${SalaryCalculator.formatAmount(agg.monthLeaveDeduct)}" else "本月无请假",
+            onOpenRecords
+        )
+        "latest_record" -> {
+            val latest = agg.latest
+            val cal = Calendar.getInstance().apply { timeInMillis = latest?.date ?: 0L }
+            Triple(
+                if (latest != null) {
+                    if (latest.isLeave) "请假" else latest.type.label
+                } else "暂无记录",
+                if (latest != null) {
+                    "${cal.get(Calendar.MONTH) + 1}月${cal.get(Calendar.DAY_OF_MONTH)}日 · " +
+                        SalaryCalculator.formatHours(kotlin.math.abs(latest.durationHours))
+                } else "去记录页添加",
+                onOpenRecords
+            )
+        }
+        else -> Triple("--", "", onOpenStats)
+    }
+
+    Card(
+        modifier = modifier,
+        cornerRadius = AppDimens.cardCorner,
+        insideMargin = PaddingValues(14.dp),
+        onClick = onClick,
+        showIndication = true,
+        pressFeedbackType = PressFeedbackType.Sink
+    ) {
+        Column {
+            Text(
+                text = widgetTitle(widgetId),
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = value,
+                style = AppHeadline2Bold(),
+                color = MiuixTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = sub,
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -465,119 +521,6 @@ private fun HomeEmptyState(onAdd: () -> Unit) {
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text("添加记录", fontWeight = FontWeight.Medium)
-        }
-    }
-}
-
-@Composable
-private fun RecordCard(
-    record: OvertimeRecord,
-    typeColorWorkday: Int,
-    typeColorWeekend: Int,
-    typeColorHoliday: Int,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
-) {
-    // 日期格式：同年显示 MM-dd，跨年显示 yyyy-MM-dd
-    val cal = Calendar.getInstance().apply { time = Date(record.date) }
-    val now = Calendar.getInstance()
-    val datePattern = if (cal.get(Calendar.YEAR) == now.get(Calendar.YEAR)) "MM-dd" else "yyyy-MM-dd"
-    val dateStr = SimpleDateFormat(datePattern, Locale.getDefault()).format(Date(record.date))
-    val displayLabel = if (record.isLeave) "请假" else record.type.label
-    val typeColor = if (record.isLeave) {
-        MiuixTheme.colorScheme.error
-    } else {
-        when (record.type) {
-            OvertimeType.WORKDAY -> Color(typeColorWorkday)
-            OvertimeType.WEEKEND -> Color(typeColorWeekend)
-            OvertimeType.HOLIDAY -> Color(typeColorHoliday)
-        }
-    }
-
-    // MIUIX Card 的 onClick 重载提供标准涟漪 + 按下下沉反馈，
-    // 替代原先外挂 clickable（无视觉反馈、点击区域与卡片圆角不一致）
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        cornerRadius = AppDimens.cardCorner,
-        insideMargin = PaddingValues(12.dp),
-        onClick = onClick,
-        showIndication = true,
-        pressFeedbackType = PressFeedbackType.Sink
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(AppDimens.typeBarWidth)
-                    .height(40.dp)
-                    .background(typeColor, RoundedCornerShape(AppDimens.chartBarRadius))
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = dateStr,
-                        style = AppBody1Medium(),
-                        color = MiuixTheme.colorScheme.onSurface
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = displayLabel,
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = typeColor
-                    )
-                    if (record.isLeave) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            color = MiuixTheme.colorScheme.error.copy(alpha = 0.1f),
-                            shape = AppShapes.radiusSm
-                        ) {
-                            Text(
-                                text = "扣薪",
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = MiuixTheme.colorScheme.error,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-                if (record.note.isNotBlank()) {
-                    Text(
-                        text = record.note,
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        maxLines = 1
-                    )
-                }
-            }
-
-            Column(horizontalAlignment = Alignment.End) {
-                // 请假金额为负扣减，用错误色突出
-                Text(
-                    text = SalaryCalculator.formatAmount(record.amount),
-                    style = AppBody1Semibold(),
-                    color = if (record.isLeave) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary
-                )
-                Text(
-                    // 请假在库中存负时长用于统计抵扣，列表里按正数展示并标注「请假」
-                    text = if (record.isLeave) {
-                        "请假 " + SalaryCalculator.formatHours(kotlin.math.abs(record.durationHours))
-                    } else {
-                        SalaryCalculator.formatHours(record.durationHours)
-                    },
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
-            }
-
-            IconButton(onClick = onDelete) {
-                Icon(MiuixIcons.Delete, contentDescription = "删除", tint = MiuixTheme.colorScheme.error)
-            }
         }
     }
 }

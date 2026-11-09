@@ -559,6 +559,14 @@ fun MainNavHost(
                 )
             }
         }
+        composable("home_widgets") {
+            PageSnackbarScope {
+                HomeWidgetsSettingsPage(
+                    navController = navController,
+                    settingsRepository = settingsRepository
+                )
+            }
+        }
         composable("about") {
             PageSnackbarScope { AboutPage(navController = navController) }
         }

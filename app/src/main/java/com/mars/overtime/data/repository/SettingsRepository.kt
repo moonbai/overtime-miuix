@@ -21,6 +21,20 @@ class SettingsRepository(private val context: Context) {
     // 删除二次确认开关（关闭后点删除立即移除记录，配合可撤销通知条兜底）
     val deleteConfirmEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_DELETE_CONFIRM] ?: true }
 
+    // 首页小组件：启用并按此顺序展示（逗号分隔的组件 id）。
+    // 读取时过滤掉未知 id（版本演进后旧配置不崩），空配置回退默认值。
+    val homeWidgets: Flow<List<String>> = context.dataStore.data.map { prefs ->
+        val saved = prefs[KEY_HOME_WIDGETS]
+            ?.split(',')
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() && HomeWidgetIds.contains(it) }
+            .orEmpty()
+        if (saved.isEmpty()) DEFAULT_HOME_WIDGETS else saved
+    }
+
+    // 首页概览卡展示模式：total=总时长/薪资/记录数；by_type=净时长+分类型工时
+    val homeOverviewMode: Flow<String> = context.dataStore.data.map { it[KEY_HOME_OVERVIEW_MODE] ?: "total" }
+
     // Monet 动态取色（使用系统壁纸动态配色）
     val monetEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_MONET_ENABLED] ?: false }
 
@@ -113,6 +127,12 @@ class SettingsRepository(private val context: Context) {
     suspend fun setBottomBarStyle(style: String) { context.dataStore.edit { it[KEY_BOTTOM_BAR_STYLE] = style } }
     suspend fun setQuickSubmit(enabled: Boolean) { context.dataStore.edit { it[KEY_QUICK_SUBMIT] = enabled } }
     suspend fun setDeleteConfirmEnabled(enabled: Boolean) { context.dataStore.edit { it[KEY_DELETE_CONFIRM] = enabled } }
+    suspend fun setHomeWidgets(ids: List<String>) {
+        context.dataStore.edit { it[KEY_HOME_WIDGETS] = ids.joinToString(",") }
+    }
+    suspend fun setHomeOverviewMode(mode: String) {
+        context.dataStore.edit { it[KEY_HOME_OVERVIEW_MODE] = if (mode == "by_type") "by_type" else "total" }
+    }
     suspend fun setMonetEnabled(enabled: Boolean) { context.dataStore.edit { it[KEY_MONET_ENABLED] = enabled } }
     suspend fun setUseFloatingNav(enabled: Boolean) { context.dataStore.edit { it[KEY_FLOATING_NAV] = enabled } }
     suspend fun setFloatingNavBottomOffset(dp: Int) {
@@ -227,6 +247,8 @@ class SettingsRepository(private val context: Context) {
                     KEY_PUSH_CUSTOM.name -> prefs[KEY_PUSH_CUSTOM] = value
                     KEY_PUSH_CUSTOM_HEADERS.name -> prefs[KEY_PUSH_CUSTOM_HEADERS] = value
                     KEY_DELETE_CONFIRM.name -> prefs[KEY_DELETE_CONFIRM] = value.toBoolean()
+                    KEY_HOME_WIDGETS.name -> prefs[KEY_HOME_WIDGETS] = value
+                    KEY_HOME_OVERVIEW_MODE.name -> prefs[KEY_HOME_OVERVIEW_MODE] = value
                     KEY_CALENDAR_SYNC.name -> prefs[KEY_CALENDAR_SYNC] = value.toBoolean()
                     KEY_WEBDAV_ENABLED.name -> prefs[KEY_WEBDAV_ENABLED] = value.toBoolean()
                     KEY_WEBDAV_URL.name -> prefs[KEY_WEBDAV_URL] = value
@@ -284,6 +306,8 @@ class SettingsRepository(private val context: Context) {
             KEY_PUSH_CUSTOM.name to pushCustom.first(),
             KEY_PUSH_CUSTOM_HEADERS.name to pushCustomHeaders.first(),
             KEY_DELETE_CONFIRM.name to deleteConfirmEnabled.first().toString(),
+            KEY_HOME_WIDGETS.name to homeWidgets.first().joinToString(","),
+            KEY_HOME_OVERVIEW_MODE.name to homeOverviewMode.first(),
             KEY_CALENDAR_SYNC.name to calendarSyncEnabled.first().toString(),
             KEY_WEBDAV_ENABLED.name to webdavEnabled.first().toString(),
             KEY_WEBDAV_URL.name to webdavUrl.first(),
@@ -306,6 +330,17 @@ class SettingsRepository(private val context: Context) {
         private val KEY_BOTTOM_BAR_STYLE = stringPreferencesKey("bottom_bar_style")
         private val KEY_QUICK_SUBMIT = booleanPreferencesKey("quick_submit")
         private val KEY_DELETE_CONFIRM = booleanPreferencesKey("delete_confirm")
+        private val KEY_HOME_WIDGETS = stringPreferencesKey("home_widgets")
+        private val KEY_HOME_OVERVIEW_MODE = stringPreferencesKey("home_overview_mode")
+
+        /** 首页小组件全量 id 集合，与 ui/screen/HomeWidget 定义保持一致 */
+        val HomeWidgetIds = setOf(
+            "month_hours", "last_month_hours", "month_salary",
+            "year_total", "month_leave", "latest_record"
+        )
+
+        /** 未配置时的默认小组件：当月工时 / 本月薪资 / 上月工时 / 年度累计 */
+        val DEFAULT_HOME_WIDGETS = listOf("month_hours", "month_salary", "last_month_hours", "year_total")
         private val KEY_MONET_ENABLED = booleanPreferencesKey("monet_enabled")
         private val KEY_FLOATING_NAV = booleanPreferencesKey("floating_nav")
         private val KEY_FLOATING_NAV_BOTTOM_OFFSET = intPreferencesKey("floating_nav_bottom_offset")

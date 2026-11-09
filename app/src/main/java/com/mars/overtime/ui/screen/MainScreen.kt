@@ -62,11 +62,15 @@ fun MainScreen(
     val quickScope = rememberCoroutineScope()
 
     // 首页列表状态由 MainScreen 持有：重复点击「首页」tab 时平滑回到顶部，
-    // 记录多、下滑很深时无需手动一路滚回。
+    // 记录多、下滑很深时无需手动一路滚回。记录页同理。
     val homeListState = rememberLazyListState()
+    val recordsListState = rememberLazyListState()
     val scrollScope = rememberCoroutineScope()
     fun scrollHomeToTop() {
         scrollScope.launch { homeListState.animateScrollToItem(0) }
+    }
+    fun scrollRecordsToTop() {
+        scrollScope.launch { recordsListState.animateScrollToItem(0) }
     }
 
     // 普通底栏显示模式（miuix 0.9.3：NavigationBarDisplayMode.TextOnly 已移除，仅保留图标/图标+文字）
@@ -138,10 +142,10 @@ fun MainScreen(
             ) {
                 SmallTopAppBar(
                     title = when (selectedTab) {
-                        0 -> "加班记录"
-                        1 -> "统计"
-                        2 -> "设置"
-                        else -> "加班记录"
+                        0 -> "首页"
+                        1 -> "加班记录"
+                        2 -> "统计"
+                        else -> "设置"
                     },
                     color = if (blurSupported) Color.Transparent
                     else MiuixTheme.colorScheme.surface
@@ -177,13 +181,21 @@ fun MainScreen(
                         )
                         NavigationBarItem(
                             selected = selectedTab == 1,
-                            onClick = { selectedTab = 1 },
-                            icon = MiuixIcons.Months,
-                            label = "统计"
+                            onClick = {
+                                if (selectedTab == 1) scrollRecordsToTop() else selectedTab = 1
+                            },
+                            icon = MiuixIcons.Notes,
+                            label = "记录"
                         )
                         NavigationBarItem(
                             selected = selectedTab == 2,
                             onClick = { selectedTab = 2 },
+                            icon = MiuixIcons.Months,
+                            label = "统计"
+                        )
+                        NavigationBarItem(
+                            selected = selectedTab == 3,
+                            onClick = { selectedTab = 3 },
                             icon = MiuixIcons.Settings,
                             label = "设置"
                         )
@@ -231,18 +243,27 @@ fun MainScreen(
                         navController = navController,
                         repository = repository,
                         settingsRepository = settingsRepository,
+                        onOpenRecords = { selectedTab = 1 },
                         topReserve = topReserve,
                         bottomReserve = bottomReserve,
                         listState = homeListState
                     )
-                    1 -> StatisticsPage(
+                    1 -> RecordsPage(
+                        navController = navController,
+                        repository = repository,
+                        settingsRepository = settingsRepository,
+                        topReserve = topReserve,
+                        bottomReserve = bottomReserve,
+                        listState = recordsListState
+                    )
+                    2 -> StatisticsPage(
                         navController = navController,
                         repository = repository,
                         settingsRepository = settingsRepository,
                         topReserve = topReserve,
                         bottomReserve = bottomReserve
                     )
-                    2 -> SettingsPage(
+                    3 -> SettingsPage(
                         navController = navController,
                         topReserve = topReserve,
                         bottomReserve = bottomReserve
@@ -255,9 +276,13 @@ fun MainScreen(
                 LiquidFloatingNavBar(
                     selectedTab = selectedTab,
                     onTabSelected = { index ->
-                        // 与普通底栏保持一致：重复点击「首页」回到顶部
-                        if (index == 0 && selectedTab == 0) scrollHomeToTop()
-                        else selectedTab = index
+                        // 与普通底栏保持一致：重复点击「首页 / 记录」回到对应列表顶部
+                        if (index == selectedTab) {
+                            when (index) {
+                                0 -> scrollHomeToTop()
+                                1 -> scrollRecordsToTop()
+                            }
+                        } else selectedTab = index
                     },
                     backdrop = navBackdrop,
                     blurSupported = blurSupported,
@@ -270,7 +295,7 @@ fun MainScreen(
                 )
 
                 // 悬浮模式首页 FAB：位于悬浮底栏上方；未添加任何记录时隐藏
-                if (hasRecords && selectedTab == 0) {
+                if (hasRecords && (selectedTab == 0 || selectedTab == 1)) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
@@ -289,7 +314,7 @@ fun MainScreen(
             }
 
             // 普通模式首页 FAB：位于普通底栏上方；未添加任何记录时隐藏
-            if (!useFloatingNav && hasRecords && selectedTab == 0) {
+            if (!useFloatingNav && hasRecords && (selectedTab == 0 || selectedTab == 1)) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -349,6 +374,7 @@ private fun LiquidFloatingNavBar(
 ) {
     val items = listOf(
         AppIcons.Home to "首页",
+        MiuixIcons.Notes to "记录",
         MiuixIcons.Months to "统计",
         MiuixIcons.Settings to "设置"
     )

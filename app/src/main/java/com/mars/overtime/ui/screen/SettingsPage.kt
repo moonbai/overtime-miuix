@@ -94,6 +94,12 @@ fun SettingsPage(
                     icon = MiuixIcons.Theme,
                     onClick = { navController.navigate("appearance_settings") }
                 )
+                SettingsActionItem(
+                    title = "首页小组件",
+                    summary = "概览展示模式与小组件的启用、排序",
+                    icon = MiuixIcons.Album,
+                    onClick = { navController.navigate("home_widgets") }
+                )
             }
         }
 
