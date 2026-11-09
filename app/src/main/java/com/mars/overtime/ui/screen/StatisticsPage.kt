@@ -123,6 +123,7 @@ fun StatisticsPage(
     navController: NavHostController,
     repository: OvertimeRepository,
     settingsRepository: SettingsRepository,
+    initialMonth: String? = null,
     topReserve: Dp = 0.dp,
     bottomReserve: Dp = 0.dp
 ) {
@@ -152,7 +153,7 @@ fun StatisticsPage(
         }
     }
 
-    var selectedMonth by remember { mutableStateOf(SalaryCalculator.getCurrentYearMonth()) }
+    var selectedMonth by remember { mutableStateOf(initialMonth ?: SalaryCalculator.getCurrentYearMonth()) }
     var selectedYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR).toString()) }
     var viewMode by remember { mutableStateOf(StatsViewMode.MONTH) }
     var stats by remember { mutableStateOf<com.mars.overtime.data.repository.MonthlyStats?>(null) }
@@ -181,11 +182,11 @@ fun StatisticsPage(
         buildDayCategories(selectedMonth, holidayIgnoreHoliday)
     }
 
-    // 三类底色取外观设置配置的类型色，但统一压到 14% 透明度 —— 全月满铺时不再是
-    // 一片饱和色块，仅保留「工作日 / 休息日 / 节假日」的轻微色相区分，弱化整月花感；
-    // 与「类型占比 / 图例」仍然同源同色。（不另写色块说明文字，避免冗余信息。）
+    // 三类底色取外观设置配置的类型色，统一压到 22% 透明度：相比原先 14% 在深色模式下
+    // 明显更清晰（避免「看不清」），浅色模式下仍克制、不会糊成一片饱和色块；
+    // 与「类型占比 / 图例」同源同色。（不另写色块说明文字，避免冗余信息。）
     val dayBackground: (DayCategory) -> Color = { category ->
-        val alpha = 0.14f
+        val alpha = 0.22f
         when (category) {
             DayCategory.WORKDAY -> Color(typeColorWorkday).copy(alpha = alpha)
             DayCategory.REST_DAY -> Color(typeColorWeekend).copy(alpha = alpha)
@@ -339,7 +340,9 @@ fun StatisticsPage(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MiuixTheme.colorScheme.background),
         contentPadding = PaddingValues(
             start = AppDimens.pageHorizontal,
             top = AppDimens.pageVertical + topReserve,

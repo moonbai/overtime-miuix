@@ -167,7 +167,9 @@ fun RecordsPage(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MiuixTheme.colorScheme.background),
         state = listState,
         contentPadding = PaddingValues(
             start = AppDimens.pageHorizontal,

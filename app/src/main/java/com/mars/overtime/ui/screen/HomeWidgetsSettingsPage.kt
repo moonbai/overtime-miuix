@@ -1,45 +1,39 @@
 package com.mars.overtime.ui.screen
 
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.mars.overtime.data.repository.SettingsRepository
-import com.mars.overtime.data.repository.SettingsRepository.Companion.DEFAULT_HOME_WIDGETS
+import com.mars.overtime.data.repository.DEFAULT_HOME_LAYOUT
+import com.mars.overtime.data.repository.WidgetPlacement
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.snackbar.showCustomToast
+import com.mars.overtime.ui.theme.AppDimens
+import com.mars.overtime.ui.theme.AppIconSize
+import com.mars.overtime.ui.theme.AppShapes
+import com.mars.overtime.ui.theme.AppTitle3Semibold
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Switch
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/** 小组件元信息：id + 标题 + 说明（与 SettingsRepository.HomeWidgetIds 保持一致） */
-private data class WidgetMeta(val id: String, val title: String, val desc: String)
-
-private val WIDGET_POOL = listOf(
-    WidgetMeta("month_hours", "当月工时", "本月净时长，附与上月的增减对比"),
-    WidgetMeta("month_salary", "本月薪资", "本月预估薪资（含请假扣款）"),
-    WidgetMeta("last_month_hours", "上月工时", "上月净时长与记录条数"),
-    WidgetMeta("year_total", "年度累计", "本年净时长与预估薪资"),
-    WidgetMeta("month_leave", "当月请假", "本月请假次数与扣款金额"),
-    WidgetMeta("latest_record", "最近记录", "最近一条记录的类型、日期与时长")
-)
-
-private fun widgetTitle(id: String): String = WIDGET_POOL.firstOrNull { it.id == id }?.title ?: id
+/** 网格跨度中文：1x1 / 2x1 / 1x2 / 2x2 */
+private fun spanLabel(p: WidgetPlacement): String = "${p.spanX}×${p.spanY}"
 
 /**
  * 首页小组件配置页：
  * - 概览卡展示模式：总览（时长/薪资/条数）或 分类（净时长 + 分类型工时条）；
- * - 小组件：开关启用，启用项可上移 / 下移调整首页展示顺序。
+ * - 小组件：列出已添加项（含跨度），可删除；新增/调整顺序/缩放在首页长按直接完成。
  */
 @Composable
 fun HomeWidgetsSettingsPage(
@@ -50,15 +44,10 @@ fun HomeWidgetsSettingsPage(
     val snackbarHostState = LocalSnackbarHostState.current
 
     val overviewMode by settingsRepository.homeOverviewMode.collectAsState(initial = "total")
-    val enabledWidgets by settingsRepository.homeWidgets.collectAsState(initial = DEFAULT_HOME_WIDGETS)
+    val layout by settingsRepository.homeLayout.collectAsState(initial = DEFAULT_HOME_LAYOUT)
 
-    // 展示顺序：已启用（按配置顺序）在前，未启用按组件池顺序跟在后面
-    val displayList = remember(enabledWidgets) {
-        enabledWidgets + WIDGET_POOL.map { it.id }.filter { it !in enabledWidgets }
-    }
-
-    fun persist(ids: List<String>) {
-        scope.launch { settingsRepository.setHomeWidgets(ids) }
+    fun persist(items: List<WidgetPlacement>) {
+        scope.launch { settingsRepository.setHomeLayout(items) }
     }
 
     SettingsScreen(
@@ -89,69 +78,67 @@ fun HomeWidgetsSettingsPage(
         }
 
         item {
-            SettingsGroup(title = "小组件") {
+            SettingsGroup(title = "已添加组件") {
                 SettingsNote(
-                    text = "开启后显示在首页，顺序即首页排布顺序；\n点击首页概览卡右上角「编辑」也可直达本页。"
+                    text = "排序、缩放（1×1 / 2×1 / 1×2 / 2×2）与删除均在首页长按组件直接完成；\n点击下方「添加组件」可预览各种卡片样式后添加。"
                 )
-                displayList.forEachIndexed { index, id ->
-                    val enabled = id in enabledWidgets
-                    val pos = enabledWidgets.indexOf(id)
+                if (layout.isEmpty()) {
+                    Text(
+                        text = "尚未添加任何组件",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(
+                            horizontal = AppDimens.itemHorizontal,
+                            vertical = AppDimens.itemVertical
+                        )
+                    )
+                }
+                layout.forEach { p ->
+                    val def = widgetDef(p.id)
                     BasicComponent(
-                        title = widgetTitle(id),
-                        summary = WIDGET_POOL.firstOrNull { it.id == id }?.desc,
+                        title = def?.title ?: p.id,
+                        summary = "${def?.desc ?: ""}　·　大小 ${spanLabel(p)}",
                         endActions = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (enabled) {
-                                    IconButton(
-                                        onClick = {
-                                            if (pos > 0) {
-                                                persist(enabledWidgets.toMutableList().apply { add(pos, removeAt(pos - 1)) })
-                                            }
-                                        },
-                                        enabled = pos > 0
-                                    ) {
-                                        Icon(
-                                            MiuixIcons.ChevronForward,
-                                            contentDescription = "上移",
-                                            tint = if (pos > 0) MiuixTheme.colorScheme.onSurface
-                                            else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                            modifier = Modifier
-                                                .size(16.dp)
-                                                .rotate(-90f)
-                                        )
+                                IconButton(
+                                    onClick = {
+                                        persist(layout.filter { it.id != p.id })
+                                        scope.launch {
+                                            snackbarHostState.showCustomToast("已移除「${def?.title ?: p.id}」")
+                                        }
                                     }
-                                    IconButton(
-                                        onClick = {
-                                            if (pos < enabledWidgets.size - 1) {
-                                                persist(enabledWidgets.toMutableList().apply { add(pos, removeAt(pos + 1)) })
-                                            }
-                                        },
-                                        enabled = pos < enabledWidgets.size - 1
-                                    ) {
-                                        Icon(
-                                            MiuixIcons.ChevronForward,
-                                            contentDescription = "下移",
-                                            tint = if (pos < enabledWidgets.size - 1) MiuixTheme.colorScheme.onSurface
-                                            else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                            modifier = Modifier
-                                                .size(16.dp)
-                                                .rotate(90f)
-                                        )
-                                    }
+                                ) {
+                                    Icon(
+                                        MiuixIcons.Delete,
+                                        contentDescription = "移除",
+                                        tint = MiuixTheme.colorScheme.error,
+                                        modifier = Modifier.size(AppIconSize.xs)
+                                    )
                                 }
-                                Switch(
-                                    checked = enabled,
-                                    onCheckedChange = { on ->
-                                        persist(
-                                            if (on) enabledWidgets + id
-                                            else enabledWidgets.filter { it != id }
-                                        )
-                                    }
-                                )
                             }
                         }
                     )
                 }
+            }
+        }
+
+        item {
+            SettingsGroup(title = "添加") {
+                BasicComponent(
+                    title = "添加组件",
+                    summary = "预览卡片样式后添加，支持数值与多种图表",
+                    startAction = {
+                        Box(Modifier.padding(end = AppDimens.spaceSm)) {
+                            Icon(
+                                MiuixIcons.Add,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.size(AppIconSize.listIcon)
+                            )
+                        }
+                    },
+                    onClick = { navController.navigate("add_widget") }
+                )
             }
         }
     }

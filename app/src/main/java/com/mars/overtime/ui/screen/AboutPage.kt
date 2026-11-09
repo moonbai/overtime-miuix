@@ -309,7 +309,7 @@ fun AboutPage(navController: NavHostController) {
                 SettingsActionItem(
                     title = "开源仓库",
                     summary = "GitHub",
-                    icon = MiuixIcons.CloudFill,
+                    icon = MiuixIcons.Favorites,
                     onClick = { openLink(REPO_URL) }
                 )
                 SettingsActionItem(

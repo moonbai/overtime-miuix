@@ -489,12 +489,13 @@ fun MainNavHost(
                 )
             }
         }
-        composable("statistics") {
+        composable(route = "statistics?month={month}") { backStackEntry ->
             PageSnackbarScope {
                 StatisticsPage(
                     navController = navController,
                     repository = repository,
-                    settingsRepository = settingsRepository
+                    settingsRepository = settingsRepository,
+                    initialMonth = backStackEntry.arguments?.getString("month")
                 )
             }
         }
@@ -563,6 +564,15 @@ fun MainNavHost(
             PageSnackbarScope {
                 HomeWidgetsSettingsPage(
                     navController = navController,
+                    settingsRepository = settingsRepository
+                )
+            }
+        }
+        composable("add_widget") {
+            PageSnackbarScope {
+                AddWidgetPage(
+                    navController = navController,
+                    repository = repository,
                     settingsRepository = settingsRepository
                 )
             }

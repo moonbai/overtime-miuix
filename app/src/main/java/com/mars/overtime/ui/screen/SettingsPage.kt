@@ -36,7 +36,7 @@ fun SettingsPage(
         topReserve = topReserve,
         bottomReserve = bottomReserve
     ) {
-        // 入口图标语义选配：基础设置=BankCards（薪资）、类型设置=Scan（智能判定）、
+        // 入口图标语义选配：基础设置=HorizontalSplit（薪资）、类型设置=Scan（智能判定）、
         // 日历同步=Months、备份与恢复=Backup、推送设置=Send、MCP 服务=MindMap、
         // 外观设置=Theme、关于应用=Info。统一单色主题色，不再各自配色。
         item {
@@ -44,7 +44,7 @@ fun SettingsPage(
                 SettingsActionItem(
                     title = "基础设置",
                     summary = "基础薪资、加班倍率与删除确认",
-                    icon = MiuixIcons.BankCards,
+                    icon = MiuixIcons.HorizontalSplit,
                     onClick = { navController.navigate("salary_settings") }
                 )
                 SettingsActionItem(

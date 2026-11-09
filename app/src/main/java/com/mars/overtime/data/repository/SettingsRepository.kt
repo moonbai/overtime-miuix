@@ -23,13 +23,32 @@ class SettingsRepository(private val context: Context) {
 
     // 首页小组件：启用并按此顺序展示（逗号分隔的组件 id）。
     // 读取时过滤掉未知 id（版本演进后旧配置不崩），空配置回退默认值。
+    // 仅用于旧备份导入/迁移兜底，新布局由 [homeLayout] 管理。
     val homeWidgets: Flow<List<String>> = context.dataStore.data.map { prefs ->
         val saved = prefs[KEY_HOME_WIDGETS]
             ?.split(',')
             ?.map { it.trim() }
             ?.filter { it.isNotEmpty() && HomeWidgetIds.contains(it) }
             .orEmpty()
-        if (saved.isEmpty()) DEFAULT_HOME_WIDGETS else saved
+        if (saved.isEmpty()) DEFAULT_HOME_LAYOUT.map { it.id } else saved
+    }
+
+    // 首页小组件布局：带跨度的有序列表（id + spanX + spanY），支持 1x1/2x1/1x2/2x2。
+    // 优先读新格式 `home_layout`；缺失时回退旧 `home_widgets`（全部按 1x1 处理），
+    // 再缺失回退默认布局。写入统一走 [setHomeLayout] 落到 `home_layout`。
+    val homeLayout: Flow<List<WidgetPlacement>> = context.dataStore.data.map { prefs ->
+        val layoutRaw = prefs[KEY_HOME_LAYOUT]
+        val items = if (layoutRaw != null) {
+            parseLayout(layoutRaw)
+        } else {
+            val legacy = prefs[KEY_HOME_WIDGETS]
+                ?.split(',')
+                ?.map { it.trim() }
+                ?.filter { it.isNotEmpty() && HomeWidgetIds.contains(it) }
+                .orEmpty()
+            if (legacy.isEmpty()) DEFAULT_HOME_LAYOUT else legacy.map { WidgetPlacement(it) }
+        }
+        if (items.isEmpty()) DEFAULT_HOME_LAYOUT else items
     }
 
     // 首页概览卡展示模式：total=总时长/薪资/记录数；by_type=净时长+分类型工时
@@ -129,6 +148,9 @@ class SettingsRepository(private val context: Context) {
     suspend fun setDeleteConfirmEnabled(enabled: Boolean) { context.dataStore.edit { it[KEY_DELETE_CONFIRM] = enabled } }
     suspend fun setHomeWidgets(ids: List<String>) {
         context.dataStore.edit { it[KEY_HOME_WIDGETS] = ids.joinToString(",") }
+    }
+    suspend fun setHomeLayout(items: List<WidgetPlacement>) {
+        context.dataStore.edit { it[KEY_HOME_LAYOUT] = serializeLayout(items) }
     }
     suspend fun setHomeOverviewMode(mode: String) {
         context.dataStore.edit { it[KEY_HOME_OVERVIEW_MODE] = if (mode == "by_type") "by_type" else "total" }
@@ -247,7 +269,9 @@ class SettingsRepository(private val context: Context) {
                     KEY_PUSH_CUSTOM.name -> prefs[KEY_PUSH_CUSTOM] = value
                     KEY_PUSH_CUSTOM_HEADERS.name -> prefs[KEY_PUSH_CUSTOM_HEADERS] = value
                     KEY_DELETE_CONFIRM.name -> prefs[KEY_DELETE_CONFIRM] = value.toBoolean()
-                    KEY_HOME_WIDGETS.name -> prefs[KEY_HOME_WIDGETS] = value
+                    KEY_HOME_LAYOUT.name -> prefs[KEY_HOME_LAYOUT] = value
+                    // 兼容旧备份：旧 `home_widgets`（逗号分隔 id）转换为新布局（全部 1x1）
+                    KEY_HOME_WIDGETS.name -> prefs[KEY_HOME_LAYOUT] = serializeLayout(parseLayout(value))
                     KEY_HOME_OVERVIEW_MODE.name -> prefs[KEY_HOME_OVERVIEW_MODE] = value
                     KEY_CALENDAR_SYNC.name -> prefs[KEY_CALENDAR_SYNC] = value.toBoolean()
                     KEY_WEBDAV_ENABLED.name -> prefs[KEY_WEBDAV_ENABLED] = value.toBoolean()
@@ -306,7 +330,7 @@ class SettingsRepository(private val context: Context) {
             KEY_PUSH_CUSTOM.name to pushCustom.first(),
             KEY_PUSH_CUSTOM_HEADERS.name to pushCustomHeaders.first(),
             KEY_DELETE_CONFIRM.name to deleteConfirmEnabled.first().toString(),
-            KEY_HOME_WIDGETS.name to homeWidgets.first().joinToString(","),
+            KEY_HOME_LAYOUT.name to serializeLayout(homeLayout.first()),
             KEY_HOME_OVERVIEW_MODE.name to homeOverviewMode.first(),
             KEY_CALENDAR_SYNC.name to calendarSyncEnabled.first().toString(),
             KEY_WEBDAV_ENABLED.name to webdavEnabled.first().toString(),
@@ -331,16 +355,9 @@ class SettingsRepository(private val context: Context) {
         private val KEY_QUICK_SUBMIT = booleanPreferencesKey("quick_submit")
         private val KEY_DELETE_CONFIRM = booleanPreferencesKey("delete_confirm")
         private val KEY_HOME_WIDGETS = stringPreferencesKey("home_widgets")
+        private val KEY_HOME_LAYOUT = stringPreferencesKey("home_layout")
         private val KEY_HOME_OVERVIEW_MODE = stringPreferencesKey("home_overview_mode")
 
-        /** 首页小组件全量 id 集合，与 ui/screen/HomeWidget 定义保持一致 */
-        val HomeWidgetIds = setOf(
-            "month_hours", "last_month_hours", "month_salary",
-            "year_total", "month_leave", "latest_record"
-        )
-
-        /** 未配置时的默认小组件：当月工时 / 本月薪资 / 上月工时 / 年度累计 */
-        val DEFAULT_HOME_WIDGETS = listOf("month_hours", "month_salary", "last_month_hours", "year_total")
         private val KEY_MONET_ENABLED = booleanPreferencesKey("monet_enabled")
         private val KEY_FLOATING_NAV = booleanPreferencesKey("floating_nav")
         private val KEY_FLOATING_NAV_BOTTOM_OFFSET = intPreferencesKey("floating_nav_bottom_offset")
@@ -400,5 +417,74 @@ class SettingsRepository(private val context: Context) {
         private val KEY_HOLIDAY_MXNZP_APP_ID = stringPreferencesKey("holiday_mxnzp_app_id")
         private val KEY_HOLIDAY_MXNZP_APP_SECRET = stringPreferencesKey("holiday_mxnzp_app_secret")
         private val KEY_HOLIDAY_IGNORE_HOLIDAY = booleanPreferencesKey("holiday_ignore_holiday")
+    }
+}
+
+/**
+ * 首页小组件全量 id 集合，与 ui/screen/HomeWidgetCore 的目录保持一致。
+ * 顶层声明，供 parseLayout / 各页面导入共用。
+ */
+val HomeWidgetIds = setOf(
+    "month_hours", "last_month_hours", "month_salary",
+    "year_total", "month_leave", "latest_record",
+    "month_type", "month_daily", "year_month", "type_donut"
+)
+
+/** 未配置时的默认布局：当月工时 / 本月薪资 / 上月工时 / 年度累计（均 1x1） */
+val DEFAULT_HOME_LAYOUT = listOf(
+    WidgetPlacement("month_hours"),
+    WidgetPlacement("month_salary"),
+    WidgetPlacement("last_month_hours"),
+    WidgetPlacement("year_total")
+)
+
+/**
+ * 首页单个小组件的布局单元：组件 id + 网格跨度（列 spanX、行 spanY）。
+ * 跨度用于 2 列网格中的 1x1 / 2x1 / 1x2 / 2x2 自由排布。
+ */
+data class WidgetPlacement(
+    val id: String,
+    val spanX: Int = 1,
+    val spanY: Int = 1
+) {
+    /** 归一化跨度，避免存储脏值导致排版异常 */
+    fun normalized(): WidgetPlacement = WidgetPlacement(
+        id = id,
+        spanX = spanX.coerceIn(1, 2),
+        spanY = spanY.coerceIn(1, 2)
+    )
+}
+
+/** 将布局序列化为持久化字符串：`id:spanX:spanY` 以 `;` 连接 */
+fun serializeLayout(items: List<WidgetPlacement>): String =
+    items.joinToString(";") { "${it.id}:${it.spanX}:${it.spanY}" }
+
+/**
+ * 解析布局字符串，兼容三种来源：
+ * - 新格式 `id:spanX:spanY`（以 `;` 分隔）；
+ * - 旧格式 `id,id,...`（逗号分隔，全部按 1x1 处理）；
+ * - 单 id。
+ * 未知 id 会被过滤，保证旧配置/备份升级后不崩。
+ */
+fun parseLayout(raw: String?): List<WidgetPlacement> {
+    if (raw.isNullOrBlank()) return emptyList()
+    val segments = raw.split(';', ',')
+    return segments.mapNotNull { seg ->
+        val t = seg.trim()
+        if (t.isEmpty()) return@mapNotNull null
+        when {
+            t.contains(':') -> {
+                val p = t.split(':')
+                val id = p[0].trim()
+                if (!HomeWidgetIds.contains(id)) null
+                else WidgetPlacement(
+                    id,
+                    p.getOrNull(1)?.toIntOrNull()?.coerceIn(1, 2) ?: 1,
+                    p.getOrNull(2)?.toIntOrNull()?.coerceIn(1, 2) ?: 1
+                ).normalized()
+            }
+            HomeWidgetIds.contains(t) -> WidgetPlacement(t)
+            else -> null
+        }
     }
 }

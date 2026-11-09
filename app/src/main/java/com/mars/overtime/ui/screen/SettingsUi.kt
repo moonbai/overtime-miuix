@@ -107,27 +107,35 @@ fun SettingsScreen(
     dialogs: @Composable () -> Unit = {},
     content: LazyListScope.() -> Unit
 ) {
-    Scaffold(
-        topBar = {
-            SmallTopAppBar(
-                title = title,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
+    // 窗口背景被设为透明（去白闪），二级页必须自己刷主题背景，否则深色下透出黑底、
+    // 顶栏文字贴着状态栏造成「重叠」观感。这里用 Box 兜底整页主题背景（含状态栏区域）。
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MiuixTheme.colorScheme.background)
+    ) {
+        Scaffold(
+            topBar = {
+                SmallTopAppBar(
+                    title = title,
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
+                        }
                     }
-                }
+                )
+            },
+            snackbarHost = { SnackbarHost(snackbarHostState) }
+        ) { paddingValues ->
+            SettingsList(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                bottomReserve = bottomReserve,
+                content = content
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { paddingValues ->
-        SettingsList(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            bottomReserve = bottomReserve,
-            content = content
-        )
-        dialogs()
+            dialogs()
+        }
     }
 }
 

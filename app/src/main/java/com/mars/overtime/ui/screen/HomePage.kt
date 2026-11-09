@@ -1,15 +1,26 @@
 package com.mars.overtime.ui.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -18,7 +29,8 @@ import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
-import com.mars.overtime.data.repository.SettingsRepository.Companion.DEFAULT_HOME_WIDGETS
+import com.mars.overtime.data.repository.DEFAULT_HOME_LAYOUT
+import com.mars.overtime.data.repository.WidgetPlacement
 import com.mars.overtime.ui.theme.AppDimens
 import com.mars.overtime.ui.theme.AppIconSize
 import com.mars.overtime.ui.theme.AppShapes
@@ -37,11 +49,11 @@ import java.util.Locale
 
 /**
  * 首页：信息面板。
- * 结构 = 月度概览卡（总览 / 分类两种模式）+ 可自定义小组件网格（2 列），
- * 完整的记录浏览 / 搜索 / 筛选 / 删除已拆分到 [RecordsPage]（底栏「记录」）。
+ * 结构 = 月度概览卡（总览 / 分类两种模式）+ 可自定义小组件网格（2 列，支持
+ * 1x1 / 2x1 / 1x2 / 2x2 自由跨度）。
  *
- * 小组件的启用与排序在「设置 → 首页小组件」配置，
- * 概览卡右上角的「编辑」入口可直达该配置页。
+ * 组件的长按拖动排序、右下角拖动/点击缩放、删除均在首页直接完成（编辑态）；
+ * 「管理小组件」入口直达设置页做启用/添加管理。
  */
 @Composable
 fun HomePage(
@@ -54,13 +66,19 @@ fun HomePage(
     listState: LazyListState = rememberLazyListState()
 ) {
     val records by repository.getAllRecords().collectAsState(initial = emptyList())
+    // 标记记录流是否已真正发出首帧，避免从其它页返回首页时因 collectAsState 的
+    // 初始空值而一闪「无记录」空状态（插画 + 添加按钮）。未加载完成前按「有数据」渲染，
+    // 加载完成后若确为空才显示空状态。
+    var recordsLoaded by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        repository.getAllRecords().collect { recordsLoaded = true }
+    }
     val currentMonth = remember { SalaryCalculator.getCurrentYearMonth() }
 
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
     val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
     val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
     val overviewMode by settingsRepository.homeOverviewMode.collectAsState(initial = "total")
-    val widgetIds by settingsRepository.homeWidgets.collectAsState(initial = DEFAULT_HOME_WIDGETS)
 
     // 用户配置的类型色（与统计页同源），分类概览与组件色条共用
     val typeColor: (OvertimeType) -> Color = { type ->
@@ -71,8 +89,37 @@ fun HomePage(
         }
     }
 
+    // 首页组件布局：以 DataStore 流为初值，本地 draft 为编辑期间的唯一真相，
+    // 拖动/缩放/删除/添加均写回 draft 并持久化；仅当未拖动时才从流同步（避免回写回声打架）。
+    val layoutValue by settingsRepository.homeLayout.collectAsState(initial = DEFAULT_HOME_LAYOUT)
+    var draft by remember { mutableStateOf(layoutValue) }
+    val draggingIdState = remember { mutableStateOf<String?>(null) }
+    val dragOffsetPxState = remember { mutableStateOf(Offset.Zero) }
+    val editingState = remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(layoutValue) {
+        if (draggingIdState.value == null) draft = layoutValue
+    }
+    fun commit(list: List<WidgetPlacement>) {
+        draft = list
+        scope.launch { settingsRepository.setHomeLayout(list) }
+    }
+
+    // 全部组件共用的聚合（含图表所需的每日/每月/类型分布）
+    val agg = remember(records, currentMonth) { aggregateHome(records, currentMonth) }
+
+    fun handleWidgetClick(id: String) {
+        when (id) {
+            "month_leave", "latest_record" -> onOpenRecords()
+            "last_month_hours" -> navController.navigate("statistics?month=${agg.lastMonth}")
+            else -> navController.navigate("statistics")
+        }
+    }
+
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MiuixTheme.colorScheme.background),
         state = listState,
         contentPadding = PaddingValues(
             start = AppDimens.pageHorizontal,
@@ -88,12 +135,11 @@ fun HomePage(
                 month = currentMonth,
                 records = records,
                 mode = overviewMode,
-                typeColor = typeColor,
-                onEdit = { navController.navigate("home_widgets") }
+                typeColor = typeColor
             )
         }
 
-        if (records.isEmpty()) {
+        if (recordsLoaded && records.isEmpty()) {
             item {
                 HomeEmptyState(
                     onAdd = {
@@ -103,32 +149,272 @@ fun HomePage(
                 )
             }
         } else {
-            // 启用的小组件按配置顺序 2 列铺排；不足一行的保持左对齐
-            val rows = widgetIds.chunked(2)
-            rows.forEach { rowIds ->
-                item(key = rowIds.joinToString("_")) {
-                    Row(
+            // 小组件网格（2 列，可变跨度），长按拖动排序、编辑态缩放/删除
+            item(key = "widget_grid") {
+                HomeWidgetGrid(
+                    draft = draft,
+                    agg = agg,
+                    month = currentMonth,
+                    typeColor = typeColor,
+                    editingState = editingState,
+                    draggingIdState = draggingIdState,
+                    dragOffsetPxState = dragOffsetPxState,
+                    onChange = { commit(it) },
+                    onCardClick = { handleWidgetClick(it) }
+                )
+            }
+            // 编辑态提示
+            if (editingState.value) {
+                item {
+                    Text(
+                        text = "长按卡片拖动排序 · 拖动右下角缩放 · 点 × 移除",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(AppDimens.groupSpacing)
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+            // 底部操作：编辑态显示「完成」，否则「管理小组件」直达设置页
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Surface(
+                        onClick = {
+                            if (editingState.value) editingState.value = false
+                            else navController.navigate("home_widgets")
+                        },
+                        color = MiuixTheme.colorScheme.secondaryContainer,
+                        contentColor = MiuixTheme.colorScheme.onSecondaryContainer,
+                        shape = AppShapes.radiusLg
                     ) {
-                        rowIds.forEach { id ->
-                            HomeWidgetCard(
-                                widgetId = id,
-                                records = records,
-                                month = currentMonth,
-                                typeColor = typeColor,
-                                modifier = Modifier.weight(1f),
-                                onOpenStats = { navController.navigate("statistics") },
-                                onOpenRecords = onOpenRecords
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (editingState.value) MiuixIcons.Ok else MiuixIcons.Settings,
+                                contentDescription = null,
+                                modifier = Modifier.size(AppIconSize.xs)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (editingState.value) "完成" else "管理小组件",
+                                style = MiuixTheme.textStyles.footnote1
                             )
                         }
-                        // 单数行补位，保持卡片等宽
-                        if (rowIds.size == 1) Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * 2 列可变跨度小组件网格：每个组件按 [packGrid] 排版后绝对定位。
+ * - 长按进入编辑态并开始拖动排序（跟随手指，跨过其它卡片中心即交换）；
+ * - 编辑态下右下角手柄可拖动改跨度（右/下→变大，左/上→变小），轻点循环 1x1→2x1→1x2→2x2；
+ * - 编辑态下右上 × 移除组件；非编辑态点击卡片按类型跳转。
+ */
+@Composable
+private fun HomeWidgetGrid(
+    draft: List<WidgetPlacement>,
+    agg: Aggregate,
+    month: String,
+    typeColor: (OvertimeType) -> Color,
+    editingState: MutableState<Boolean>,
+    draggingIdState: MutableState<String?>,
+    dragOffsetPxState: MutableState<Offset>,
+    onChange: (List<WidgetPlacement>) -> Unit,
+    onCardClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val gap = AppDimens.groupSpacing
+    val cellH = CELL_HEIGHT
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val cellW = (maxWidth - gap) / GRID_COLUMNS
+        val cells = remember(draft) { packGrid(draft) }
+        val rects = remember(draft, cellW) {
+            cells.map { c ->
+                RectDp(
+                    x = (cellW + gap) * c.col,
+                    y = (cellH + gap) * c.row,
+                    w = cellW * c.spanX + gap * (c.spanX - 1),
+                    h = cellH * c.spanY + gap * (c.spanY - 1)
+                )
+            }
+        }
+        val totalRows = cells.maxOfOrNull { it.row + it.spanY } ?: 0
+        val totalHeight = cellH * totalRows + gap * (totalRows - 1)
+        val density = LocalDensity.current
+        val refState = remember { mutableStateOf(GridRef(draft, rects, cells, cellW, cellH)) }
+        refState.value = GridRef(draft, rects, cells, cellW, cellH)
+
+        Box(Modifier.fillMaxWidth().height(totalHeight)) {
+            draft.forEach { item ->
+                key(item.id) {
+                val index = draft.indexOf(item)
+                val rect = rects[index]
+                val isDragged = draggingIdState.value == item.id
+                val dxDp = if (isDragged) density.run { dragOffsetPxState.value.x.toDp() } else 0.dp
+                val dyDp = if (isDragged) density.run { dragOffsetPxState.value.y.toDp() } else 0.dp
+                Box(
+                    Modifier
+                        .offset(x = rect.x + dxDp, y = rect.y + dyDp)
+                        .size(rect.w, rect.h)
+                        .zIndex(if (isDragged) 1f else 0f)
+                        .shadow(if (isDragged) 8.dp else 0.dp, AppShapes.radiusLg)
+                        .then(
+                            if (editingState.value) Modifier.border(
+                                1.dp,
+                                MiuixTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                AppShapes.radiusLg
+                            ) else Modifier
+                        )
+                        .pointerInput(Unit) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    editingState.value = true
+                                    draggingIdState.value = item.id
+                                    dragOffsetPxState.value = Offset.Zero
+                                },
+                                onDrag = { _, dragAmount ->
+                                    val id = draggingIdState.value
+                                    if (id != item.id) return@detectDragGesturesAfterLongPress
+                                    dragOffsetPxState.value += dragAmount
+                                    val ref = refState.value
+                                    val idx = ref.draft.indexOfFirst { it.id == item.id }
+                                    if (idx < 0) return@detectDragGesturesAfterLongPress
+                                    val dx = density.run { dragOffsetPxState.value.x.toDp().value }
+                                    val dy = density.run { dragOffsetPxState.value.y.toDp().value }
+                                    val cx = ref.rects[idx].cx + dx
+                                    val cy = ref.rects[idx].cy + dy
+                                    val target = ref.rects.withIndex()
+                                        .filter { it.index != idx }
+                                        .minByOrNull { (it.value.cx - cx) * (it.value.cx - cx) + (it.value.cy - cy) * (it.value.cy - cy) }
+                                        ?.index
+                                    if (target != null && target != idx) {
+                                        val moved = ref.draft.toMutableList()
+                                        val it2 = moved.removeAt(idx)
+                                        moved.add(target.coerceAtMost(moved.size), it2)
+                                        onChange(moved)
+                                    }
+                                },
+                                onDragEnd = {
+                                    if (draggingIdState.value == item.id) {
+                                        draggingIdState.value = null
+                                        dragOffsetPxState.value = Offset.Zero
+                                    }
+                                }
+                            )
+                        }
+                ) {
+                    Card(
+                        modifier = Modifier.fillMaxSize(),
+                        cornerRadius = AppDimens.cardCorner,
+                        insideMargin = PaddingValues(14.dp),
+                        onClick = { if (!editingState.value) onCardClick(item.id) },
+                        showIndication = true,
+                        pressFeedbackType = PressFeedbackType.Sink
+                    ) {
+                        WidgetBody(item.id, agg, month, typeColor)
+                    }
+                    if (editingState.value) {
+                        // 左上：拖拽提示
+                        Box(
+                            Modifier.align(Alignment.TopStart).padding(6.dp).size(20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                MiuixIcons.Sort,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.size(AppIconSize.xs)
+                            )
+                        }
+                        // 右上：删除
+                        Box(
+                            Modifier.align(Alignment.TopEnd).padding(4.dp).size(24.dp)
+                                .clip(AppShapes.pill)
+                                .background(MiuixTheme.colorScheme.error.copy(alpha = 0.12f))
+                                .clickable { onChange(draft.filter { it.id != item.id }) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                MiuixIcons.Delete,
+                                contentDescription = "移除",
+                                tint = MiuixTheme.colorScheme.error,
+                                modifier = Modifier.size(AppIconSize.xs)
+                            )
+                        }
+                        // 右下：缩放手柄（拖动改跨度 / 轻点循环）
+                        var acc by remember { mutableStateOf(Offset.Zero) }
+                        var start by remember { mutableStateOf<WidgetPlacement?>(null) }
+                        Box(
+                            Modifier.align(Alignment.BottomEnd).padding(2.dp).size(28.dp)
+                                .pointerInput(Unit) {
+                                    detectDragGestures(
+                                        onDragStart = {
+                                            start = refState.value.draft.firstOrNull { it.id == item.id }
+                                            acc = Offset.Zero
+                                        },
+                                        onDrag = { _, dragAmount ->
+                                            acc += dragAmount
+                                            val ax = density.run { acc.x.toDp() }
+                                            val ay = density.run { acc.y.toDp() }
+                                            val s = start ?: return@detectDragGestures
+                                            val sx = when {
+                                                ax > 36.dp -> 2
+                                                ax < -36.dp -> 1
+                                                else -> s.spanX
+                                            }
+                                            val sy = when {
+                                                ay > 36.dp -> 2
+                                                ay < -36.dp -> 1
+                                                else -> s.spanY
+                                            }
+                                            if (sx != s.spanX || sy != s.spanY) {
+                                                onChange(
+                                                    refState.value.draft.map {
+                                                        if (it.id == item.id) it.copy(spanX = sx, spanY = sy) else it
+                                                    }
+                                                )
+                                            }
+                                        },
+                                        onDragEnd = {
+                                            val s = start
+                                            if (s != null && kotlin.math.abs(acc.x) < 20f && kotlin.math.abs(acc.y) < 20f) {
+                                                val order = listOf(1 to 1, 2 to 1, 1 to 2, 2 to 2)
+                                                val i = order.indexOf(s.spanX to s.spanY)
+                                                val next = order[(i + 1) % 4]
+                                                onChange(
+                                                    refState.value.draft.map {
+                                                        if (it.id == item.id) it.copy(spanX = next.first, spanY = next.second) else it
+                                                    }
+                                                )
+                                            }
+                                            acc = Offset.Zero
+                                        }
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                MiuixIcons.VerticalSplit,
+                                contentDescription = "调整大小",
+                                tint = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.size(AppIconSize.xs)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 }
 
 @Composable
@@ -137,8 +423,7 @@ private fun MonthlyOverviewCard(
     month: String,
     records: List<OvertimeRecord>,
     mode: String,
-    typeColor: (OvertimeType) -> Color,
-    onEdit: () -> Unit
+    typeColor: (OvertimeType) -> Color
 ) {
     var stats by remember { mutableStateOf<com.mars.overtime.data.repository.MonthlyStats?>(null) }
 
@@ -186,29 +471,6 @@ private fun MonthlyOverviewCard(
                     color = MiuixTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f)
                 )
-                // 小组件配置快捷入口：直达「设置 → 首页小组件」
-                Surface(
-                    onClick = onEdit,
-                    color = MiuixTheme.colorScheme.secondaryContainer,
-                    contentColor = MiuixTheme.colorScheme.onSecondaryContainer,
-                    shape = AppShapes.radiusLg
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            MiuixIcons.Settings,
-                            contentDescription = "编辑小组件",
-                            modifier = Modifier.size(AppIconSize.xs)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "编辑",
-                            style = MiuixTheme.textStyles.footnote1
-                        )
-                    }
-                }
             }
             Spacer(modifier = Modifier.height(12.dp))
             if (mode == "by_type") {
@@ -294,156 +556,6 @@ private fun StatItem(label: String, value: String) {
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
         )
-    }
-}
-
-/** 小组件元信息：id → 标题，与 SettingsRepository.HomeWidgetIds 对应 */
-private fun widgetTitle(id: String): String = when (id) {
-    "month_hours" -> "当月工时"
-    "last_month_hours" -> "上月工时"
-    "month_salary" -> "本月薪资"
-    "year_total" -> "年度累计"
-    "month_leave" -> "当月请假"
-    "latest_record" -> "最近记录"
-    else -> id
-}
-
-/**
- * 单个小组件卡片。数据全部由 records 内存聚合（口径与统计页一致：请假为负抵扣），
- * 点击跳转：统计类 → 统计页；记录类 → 记录页。
- */
-@Composable
-private fun HomeWidgetCard(
-    widgetId: String,
-    records: List<OvertimeRecord>,
-    month: String,
-    typeColor: (OvertimeType) -> Color,
-    modifier: Modifier = Modifier,
-    onOpenStats: () -> Unit,
-    onOpenRecords: () -> Unit
-) {
-    // 统一聚合：本月/上月/本年各类数据一次算好，各组件按需取用
-    data class Agg(
-        val monthNet: Double, val monthCount: Int,
-        val lastMonthNet: Double, val lastMonthCount: Int,
-        val monthAmount: Double,
-        val yearNet: Double, val yearAmount: Double,
-        val monthLeaveCount: Int, val monthLeaveDeduct: Double,
-        val latest: OvertimeRecord?
-    )
-    val agg = remember(records, month) {
-        val cal = Calendar.getInstance()
-        val year = month.substringBefore("-").toIntOrNull() ?: cal.get(Calendar.YEAR)
-        val mon = month.substringAfter("-").toIntOrNull() ?: (cal.get(Calendar.MONTH) + 1)
-        val fmt = SimpleDateFormat("yyyy-MM", Locale.getDefault())
-        var mNet = 0.0; var mCount = 0; var lNet = 0.0; var lCount = 0
-        var mAmount = 0.0; var mLeaveCount = 0; var mLeaveDeduct = 0.0
-        var yNet = 0.0; var yAmount = 0.0
-        records.forEach { rec ->
-            cal.timeInMillis = rec.date
-            val y = cal.get(Calendar.YEAR)
-            val m = cal.get(Calendar.MONTH) + 1
-            if (y == year && m == mon) {
-                mNet += rec.durationHours
-                mAmount += rec.amount
-                mCount++
-                if (rec.isLeave) {
-                    mLeaveCount++
-                    mLeaveDeduct += kotlin.math.abs(rec.amount)
-                }
-            } else if (y == year && m == mon - 1 || (mon == 1 && y == year - 1 && m == 12)) {
-                lNet += rec.durationHours
-                lCount++
-            }
-            if (y == year) {
-                yNet += rec.durationHours
-                yAmount += rec.amount
-            }
-        }
-        Agg(mNet, mCount, lNet, lCount, mAmount, yNet, yAmount, mLeaveCount, mLeaveDeduct, records.maxByOrNull { it.date })
-    }
-
-    // 值 / 副文案 / 点击目标按组件类型分别取数
-    val (value, sub, onClick) = when (widgetId) {
-        "month_hours" -> Triple(
-            SalaryCalculator.formatHours(agg.monthNet),
-            when {
-                agg.lastMonthNet <= 0.0 && agg.monthNet <= 0.0 -> "上月无记录"
-                agg.monthNet >= agg.lastMonthNet -> "较上月 +${SalaryCalculator.formatHours(agg.monthNet - agg.lastMonthNet)}"
-                else -> "较上月 -${SalaryCalculator.formatHours(agg.lastMonthNet - agg.monthNet)}"
-            },
-            onOpenStats
-        )
-        "last_month_hours" -> Triple(
-            SalaryCalculator.formatHours(agg.lastMonthNet),
-            "${agg.lastMonthCount}条记录",
-            onOpenStats
-        )
-        "month_salary" -> Triple(
-            SalaryCalculator.formatAmount(agg.monthAmount),
-            "含请假扣款",
-            onOpenStats
-        )
-        "year_total" -> Triple(
-            SalaryCalculator.formatHours(agg.yearNet),
-            SalaryCalculator.formatAmount(agg.yearAmount),
-            onOpenStats
-        )
-        "month_leave" -> Triple(
-            "${agg.monthLeaveCount}次",
-            if (agg.monthLeaveCount > 0) "扣款 ${SalaryCalculator.formatAmount(agg.monthLeaveDeduct)}" else "本月无请假",
-            onOpenRecords
-        )
-        "latest_record" -> {
-            val latest = agg.latest
-            val cal = Calendar.getInstance().apply { timeInMillis = latest?.date ?: 0L }
-            Triple(
-                if (latest != null) {
-                    if (latest.isLeave) "请假" else latest.type.label
-                } else "暂无记录",
-                if (latest != null) {
-                    "${cal.get(Calendar.MONTH) + 1}月${cal.get(Calendar.DAY_OF_MONTH)}日 · " +
-                        SalaryCalculator.formatHours(kotlin.math.abs(latest.durationHours))
-                } else "去记录页添加",
-                onOpenRecords
-            )
-        }
-        else -> Triple("--", "", onOpenStats)
-    }
-
-    Card(
-        modifier = modifier,
-        cornerRadius = AppDimens.cardCorner,
-        insideMargin = PaddingValues(14.dp),
-        onClick = onClick,
-        showIndication = true,
-        pressFeedbackType = PressFeedbackType.Sink
-    ) {
-        Column {
-            Text(
-                text = widgetTitle(widgetId),
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = value,
-                style = AppHeadline2Bold(),
-                color = MiuixTheme.colorScheme.primary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = sub,
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
     }
 }
 
