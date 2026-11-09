@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -397,9 +398,9 @@ private fun LiquidFloatingNavBar(
                     .height(AppDimens.navBarHeight)
                     .padding(horizontal = AppDimens.spaceSm, vertical = AppDimens.spaceXs)
                     .clip(AppShapes.indicator)
-                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.08f))
+                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
             )
-            // 主体：快、实
+            // 主体：快、实（选中块更明显，强化悬浮底栏的选中态）
             Box(
                 modifier = Modifier
                     .offset(x = leadX)
@@ -407,7 +408,7 @@ private fun LiquidFloatingNavBar(
                     .height(AppDimens.navBarHeight)
                     .padding(horizontal = AppDimens.spaceSm, vertical = AppDimens.spaceXs)
                     .clip(AppShapes.indicator)
-                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.18f))
+                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.24f))
             )
         }
 
@@ -446,6 +447,7 @@ private fun LiquidFloatingNavBar(
                                     text = label,
                                     style = MiuixTheme.textStyles.footnote1,
                                     color = tint,
+                                    fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal,
                                     maxLines = 1
                                 )
                             }

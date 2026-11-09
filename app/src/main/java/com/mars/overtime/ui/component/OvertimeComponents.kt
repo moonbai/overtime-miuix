@@ -21,6 +21,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Album
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.mars.overtime.ui.theme.AppDimens
@@ -131,7 +132,7 @@ fun AppFab(
                     modifier = Modifier.padding(horizontal = AppDimens.fabExtendedHorizontal)
                 ) {
                     Icon(
-                        MiuixIcons.Ok,
+                        MiuixIcons.Album,
                         contentDescription = null,
                         tint = MiuixTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(AppIconSize.sm)

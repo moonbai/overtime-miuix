@@ -6,6 +6,9 @@ import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
 import android.window.BackEvent
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import android.window.OnBackAnimationCallback
 import android.window.OnBackInvokedDispatcher
 import androidx.activity.ComponentActivity
@@ -83,6 +86,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // 把窗口背景设为透明：主题（浅↔深）切换时 Compose 重组会有一瞬旧浅色 surface 消失、
+        // 新深色 surface 尚未铺满的间隙，默认白色 window 背景会在这帧露现造成「白闪」。
+        // 透明窗口让该间隙露出的是桌面/下层而非白色，从根本上消除切换闪白。
+        window.setBackgroundDrawable(
+            android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+        )
 
         // 通知点击冷启动：从 intent 读取目标路由（如 MCP 服务子界面）
         pendingNavigation.value = intent?.getStringExtra(EXTRA_NAVIGATE_TO)
@@ -112,6 +121,17 @@ class MainActivity : ComponentActivity() {
                 keyColor = androidx.compose.ui.graphics.Color(accentColor),
                 monet = monetEnabled
             ) {
+                // 状态栏 / 导航栏图标（时间、电量、手势条）的明暗随主题切换：
+                // MiuixTheme 不管理该项，默认始终深色图标，深色模式下在深色背景上不可见。
+                // 此处显式跟随 darkTheme 翻转（深色主题用浅色图标、浅色主题用深色图标）。
+                val view = LocalView.current
+                val window = (view.context as ComponentActivity).window
+                SideEffect {
+                    WindowCompat.setDecorFitsSystemWindows(window, false)
+                    val wic = WindowInsetsControllerCompat(window, view)
+                    wic.isAppearanceLightStatusBars = !darkTheme
+                    wic.isAppearanceLightNavigationBars = !darkTheme
+                }
                 // 计薪口径持久化在 DataStore，启动时及设置变化后同步给纯 Kotlin 计算工具，
                 // 保证记录保存、推送、MCP 与设置页试算使用同一组参数。
                 val workingDaysPerMonth by settingsRepository.workingDaysPerMonth

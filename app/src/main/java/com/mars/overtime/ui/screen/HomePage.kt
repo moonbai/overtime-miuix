@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -41,7 +42,7 @@ import com.mars.overtime.ui.theme.AppBody1Semibold
 import com.mars.overtime.ui.theme.AppDimens
 import com.mars.overtime.ui.theme.AppIconSize
 import com.mars.overtime.ui.theme.AppShapes
-import com.mars.overtime.ui.theme.AppTitle3Bold
+import com.mars.overtime.ui.theme.AppHeadline2Bold
 import com.mars.overtime.ui.theme.AppTitle3Semibold
 import java.text.SimpleDateFormat
 import java.util.*
@@ -176,39 +177,14 @@ fun HomePage(
                 MonthlyOverviewCard(repository, currentMonth, records)
             }
 
-            // 搜索框 + 添加按钮
+            // 搜索框（添加入口已收敛到底部 FAB，避免与悬浮加号重复）
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        TextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            label = "搜索备注 / 月份",
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    Button(
-                        onClick = {
-                            // 连点时避免把多个 add_record 实例压入回退栈
-                            navController.navigate("add_record") { launchSingleTop = true }
-                        },
-                        colors = ButtonDefaults.buttonColorsPrimary(),
-                        cornerRadius = AppDimens.controlCorner,
-                        insideMargin = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                    ) {
-                        Icon(
-                            MiuixIcons.Add,
-                            contentDescription = null,
-                            modifier = Modifier.size(AppIconSize.xs)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("添加", fontWeight = FontWeight.Medium)
-                    }
-                }
+                TextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = "搜索备注 / 月份",
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             // 筛选 chips
@@ -235,18 +211,12 @@ fun HomePage(
 
             if (records.isEmpty()) {
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 60.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "暂无加班记录\n点击添加按钮记录",
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        )
-                    }
+                    HomeEmptyState(
+                        onAdd = {
+                            // 连点时避免把多个 add_record 实例压入回退栈
+                            navController.navigate("add_record") { launchSingleTop = true }
+                        }
+                    )
                 }
             } else if (grouped.isEmpty()) {
                 item {
@@ -405,16 +375,96 @@ private fun MonthlyOverviewCard(
 @Composable
 private fun StatItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // 概览数字明显大于标签：headline2 大号加粗，与 footnote1 标签形成清晰主次
         Text(
             text = value,
-            style = AppTitle3Bold(),
-            color = MiuixTheme.colorScheme.primary
+            style = AppHeadline2Bold(),
+            color = MiuixTheme.colorScheme.primary,
+            maxLines = 1
         )
         Text(
             text = label,
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
         )
+    }
+}
+
+/**
+ * 首页空状态：轻量插画 + 引导文案 + 主操作按钮。
+ * 用「主题色图标嵌套淡色圆 + 两个点缀圆」构成一张克制的小插画，
+ * 弱化了「无数据」的空旷感，并把首条记录的转化入口放在最显眼处。
+ */
+@Composable
+private fun HomeEmptyState(onAdd: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Box(
+            modifier = Modifier.size(156.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            // 主圆（淡色容器）
+            Box(
+                modifier = Modifier
+                    .size(140.dp)
+                    .clip(AppShapes.pill)
+                    .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.7f))
+            )
+            // 右上点缀（主题色浅块）
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(42.dp)
+                    .offset(x = 10.dp, y = (-8).dp)
+                    .clip(AppShapes.pill)
+                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
+            )
+            // 左下点缀（次容器块）
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .size(30.dp)
+                    .offset(x = (-12).dp, y = 10.dp)
+                    .clip(AppShapes.pill)
+                    .background(MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.9f))
+            )
+            // 主题色插画主体图标（闹钟：呼应加班/打卡）
+            Icon(
+                MiuixIcons.Alarm,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.size(64.dp)
+            )
+        }
+        Text(
+            text = "还没有加班记录",
+            style = AppTitle3Semibold(),
+            color = MiuixTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "记录第一笔加班，从这里开始",
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+        )
+        Button(
+            onClick = onAdd,
+            colors = ButtonDefaults.buttonColorsPrimary(),
+            cornerRadius = AppDimens.controlCorner,
+            insideMargin = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
+        ) {
+            Icon(
+                MiuixIcons.Add,
+                contentDescription = null,
+                modifier = Modifier.size(AppIconSize.xs)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("添加记录", fontWeight = FontWeight.Medium)
+        }
     }
 }
 

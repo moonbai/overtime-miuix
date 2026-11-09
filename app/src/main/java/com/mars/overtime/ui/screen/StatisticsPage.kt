@@ -31,6 +31,8 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.mars.overtime.ui.theme.AppDimens
 import com.mars.overtime.ui.theme.AppShapes
+import com.mars.overtime.ui.theme.AppTitle3Semibold
+import com.mars.overtime.ui.component.EmptyState
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
@@ -164,13 +166,15 @@ fun StatisticsPage(
         buildDayCategories(selectedMonth, holidayIgnoreHoliday)
     }
 
-    // 三类底色直接取外观设置配置的类型色（实色），与「类型占比 / 图例」同源；
-    // 格内文字统一用黑色保证在实色底上的对比度。今日改为主色描边叠加在分类底色之上。
+    // 三类底色取外观设置配置的类型色，但统一压到 14% 透明度 —— 全月满铺时不再是
+    // 一片饱和色块，仅保留「工作日 / 休息日 / 节假日」的轻微色相区分，弱化整月花感；
+    // 与「类型占比 / 图例」仍然同源同色。（不另写色块说明文字，避免冗余信息。）
     val dayBackground: (DayCategory) -> Color = { category ->
+        val alpha = 0.14f
         when (category) {
-            DayCategory.WORKDAY -> Color(typeColorWorkday)
-            DayCategory.REST_DAY -> Color(typeColorWeekend)
-            DayCategory.HOLIDAY -> Color(typeColorHoliday)
+            DayCategory.WORKDAY -> Color(typeColorWorkday).copy(alpha = alpha)
+            DayCategory.REST_DAY -> Color(typeColorWeekend).copy(alpha = alpha)
+            DayCategory.HOLIDAY -> Color(typeColorHoliday).copy(alpha = alpha)
         }
     }
 
@@ -599,11 +603,10 @@ fun StatisticsPage(
 
 @Composable
 private fun LegendRow(typeColor: (OvertimeType) -> Color) {
+    // 四色块均分整行横向铺开（SpaceEvenly），比原先左对齐 + 固定 16dp 间距更舒展
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         LegendItem(MiuixTheme.colorScheme.error, "请假")
         LegendItem(typeColor(OvertimeType.WORKDAY), "工作日")
@@ -639,6 +642,15 @@ private fun YearTrendCard(yearTrend: List<Pair<Int, Double>>) {
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(12.dp))
+            val hasData = yearTrend.any { abs(it.second) > 0.0 }
+            if (!hasData) {
+                // 全年无记录：画 12 根灰条是噪音，改为空态提示
+                EmptyState(
+                    icon = MiuixIcons.AppRecording,
+                    title = "暂无加班趋势数据",
+                    subtitle = "添加记录后这里会按月展示"
+                )
+            } else {
             val maxAbs = yearTrend.maxOfOrNull { abs(it.second) } ?: 0.0
             yearTrend.forEach { (month, hours) ->
                 Row(
@@ -681,6 +693,7 @@ private fun YearTrendCard(yearTrend: List<Pair<Int, Double>>) {
                         textAlign = TextAlign.End
                     )
                 }
+            }
             }
         }
     }
@@ -899,8 +912,8 @@ private fun StatsCard(title: String, items: List<Pair<String, String>>) {
                             )
                             Text(
                                 text = value,
-                                style = MiuixTheme.textStyles.body1,
-                                fontWeight = FontWeight.Medium
+                                style = AppTitle3Semibold(),
+                                color = MiuixTheme.colorScheme.primary
                             )
                         }
                     }
