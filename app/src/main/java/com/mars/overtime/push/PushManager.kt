@@ -9,6 +9,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import javax.crypto.Mac
@@ -97,20 +98,27 @@ object PushManager {
     private val feishuWorkflowRegex = Regex("""feishu\.cn/base/workflow/webhook/event/""")
 
     suspend fun sendFeishu(url: String, secret: String, record: OvertimeRecord): Boolean = withContext(Dispatchers.IO) {
-        val text = buildText(record)
+        // body 直接平铺：每条信息一个键名（date / weekday / hours / amount ...），
+        // 不再把全部内容塞进 content.text。工作流 webhook、自建中转即可按字段读取。
+        val payload = PushPayload.from(record)
+        val bodyJson = JSONObject(payload.toJson()).apply { remove("text") }
 
         val isBotHook = feishuBotHookRegex.containsMatchIn(url)
         val isFeishuWorkflow = feishuWorkflowRegex.containsMatchIn(url)
         if (isFeishuWorkflow) Log.d("PushManager", "飞书企业工作流 webhook: $url")
-        // 官方机器人 hook 且配置了密钥 → 带签名；其余（含企业工作流、自建中转）→ 纯文本 JSON 透传
-        val json = if (isBotHook && secret.isNotBlank()) {
-            val timestamp = System.currentTimeMillis().toString()
-            val stringToSign = "$timestamp\n$secret"
-            val sign = hmacSha256(secret, stringToSign)
-            """{"msg_type":"text","content":{"text":"${escapeJson(text)}"},"timestamp":"$timestamp","sign":"$sign"}"""
-        } else {
-            """{"msg_type":"text","content":{"text":"${escapeJson(text)}"}}"""
+        // 官方机器人 hook 有协议限制：必须带 msg_type + content.text 才会发消息。
+        // 因此仅对它额外附加协议字段（信息本体仍以平铺键名存在于 body 中），
+        // 配置了密钥时再附带 timestamp / sign；其它地址保持纯平铺 JSON。
+        if (isBotHook) {
+            bodyJson.put("msg_type", "text")
+            bodyJson.put("content", JSONObject().put("text", payload.toText()))
+            if (secret.isNotBlank()) {
+                val timestamp = System.currentTimeMillis().toString()
+                bodyJson.put("timestamp", timestamp)
+                bodyJson.put("sign", hmacSha256(secret, "$timestamp\n$secret"))
+            }
         }
+        val json = bodyJson.toString()
         try {
             val body = json.toRequestBody(mediaType)
             val req = Request.Builder()
