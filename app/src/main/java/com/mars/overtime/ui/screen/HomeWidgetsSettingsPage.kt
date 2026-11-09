@@ -129,7 +129,7 @@ fun HomeWidgetsSettingsPage(
             SettingsGroup(title = "添加") {
                 BasicComponent(
                     title = "添加组件",
-                    summary = "按分类筛选，预览卡片样式后添加（共 ${WIDGET_CATALOG.size} 种）",
+                    summary = "仅显示未添加组件，按分类筛选并预览后添加",
                     startAction = {
                         Box(Modifier.padding(end = AppDimens.spaceSm)) {
                             Icon(

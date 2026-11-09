@@ -33,12 +33,12 @@ import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 添加小组件页：以当前真实数据**实时预览**每种卡片样式。
- * 组件尺寸由 [WIDGET_CATALOG] 按内容固定（不可调整），
- * 已添加的组件可在此移除，排序在首页长按拖动完成。
+ * 添加小组件页：只展示**尚未添加**的组件，以当前真实数据实时预览卡片样式。
+ * 已添加项不出现在列表中（添加成功后立即移出）；移除统一在首页长按编辑态
+ * 或「首页小组件」管理页完成，避免同一动作多处重复。
  *
- * 组件扩到近 30 个后按 [WidgetCategory] 分组 + 顶部筛选条，
- * 避免一长串无差别列表。
+ * 组件尺寸由 [WIDGET_CATALOG] 按内容固定（不可调整）；
+ * 近 30 个组件按 [WidgetCategory] 分组 + 顶部筛选条，筛选计数均为「未添加数」。
  */
 @Composable
 fun AddWidgetPage(
@@ -67,9 +67,17 @@ fun AddWidgetPage(
         }
     }
 
+    // 本页只展示「尚未添加」的组件：已添加的直接不出现，添加成功后该项立即消失。
+    // 移除入口统一放在首页长按编辑态与「首页小组件」管理页，避免同一动作三处重复。
+    val addedIds = remember(layout) { layout.mapTo(HashSet()) { it.id } }
+    val available = remember(addedIds) { WIDGET_CATALOG.filter { it.id !in addedIds } }
     var filter by remember { mutableStateOf<WidgetCategory?>(null) }
-    val shown = remember(filter) {
-        if (filter == null) WIDGET_CATALOG else WIDGET_CATALOG.filter { it.category == filter }
+    val shown = remember(filter, available) {
+        if (filter == null) available else available.filter { it.category == filter }
+    }
+    // 当前筛选分类里的组件全部添加完后，自动回到「全部」，避免停在空白页
+    LaunchedEffect(available) {
+        if (filter != null && available.none { it.category == filter }) filter = null
     }
 
     fun persist(items: List<WidgetPlacement>) {
@@ -82,7 +90,7 @@ fun AddWidgetPage(
         snackbarHostState = snackbarHostState
     ) {
         item {
-            SettingsNote("预览为当前数据实时渲染；组件尺寸按内容自动匹配，无需调整。排序在首页长按组件拖动完成。")
+            SettingsNote("仅显示尚未添加的组件；预览为当前数据实时渲染，尺寸按内容自动匹配。添加后该项自动移出列表，移除请到首页长按组件或「首页小组件」管理页操作。")
         }
         item {
             Row(
@@ -92,10 +100,22 @@ fun AddWidgetPage(
                     .padding(vertical = AppDimens.spaceXs),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilterChip("全部 ${WIDGET_CATALOG.size}", filter == null) { filter = null }
+                FilterChip("全部 ${available.size}", filter == null) { filter = null }
                 WidgetCategory.values().forEach { cat ->
-                    val count = WIDGET_CATALOG.count { it.category == cat }
-                    FilterChip("${cat.label} $count", filter == cat) { filter = cat }
+                    val count = available.count { it.category == cat }
+                    if (count > 0) FilterChip("${cat.label} $count", filter == cat) { filter = cat }
+                }
+            }
+        }
+
+        if (available.isEmpty()) {
+            item {
+                SettingsGroup(title = "全部已添加") {
+                    BasicComponent(
+                        title = "${WIDGET_CATALOG.size} 种组件已全部加入首页",
+                        summary = "如需移除，请返回首页长按组件进入编辑态，或到「首页小组件」管理页操作",
+                        onClick = { navController.popBackStack() }
+                    )
                 }
             }
         }
@@ -107,7 +127,6 @@ fun AddWidgetPage(
                 SmallTitle(text = cat.label)
             }
             items(items = group, key = { it.id }) { def ->
-                val present = layout.any { it.id == def.id }
                 SettingsGroup(title = def.title) {
                     BasicComponent(
                         title = def.desc,
@@ -142,29 +161,24 @@ fun AddWidgetPage(
                     ) {
                         Button(
                             onClick = {
-                                if (present) {
-                                    persist(layout.filter { it.id != def.id })
-                                    scope.launch { snackbarHostState.showCustomToast("已移除「${def.title}」") }
-                                } else {
-                                    persist(
-                                        layout + WidgetPlacement(
-                                            def.id,
-                                            def.fixedSpanX,
-                                            def.fixedSpanY
-                                        )
+                                persist(
+                                    layout + WidgetPlacement(
+                                        def.id,
+                                        def.fixedSpanX,
+                                        def.fixedSpanY
                                     )
-                                    scope.launch { snackbarHostState.showCustomToast("已添加「${def.title}」") }
-                                }
+                                )
+                                scope.launch { snackbarHostState.showCustomToast("已添加「${def.title}」") }
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Icon(
-                                if (present) MiuixIcons.Delete else MiuixIcons.Add,
+                                MiuixIcons.Add,
                                 contentDescription = null,
                                 modifier = Modifier.size(AppIconSize.xs)
                             )
                             Spacer(Modifier.width(4.dp))
-                            Text(if (present) "移除" else "添加")
+                            Text("添加")
                         }
                     }
                 }

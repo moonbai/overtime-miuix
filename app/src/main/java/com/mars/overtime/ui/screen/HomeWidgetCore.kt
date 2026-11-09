@@ -28,7 +28,9 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Calendar
+import java.util.GregorianCalendar
 import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.abs
 
 // ───────────────────────── 网格排版常量 ─────────────────────────
@@ -278,9 +280,15 @@ fun aggregateHome(records: List<OvertimeRecord>, month: String): Aggregate {
         c.getActualMaximum(Calendar.DAY_OF_MONTH)
     }
     for (d in 1..totalDays) dailyMap[d] = 0.0
-    // 本月 1 号是周几（转成「周一为第 0 列」的偏移）
+    // 本月 1 号是周几（转成「周一为第 0 列」的偏移）。
+    // 显式用公历 + ROOT 区域：Calendar.getInstance() 在部分 Locale 下会返回佛历 /
+    // 和历等非公历实现，set(year, ...) 会被解释成别的纪年，导致整月星期错位。
     val firstOffset = run {
-        val c = Calendar.getInstance().apply { clear(); set(year, mon - 1, 1) }
+        val c = GregorianCalendar(TimeZone.getDefault(), Locale.ROOT).apply {
+            clear()
+            set(year, mon - 1, 1)
+        }
+        // Calendar.DAY_OF_WEEK: 周日=1 ... 周六=7 → 周一=0 ... 周日=6
         (c.get(Calendar.DAY_OF_WEEK) + 5) % 7
     }
     // 本年每月净工时
@@ -1277,8 +1285,10 @@ private fun CalendarHeatmap(agg: Aggregate, accent: Color) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 repeat(7) { c ->
-                    val idx = r * 7 + c - offset
-                    val net = if (idx in 1..days.size) days[idx - 1].second else null
+                    // 网格线性索引从 0 开始，日期从 1 开始：必须 +1，
+                    // 否则 1 号会落到 offset 列的右边一格，整月日期与星期错开一天。
+                    val dayOfMonth = r * 7 + c - offset + 1
+                    val net = if (dayOfMonth in 1..days.size) days[dayOfMonth - 1].second else null
                     val cellColor = when {
                         net == null -> Color.Transparent
                         abs(net) < 0.0001 -> emptyCell
@@ -1295,7 +1305,7 @@ private fun CalendarHeatmap(agg: Aggregate, accent: Color) {
                     ) {
                         if (net != null) {
                             Text(
-                                text = "$idx",
+                                text = "$dayOfMonth",
                                 style = MiuixTheme.textStyles.footnote1,
                                 color = if (abs(net) / maxAbs > 0.55f)
                                     MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurface,
