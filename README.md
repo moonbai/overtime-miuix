@@ -21,12 +21,22 @@
 - **智能日期识别** — Uapis 节假日日历（默认）/ MXNZP / 自定义 API 三种数据源自动判定工作日、休息日与节假日，支持调休规则与缓存
 - **保存后联动** — 一次保存自动触发推送、日历同步与自动备份；联动失败逐项转为提示，不影响记录入库
 
+### 首页小组件
+
+首页在月度概览卡下方提供 **2 列网格、29 种小组件**，分四类：本月概览 15 项、类型分布 3 项、趋势 7 项、大卡图表 4 项（工时、薪资、次数、日均、类型环形图、月度对比、日历热力图、月度摘要等）。
+
+- **固定尺寸** — 每个组件的 `1×1 / 2×1 / 2×2` 由组件目录定义，**不提供手动调整大小**，从根源上避免缩放导致的文字遮挡；读取旧布局时由 `normalizeLayout()` 自动校正为当前固定尺寸
+- **排序与删除** — 首页**长按拖动**直接排序，编辑态点角标删除；管理页不再提供箭头移动
+- **添加页只显示未添加项** — 按分类筛选、用真实数据实时预览卡片样式，添加后该项立即从列表消失
+- **管理页** — 设置 → 首页小组件，可切换概览卡展示模式、查看已添加组件及固定尺寸、删除并跳转添加页
+- **默认布局** — 当月工时 / 当月薪资 / 当月类型 / 当月日均
+
 ### 扩展能力
 
-- **多渠道推送** — 钉钉、飞书、企业微信、WxPusher、Telegram、Discord、自定义 WebHook（结构化 JSON 载荷）。可读文本与日历事件标题中的时长统一为小时制（`0.5H` / `1H` / `1.5H`），旧版「x小时y分钟」/「X.XX小时」文案不再输出，按文本解析的下游需适配；删除日历事件时仍同时匹配新旧标题以清理历史数据
+- **多渠道推送** — 钉钉、飞书、企业微信、WxPusher、Telegram、Discord、自定义 WebHook（结构化 JSON 载荷）。飞书以正则识别官方机器人 hook 与企业工作流 webhook（`*.feishu.cn/base/workflow/webhook/event/...`），不硬编码企业域名：官方机器人按协议附加 `msg_type / content.text / timestamp / sign`，企业工作流与自定义地址则把每条信息**平铺为 body 的一个键名**（`date`、`weekday`、`hours`、`amount` 等）。可读文本与日历事件标题中的时长统一为小时制（`0.5H` / `1H` / `1.5H`），旧版「x小时y分钟」/「X.XX小时」文案不再输出，按文本解析的下游需适配；删除日历事件时仍同时匹配新旧标题以清理历史数据
 - **日历同步** — 自动将加班记录写入系统日历，支持批量同步
-- **备份与恢复** — ZIP 导入 / 导出（`records.json` + `settings.json`）、自动备份（本地 / WebDAV 云端双模式）、WebDAV 手动上传下载
-- **MCP 服务** — 内置基于 Ktor 的 Model Context Protocol 服务，AI 助手可通过标准协议读写加班数据
+- **备份与恢复** — ZIP 导入 / 导出（`records.json` + `settings.json`）、自动备份（本地 / WebDAV 云端双模式）、WebDAV 手动上传下载。**「导入数据」单一入口**，弹窗内选择来源：设备文件 / 自动备份目录 / 自定义 SAF 目录 / WebDAV 云端；云端入口仅在 WebDAV 配置完整时显示。自动备份落在 `Android/data/com.mars.overtime/files/backup/`（外部存储不可用时回退应用私有目录），文件名 `overtime_backup_yyyyMMdd_HHmmss.zip`
+- **MCP 服务** — 内置基于 Ktor 的 Model Context Protocol 服务，AI 助手可通过标准协议读写加班数据（[安全须知](#mcp-服务)）
 - **应用内更新检查** — GitHub 官方双通道检测，支持匿名访问、APK 直链与 SHA256 一致性校验
 
 ### 个性化与交互
@@ -65,11 +75,26 @@
 | minSdk | 33（Android 13，与 miuix-blur 对齐） |
 | JVM Target / Source Compatibility | 17 / Java 17 |
 
+### 依赖管理与版本冲突处理
+
+全部版本集中在 `gradle/libs.versions.toml`，根 `build.gradle.kts` 统一 `apply false`，`app/build.gradle.kts` 只按 alias 引用。几处非直觉的组合都有原因：
+
+| 决策 | 原因 |
+|------|------|
+| MIUIX 四个依赖全部 `exclude` `org.jetbrains.compose.{foundation,runtime,ui,animation}` | MIUIX 0.9.4 是 Compose Multiplatform 库，其传递依赖的 JetBrains Compose AAR 重打包了 AndroidX Compose 类，与 BOM 提供的类冲突；统一由 AndroidX BOM 管理 |
+| 保留 `org.jetbrains.compose.material3` | `material3-window-size-class` 是 MIUIX 运行时依赖 |
+| 显式声明 `androidx.collection` | 被 exclude 的 JetBrains Compose 原本传递依赖它 |
+| `resolutionStrategy.force` 把全部 `androidx.compose.*` 钉到 **1.12.1** | BOM 2026.09.00 提供 1.12.1，消除传递依赖的版本冲突警告 |
+| Kotlin 停在 2.3.20 而非 2.4.0 | 2.4.0 导致 `kotlinBuildToolsApiClasspath` 解析失败；与 KSP 2.3.10 同 minor，保持最小改动 |
+| 不留 `kotlin-android` / `material-icons-extended` | 前者由 `kotlin-compose` 插件组合覆盖，后者全项目使用 MIUIX 图标，均无引用 |
+
+> **升级注意**：`force("androidx.compose.*:1.12.1")` 是唯一不在 Version Catalog 内的硬编码版本，升级 Compose 时须同步修改 `app/build.gradle.kts` 与 BOM 两处。
+> `settings.gradle.kts` 的 `jitpack.io` 为预留仓库（当前依赖均来自 google / mavenCentral），保留它便于临时接入，但会略微扩大依赖解析面。
 
 ### 设计令牌与组件层
 
-- `ui/theme/` 下的 `AppDimens` / `AppShapes` / `AppIconSize` / `AppTypography` 提供全局间距、圆角、图标尺寸与带字重的排版语义别名；设置页原有的 `SettingsDimens` 已委托至 `AppDimens`，单一来源
-- `ui/component/OvertimeComponents.kt` 基于 MIUIX 原语组合封装 `AppFab` / `SectionHeader` / `EmptyState` / `Pill`，首页、统计、设置与各二级页复用同一套外观
+- `ui/theme/` 下的 `AppDimens` / `AppShapes` / `AppIconSize` / `AppTypography` 提供全局间距、圆角、图标尺寸与带字重的排版语义别名；`util/` 下的 `AppDefaults` / `AppDateFormats` 提供默认值与日期格式单一来源；设置页原有的 `SettingsDimens` 已委托至 `AppDimens`
+- `ui/component/OvertimeComponents.kt` 基于 MIUIX 原语组合封装 `AppFab` / `SectionHeader` / `EmptyState` / `Pill`；`LocalRecords.rememberAppRecords` 为首页与记录页提供同源记录快照，避免切页时闪出「还没有记录」空状态
 
 ## 构建与发版
 
@@ -91,7 +116,8 @@ Release 签名需要 `KEYSTORE_BASE64` / `KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KE
 
 > 体积优化只在 `release` 生效：AGP 在 `debuggable` 构建下会禁用 R8 优化与混淆，
 > 因此 debug 不开启压缩；`proguard-rules.pro` 仅服务于 release（Gson 备份模型
-> keep、行号与泛型签名保留、Ktor JVM-only 类放行）。
+> keep、行号与泛型签名保留、Ktor JVM-only 类放行），必须显式挂载，否则 AGP
+> 只应用默认规则，上述规则全部失效。
 
 ### CI 自动发版
 
@@ -117,6 +143,30 @@ GitHub Actions 所需 Secrets：`KEYSTORE_BASE64` / `KEYSTORE_PASSWORD` / `KEY_A
 - **对比**：优先解析发布说明中的 `versionCode`，缺失时逐段比较 `versionName`；有新版本弹窗引导下载 APK 直链（atom 通道回退到发布页）
 - **校验**：版本相同但 SHA256 不一致时提示「安装包校验不一致」
 
+> **PAT 安全**：`BuildConfig.GITHUB_TOKEN` 会编译进 APK，**可被反编译提取**。只能注入对公开仓库的只读细粒度 PAT，且须可随时轮换；不要使用具备写权限或跨仓库权限的令牌。
+
+## 权限与隐私
+
+应用**启动时不申请任何运行时权限**，仅在用户主动启用对应功能时按需请求（`util/FeaturePermissions.kt` 与各设置页）：
+
+| 权限 | 用途 | 触发时机 |
+|------|------|----------|
+| `INTERNET` | 推送、WebDAV、节假日 API、更新检查 | 安装即授予（普通权限） |
+| `ACCESS_LOCAL_NETWORK` | Android 17（targetSdk≥37）访问局域网，WebDAV / MCP 必需 | 启用局域网功能时 |
+| `POST_NOTIFICATIONS` | MCP 前台服务常驻通知 | 启用 MCP 时 |
+| `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_DATA_SYNC` | MCP 前台服务合规声明 | 安装即授予 |
+| `READ_CALENDAR` / `WRITE_CALENDAR` | 日历同步 | 启用日历同步时 |
+| `REQUEST_INSTALL_PACKAGES` | 应用内下载 APK 后安装 | 用户确认安装时（系统设置页授权） |
+
+备份导入导出走 SAF，不需要存储权限（minSdk 33 下 `READ/WRITE_EXTERNAL_STORAGE` 已废弃，故未声明）。
+
+**隐私须知**：
+
+- 导出的 ZIP 中 `settings.json` **明文包含全部推送 Webhook 地址与密钥、WebDAV 密码、MXNZP `app_secret`、自定义请求头**。备份文件分享或上传云端前请自行评估；自定义备份目录的 SAF URI 授权仅在本机有效，因此不写入备份
+- `android:allowBackup="true"`，系统备份 / `adb backup` 会一并带走 DataStore 偏好（含上述凭据）。不希望如此可关闭系统备份，仅使用应用内 ZIP 备份
+- 所有外部地址的日志均经 `util/LogUrls.kt` 的 `redactUrl()` 脱敏，只保留协议与主机，避免 webhook token / `app_secret` 进入 logcat
+- 详见 [AUDIT.md](AUDIT.md) 的「P0：安全与隐私」
+
 ## 项目结构
 
 ```
@@ -125,31 +175,34 @@ app/src/main/java/com/mars/overtime/
 ├── OvertimeApplication.kt          # Application 初始化
 ├── data/
 │   ├── database/                   # Room：AppDatabase / OvertimeDao / OvertimeRecord
-│   ├── model/                      # OvertimeType / BottomBarStyle
-│   └── repository/                 # OvertimeRepository / SettingsRepository（DataStore）
+│   ├── model/OvertimeType.kt       # 加班类型枚举
+│   └── repository/                 # OvertimeRepository / SettingsRepository（DataStore、
+│                                   # WidgetPlacement / HomeWidgetIds / DEFAULT_HOME_LAYOUT）
 ├── ui/
-│   ├── screen/                     # 页面与设置页体系
+│   ├── screen/                     # 20 个页面与设置页体系
 │   │   ├── MainScreen.kt           # 主框架、底栏、FAB、Snackbar
-│   │   ├── HomePage.kt             # 首页（记录列表 + 月度概览）
-│   │   ├── StatisticsPage.kt       # 统计（月/年视图 + 日历卡片）
-│   │   ├── AddEditRecordPage.kt    # 添加 / 编辑记录
+│   │   ├── HomePage.kt             # 首页：月度概览 + 2 列小组件网格（长按拖动、编辑态删除）
+│   │   ├── HomeWidgetCore.kt       # 小组件目录（29 项）、固定尺寸、网格排布、聚合与图表
+│   │   ├── AddWidgetPage.kt        # 添加组件：仅未添加项 + 分类筛选 + 实时预览
+│   │   ├── HomeWidgetsSettingsPage.kt  # 组件管理：概览模式、已添加列表、删除
+│   │   ├── RecordsPage.kt / StatisticsPage.kt / AddEditRecordPage.kt
 │   │   ├── QuickSubmitSheet.kt     # 快速提报弹窗
-│   │   ├── SettingsPage.kt         # 设置中心（无分组标题布局）
-│   │   ├── SettingsUi.kt           # 设置项组件（含整行可点击的开关行）
-│   │   ├── SettingsGroup.kt        # 统一分组容器
+│   │   ├── SettingsPage.kt / SettingsUi.kt / SettingsGroup.kt
 │   │   ├── AppearanceSettingsPage.kt / SalarySettingsPage.kt
 │   │   ├── HolidaySettingsPage.kt / CalendarSettingsPage.kt
 │   │   ├── BackupSettingsPage.kt / PushSettingsPage.kt / McpSettingsPage.kt
 │   │   └── AboutPage.kt            # 关于应用 + 检查更新
-│   ├── component/OvertimeComponents.kt  # AppFab / SectionHeader / EmptyState / Pill
+│   ├── component/                  # LocalRecords.kt（共享记录快照）/ OvertimeComponents.kt
 │   ├── icon/AppIcons.kt            # 自定义图标
-│   ├── snackbar/CustomToast.kt     # 自定义 Toast 与删除 / 检查提示收起逻辑
+│   ├── snackbar/CustomToast.kt     # 自定义 Toast 与提示收起逻辑
 │   └── theme/                      # Theme.kt + AppDimens / AppShapes / AppIconSize / AppTypography
 ├── util/                           # SalaryCalculator / HolidayManager / BackupManager /
-│                                   # RecordSyncHelper / UpdateChecker / WebDavManager /
-│                                   # DataMigrationUtil / FairMemoryManager
+│                                   # BackupSources（自动备份目录与 SAF 目录枚举）/ DataMigrationUtil /
+│                                   # WebDavManager / RecordSyncHelper / UpdateChecker /
+│                                   # FeaturePermissions（按需权限）/ FairMemoryManager /
+│                                   # AppDefaults / AppDateFormats / AppBlur / LogUrls（日志脱敏）
 ├── push/                           # PushManager / PushPayload / CalendarSyncManager
-└── mcp/McpHostService.kt           # MCP 服务（Ktor CIO + SSE）
+└── mcp/McpHostService.kt           # MCP 服务（Ktor CIO + SSE + JSON-RPC）
 ```
 
 ## MCP 服务
@@ -169,6 +222,12 @@ app/src/main/java/com/mars/overtime/
 实现方法：`initialize` / `ping` / `tools/list` / `tools/call`。
 
 支持工具：`add_overtime_record` / `query_overtime_records` / `get_monthly_stats`
+
+> **安全须知**：服务监听 `0.0.0.0`，**当前无鉴权**（`Mcp-Session-Id` 只是会话标识，不是认证）。同一局域网内任何设备都可调用工具读写加班记录，并触发保存后的推送 / 日历 / 备份联动。请仅在可信网络（如家庭局域网）启用，用完及时关闭；不要在有公共 Wi-Fi 的环境长期开启。
+
+## 文档
+
+- [AUDIT.md](AUDIT.md) — 代码与依赖审计报告：问题清单、依赖兼容性决策、优化路线图与待决策事项
 
 ## 开源协议
 
