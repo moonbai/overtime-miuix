@@ -888,25 +888,27 @@ private fun CalendarCard(
     dayBackground: (DayCategory) -> Color,
     onDayClick: (Int) -> Unit = {}
 ) {
-    val parts = selectedMonth.split("-")
-    val year = parts[0].toInt()
-    val month = parts[1].toInt()
-
-    val cal = Calendar.getInstance().apply {
-        set(year, month - 1, 1)
+    // 42 格数据与「今天」判定按月份缓存：滚动 / 重组时不再重建列表、重算日期，
+    // 只有切月才重新构造一次。
+    val calendar = remember(selectedMonth) {
+        val parts = selectedMonth.split("-")
+        val year = parts[0].toInt()
+        val month = parts[1].toInt()
+        val cal = Calendar.getInstance().apply { set(year, month - 1, 1) }
+        val leadingEmpty = cal.get(Calendar.DAY_OF_WEEK) - 1 // 1=周日 .. 7=周六
+        val totalDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+        val today = Calendar.getInstance()
+        val cells = mutableListOf<Int?>()
+        repeat(leadingEmpty) { cells.add(null) }
+        for (d in 1..totalDays) cells.add(d)
+        while (cells.size % 7 != 0) cells.add(null)
+        CalendarMonth(
+            weeks = cells.chunked(7),
+            isCurrentMonth = today.get(Calendar.YEAR) == year &&
+                today.get(Calendar.MONTH) + 1 == month,
+            todayDay = today.get(Calendar.DAY_OF_MONTH)
+        )
     }
-    val firstWeekday = cal.get(Calendar.DAY_OF_WEEK) // 1=周日 .. 7=周六
-    val leadingEmpty = firstWeekday - 1
-    val totalDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val today = Calendar.getInstance()
-    val isCurrentMonth = today.get(Calendar.YEAR) == year && today.get(Calendar.MONTH) + 1 == month
-    val todayDay = today.get(Calendar.DAY_OF_MONTH)
-
-    // 构建单元格：前导空格 + 1..totalDays
-    val cells = mutableListOf<Int?>()
-    repeat(leadingEmpty) { cells.add(null) }
-    for (d in 1..totalDays) cells.add(d)
-    while (cells.size % 7 != 0) cells.add(null)
 
     Card(
         modifier = Modifier.fillMaxWidth(),

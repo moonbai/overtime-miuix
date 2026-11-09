@@ -519,10 +519,10 @@ private fun RecordCard(
     // 日期格式：同年显示 MM-dd，跨年显示 yyyy-MM-dd。
     // 结果按 record.date 缓存，滚动重组时不再重复 new Calendar / SimpleDateFormat。
     val dateStr = remember(record.date) {
-        val cal = java.util.Calendar.getInstance().apply { timeInMillis = record.date }
-        val nowYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
-        val pattern = if (cal.get(java.util.Calendar.YEAR) == nowYear) "MM-dd" else "yyyy-MM-dd"
-        SimpleDateFormat(pattern, Locale.getDefault()).format(Date(record.date))
+        val (year, _, _) = AppDateFormats.dateParts(record.date)
+        val nowYear = AppDateFormats.dateParts(System.currentTimeMillis()).first
+        if (year == nowYear) AppDateFormats.shortDay(record.date)
+        else AppDateFormats.fullDay(record.date)
     }
     val displayLabel = if (record.isLeave) "请假" else record.type.label
     val typeColor = if (record.isLeave) {
