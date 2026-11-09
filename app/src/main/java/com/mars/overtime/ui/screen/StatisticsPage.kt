@@ -24,6 +24,10 @@ import com.mars.overtime.util.HolidayDataSource
 import com.mars.overtime.util.HolidayManager
 import com.mars.overtime.util.SalaryCalculator
 import top.yukonga.miuix.kmp.basic.*
+import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
