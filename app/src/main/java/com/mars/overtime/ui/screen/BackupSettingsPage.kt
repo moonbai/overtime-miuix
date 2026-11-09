@@ -27,6 +27,7 @@ import com.mars.overtime.util.DataMigrationUtil
 import com.mars.overtime.util.FeaturePermissions
 import com.mars.overtime.util.WebDavManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -110,6 +111,24 @@ fun BackupSettingsPage(
     LaunchedEffect(webdavUsername) { webdavUserText = webdavUsername }
     LaunchedEffect(webdavPassword) { webdavPassText = webdavPassword }
     LaunchedEffect(webdavPath) { webdavPathText = webdavPath }
+    // 文本输入去抖：停止输入 300ms 后才落盘，避免每按键写一次 DataStore。
+    // 与上面的同步 Effect 不会循环：写回值与原值相同时 settingsFlow 已按内容去重。
+    LaunchedEffect(webdavUrlText) {
+        delay(300L)
+        settingsRepository.setWebdavUrl(webdavUrlText)
+    }
+    LaunchedEffect(webdavUserText) {
+        delay(300L)
+        settingsRepository.setWebdavUsername(webdavUserText)
+    }
+    LaunchedEffect(webdavPassText) {
+        delay(300L)
+        settingsRepository.setWebdavPassword(webdavPassText)
+    }
+    LaunchedEffect(webdavPathText) {
+        delay(300L)
+        settingsRepository.setWebdavPath(webdavPathText)
+    }
 
     suspend fun showToast(msg: String) {
         status = msg
@@ -147,11 +166,14 @@ fun BackupSettingsPage(
     suspend fun applyImport(data: BackupData, scope: RestoreScope) {
         var inserted = 0
         if (scope != RestoreScope.SETTINGS_ONLY) {
-            val existingKeys = repository.getAllRecords().first().map { recordKey(it) }.toSet()
-            data.records.forEach { rec ->
-                if (recordKey(rec) !in existingKeys) {
-                    repository.insert(rec.copy(id = 0))
-                    inserted++
+            // 全表去重 + 逐条插入放到 IO，恢复大备份时不阻塞主线程
+            withContext(Dispatchers.IO) {
+                val existingKeys = repository.getAllRecords().first().map { recordKey(it) }.toSet()
+                data.records.forEach { rec ->
+                    if (recordKey(rec) !in existingKeys) {
+                        repository.insert(rec.copy(id = 0))
+                        inserted++
+                    }
                 }
             }
         }
@@ -176,13 +198,18 @@ fun BackupSettingsPage(
         showToast("正在下载 $fileName ...")
         val isZip = fileName.endsWith(".zip", ignoreCase = true)
         val localPath = DataMigrationUtil.getBackupFilePath(context, "cloud_restore_tmp" + if (isZip) ".zip" else ".json")
-        val ok = WebDavManager.downloadFile(buildWebDavConfig(), fileName, localPath)
+        val ok = withContext(Dispatchers.IO) {
+            WebDavManager.downloadFile(buildWebDavConfig(), fileName, localPath)
+        }
         if (!ok) {
             showToast("下载失败：$fileName")
             return
         }
-        val data = if (isZip) BackupManager.importZip(localPath) else BackupManager.importData(localPath)
-        runCatching { File(localPath).delete() }
+        val data = withContext(Dispatchers.IO) {
+            val parsed = if (isZip) BackupManager.importZip(localPath) else BackupManager.importData(localPath)
+            runCatching { File(localPath).delete() }
+            parsed
+        }
         if (data == null) {
             showToast("文件解析失败")
             return
@@ -648,35 +675,23 @@ fun BackupSettingsPage(
                 if (webdavEnabled) {
                     SettingsTextField(
                         value = webdavUrlText,
-                        onValueChange = {
-                            webdavUrlText = it
-                            scope.launch { settingsRepository.setWebdavUrl(it) }
-                        },
+                        onValueChange = { webdavUrlText = it },
                         label = "服务器地址"
                     )
                     SettingsTextField(
                         value = webdavUserText,
-                        onValueChange = {
-                            webdavUserText = it
-                            scope.launch { settingsRepository.setWebdavUsername(it) }
-                        },
+                        onValueChange = { webdavUserText = it },
                         label = "用户名"
                     )
                     SettingsTextField(
                         value = webdavPassText,
-                        onValueChange = {
-                            webdavPassText = it
-                            scope.launch { settingsRepository.setWebdavPassword(it) }
-                        },
+                        onValueChange = { webdavPassText = it },
                         label = "密码",
                         isPassword = true
                     )
                     SettingsTextField(
                         value = webdavPathText,
-                        onValueChange = {
-                            webdavPathText = it
-                            scope.launch { settingsRepository.setWebdavPath(it) }
-                        },
+                        onValueChange = { webdavPathText = it },
                         label = "远程路径"
                     )
                     SettingsButtonRow(

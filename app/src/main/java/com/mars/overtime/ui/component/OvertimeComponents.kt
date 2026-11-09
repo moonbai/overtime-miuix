@@ -173,8 +173,8 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * 空状态占位：图标 + 标题（+ 可选副标题），居中展示。
- * 用于首页无记录、统计无数据等场景，取代各页手写的零散空态布局。
+ * 紧凑空状态（统计页无数据）：委托给 [AppEmptyState] 的 compact 分支。
+ * 保留函数名以兼容既有调用点，但实现只维护一套，避免视觉规范逐渐漂移。
  */
 @Composable
 fun EmptyState(
@@ -183,32 +183,13 @@ fun EmptyState(
     subtitle: String? = null,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    AppEmptyState(
+        icon = icon,
+        title = title,
+        subtitle = subtitle ?: "",
+        compact = true,
         modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = AppDimens.spaceLg),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(AppDimens.spaceXs)
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            modifier = Modifier.size(AppIconSize.lg)
-        )
-        Text(
-            title,
-            style = MiuixTheme.textStyles.title3,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-        )
-        if (subtitle != null) {
-            Text(
-                subtitle,
-                style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-            )
-        }
-    }
+    )
 }
 
 /**
@@ -236,12 +217,43 @@ fun Pill(
 @Composable
 fun AppEmptyState(
     icon: ImageVector,
-    onAction: () -> Unit,
+    onAction: (() -> Unit)? = null,
     title: String = "还没有加班记录",
     subtitle: String = "记录第一笔加班，从这里开始",
     actionText: String = "添加记录",
+    compact: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    if (compact) {
+        // 统计页图表内嵌空态：小图标 + 标题 + 副标题，不占大块插画与按钮空间
+        Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(vertical = AppDimens.spaceLg),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(AppDimens.spaceXs)
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier.size(AppIconSize.lg)
+            )
+            Text(
+                title,
+                style = MiuixTheme.textStyles.title3,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
+            if (subtitle.isNotEmpty()) {
+                Text(
+                    subtitle,
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
+            }
+        }
+        return
+    }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -292,22 +304,24 @@ fun AppEmptyState(
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
         )
-        Button(
-            onClick = onAction,
-            colors = ButtonDefaults.buttonColorsPrimary(),
-            cornerRadius = AppDimens.controlCorner,
-            insideMargin = PaddingValues(
-                horizontal = AppDimens.fabExtendedHorizontal,
-                vertical = AppDimens.spaceXs
-            )
-        ) {
-            Icon(
-                MiuixIcons.Add,
-                contentDescription = null,
-                modifier = Modifier.size(AppIconSize.xs)
-            )
-            Spacer(modifier = Modifier.width(AppDimens.spaceXxs))
-            Text(actionText, style = AppBody1Medium())
+        if (onAction != null) {
+            Button(
+                onClick = onAction,
+                colors = ButtonDefaults.buttonColorsPrimary(),
+                cornerRadius = AppDimens.controlCorner,
+                insideMargin = PaddingValues(
+                    horizontal = AppDimens.fabExtendedHorizontal,
+                    vertical = AppDimens.spaceXs
+                )
+            ) {
+                Icon(
+                    MiuixIcons.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(AppIconSize.xs)
+                )
+                Spacer(modifier = Modifier.width(AppDimens.spaceXxs))
+                Text(actionText, style = AppBody1Medium())
+            }
         }
     }
 }
