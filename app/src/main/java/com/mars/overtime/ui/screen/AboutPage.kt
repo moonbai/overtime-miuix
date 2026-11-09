@@ -238,7 +238,7 @@ fun AboutPage(navController: NavHostController) {
                             MiuixIcons.AppRecording,
                             contentDescription = "应用图标",
                             tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(68.dp)
+                            modifier = Modifier.size(AppDimens.aboutIconFallback)
                         )
                     }
                     Spacer(modifier = Modifier.height(AppDimens.spaceMd))
@@ -453,8 +453,7 @@ private fun UpdateResultDialogs(
                 // 版本、包名、数据来源拆成独立行，不再挤在 summary 的小号文字里
                 Text(
                     text = "v$versionName  →  v${info.latestVersion}",
-                    style = MiuixTheme.textStyles.body1,
-                    fontWeight = FontWeight.Medium,
+                    style = AppBody1Medium(),
                     color = MiuixTheme.colorScheme.onSurface
                 )
                 if (info.sizeBytes > 0) {
@@ -470,8 +469,7 @@ private fun UpdateResultDialogs(
                     Spacer(modifier = Modifier.height(AppDimens.spaceSm))
                     Text(
                         text = "更新内容",
-                        style = MiuixTheme.textStyles.body2,
-                        fontWeight = FontWeight.Medium,
+                        style = AppBody2Medium(),
                         color = MiuixTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(AppDimens.spaceXxs))
@@ -481,7 +479,7 @@ private fun UpdateResultDialogs(
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier
-                            .heightIn(max = 200.dp)
+                            .heightIn(max = AppDimens.releaseNotesMaxHeight)
                             .verticalScroll(rememberScrollState())
                     )
                 }
@@ -623,7 +621,7 @@ private fun FeatureCell(
         // 与设置行、底栏导航同一套单色语言，底色不再花花绿绿。
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(AppDimens.featureIconBox)
                 .clip(AppShapes.radiusMd)
                 .background(MiuixTheme.colorScheme.surfaceContainer),
             contentAlignment = Alignment.Center
