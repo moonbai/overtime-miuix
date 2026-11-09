@@ -23,7 +23,7 @@
 
 ### 扩展能力
 
-- **多渠道推送** — 钉钉、飞书、企业微信、WxPusher、Telegram、Discord、自定义 WebHook（结构化 JSON 载荷）
+- **多渠道推送** — 钉钉、飞书、企业微信、WxPusher、Telegram、Discord、自定义 WebHook（结构化 JSON 载荷）。可读文本与日历事件标题中的时长统一为小时制（`0.5H` / `1H` / `1.5H`），旧版「x小时y分钟」/「X.XX小时」文案不再输出，按文本解析的下游需适配；删除日历事件时仍同时匹配新旧标题以清理历史数据
 - **日历同步** — 自动将加班记录写入系统日历，支持批量同步
 - **备份与恢复** — ZIP 导入 / 导出（`records.json` + `settings.json`）、自动备份（本地 / WebDAV 云端双模式）、WebDAV 手动上传下载
 - **MCP 服务** — 内置基于 Ktor 的 Model Context Protocol 服务，AI 助手可通过标准协议读写加班数据
