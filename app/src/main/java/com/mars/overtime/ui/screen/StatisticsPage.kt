@@ -905,7 +905,10 @@ private fun StatsCard(title: String, items: List<Pair<String, String>>) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     rowItems.forEach { (label, value) ->
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             Text(
                                 text = label,
                                 style = MiuixTheme.textStyles.footnote1,
