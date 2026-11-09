@@ -9,6 +9,10 @@ interface OvertimeDao {
     @Query("SELECT * FROM overtime_records ORDER BY date DESC")
     fun getAllRecords(): Flow<List<OvertimeRecord>>
 
+    /** 只观察条目数：首页 FAB 显隐等场景无需订阅整张表 */
+    @Query("SELECT COUNT(*) FROM overtime_records")
+    fun observeRecordCount(): Flow<Int>
+
     @Query("SELECT * FROM overtime_records WHERE id = :id")
     suspend fun getRecordById(id: Long): OvertimeRecord?
 

@@ -18,6 +18,7 @@ import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
 import com.mars.overtime.ui.component.AppFab
 import com.mars.overtime.ui.component.LocalFabAnchor
+import com.mars.overtime.ui.component.LocalRecords
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.snackbar.showCustomToast
 import com.mars.overtime.ui.theme.AppDimens
@@ -25,7 +26,7 @@ import com.mars.overtime.ui.theme.AppIconSize
 import com.mars.overtime.ui.theme.AppShapes
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
+import com.mars.overtime.util.rememberBlurEnabled
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
@@ -47,13 +48,16 @@ fun MainScreen(
     val floatingNavBottomOffset by settingsRepository.floatingNavBottomOffset
         .collectAsState(initial = 5)
     val quickSubmit by settingsRepository.quickSubmit.collectAsState(initial = false)
-    val blurSupported = isRuntimeShaderSupported()
+    val blurSupported = rememberBlurEnabled()
 
     // 首页是否存在记录：决定 FAB 是否显示。未添加任何记录时隐藏右下角 FAB，
     // 由首页空状态的主操作按钮承担「添加」入口，避免未记录时首页出现三个按钮；
     // 存在记录时显示 FAB、隐藏首页空状态（与用户预期「有记录时悬浮出现」一致）。
-    val allRecords by repository.getAllRecords().collectAsState(initial = emptyList())
-    val hasRecords = allRecords.isNotEmpty()
+    // 只订阅 COUNT(*)：首页仅用它决定 FAB 显隐，订阅全表会在每次记录变更时拉回整张表
+    val recordCount by repository.observeRecordCount().collectAsState(initial = 0)
+    val hasRecords = recordCount > 0
+    // 常驻页面共用一份记录快照：首页/记录/统计/快速提报不再各自订阅全表 Flow
+    val sharedRecords = repository.getAllRecords().collectAsState(initial = null)
     val context = androidx.compose.ui.platform.LocalContext.current
 
     // 快速提报对话框显隐
@@ -143,7 +147,7 @@ fun MainScreen(
                 SmallTopAppBar(
                     title = when (selectedTab) {
                         0 -> "首页"
-                        1 -> "加班记录"
+                        1 -> "记录"
                         2 -> "统计"
                         else -> "设置"
                     },
@@ -204,6 +208,7 @@ fun MainScreen(
             }
         }
     ) { paddingValues ->
+        CompositionLocalProvider(LocalRecords provides sharedRecords) {
         // 普通底栏模式：FAB 底部偏移取 Scaffold 实测的底栏高度 + 统一间距
         val normalFabBottom = paddingValues.calculateBottomPadding() +
             AppDimens.pageVertical
@@ -346,6 +351,7 @@ fun MainScreen(
                 }
             )
         }
+        } // CompositionLocalProvider(LocalRecords)
     }
 }
 

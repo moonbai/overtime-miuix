@@ -23,6 +23,8 @@ import kotlin.math.roundToInt
 import androidx.navigation.NavHostController
 import com.mars.overtime.data.model.BottomBarStyle
 import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.util.AppDefaults
+import com.mars.overtime.data.repository.THEME_MODES
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
@@ -53,13 +55,10 @@ enum class BackExitDirection(val label: String) {
     }
 }
 
-// 主题模式选项：value → label，其中 monet_* 映射到 ColorSchemeMode.MonetLight/MonetDark
-private val THEME_OPTIONS = listOf(
-    "system" to "跟随系统",
-    "light" to "浅色模式",
-    "dark" to "深色模式",
-    "monet_light" to "Monet 浅色",
-    "monet_dark" to "Monet 深色"
+// 主题模式选项：value → label。monet_* 前缀同时开启 Monet 动态取色，
+// 其中 monet_system 深浅跟随系统，monet_light / monet_dark 固定浅色 / 深色。
+private val THEME_OPTIONS = THEME_MODES.zip(
+    listOf("跟随系统", "浅色", "深色", "Monet 跟随系统", "Monet 浅色", "Monet 深色")
 )
 
 @Composable
@@ -82,10 +81,10 @@ fun AppearanceSettingsPage(
     val useFloatingNav by settingsRepository.useFloatingNav.collectAsState(initial = false)
     val floatingNavBottomOffset by settingsRepository.floatingNavBottomOffset
         .collectAsState(initial = 5)
-    val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
-    val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
-    val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
-    val accentColor by settingsRepository.accentColor.collectAsState(initial = 0xFF3482FF.toInt())
+    val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = AppDefaults.PRIMARY_ARGB)
+    val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = AppDefaults.WEEKEND_ARGB)
+    val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = AppDefaults.HOLIDAY_ARGB)
+    val accentColor by settingsRepository.accentColor.collectAsState(initial = AppDefaults.PRIMARY_ARGB)
     val backTransition by settingsRepository.predictiveBackTransition
         .collectAsState(initial = BackTransition.SCALE_FADE.name)
     val backExitDirection by settingsRepository.backExitDirection
@@ -129,14 +128,11 @@ fun AppearanceSettingsPage(
                     items = themeItems,
                     selectedIndex = themeSelected,
                     title = "主题模式",
-                    summary = "跟随系统、浅色、深色及 Monet 取色浅色/深色",
+                    summary = "跟随系统、浅色、深色，以及 Monet 跟随系统 / 浅色 / 深色",
                     onSelectedIndexChange = { index ->
                         val value = THEME_OPTIONS[index].first
-                        scope.launch {
-                            settingsRepository.setThemeMode(value)
-                            // 同步 monet_enabled 用于备份兼容与主题逻辑
-                            settingsRepository.setMonetEnabled(value.startsWith("monet_"))
-                        }
+                        // 一次 edit 同时写 theme_mode 与 monet_enabled，避免半生效状态
+                        scope.launch { settingsRepository.setTheme(value) }
                     }
                 )
             }
@@ -298,9 +294,9 @@ fun AppearanceSettingsPage(
 }
 
 private val TYPE_COLOR_PALETTE = listOf(
-    0xFF3482FF.toInt(),
-    0xFF34C759.toInt(),
-    0xFFFF7043.toInt(),
+    AppDefaults.PRIMARY_ARGB,
+    AppDefaults.WEEKEND_ARGB,
+    AppDefaults.HOLIDAY_ARGB,
     0xFFE91E63.toInt(),
     0xFF9C27B0.toInt(),
     0xFF00BCD4.toInt(),

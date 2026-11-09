@@ -10,14 +10,12 @@
 [![API](https://img.shields.io/badge/API-33%2B-orange)](https://developer.android.com)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 
-[English](README_EN.md)
-
 ## 功能特性
 
 ### 核心功能
 
-- **加班记录管理** — 工作日 / 休息日 / 节假日三种类型；支持请假标记（半天 4h / 全天 8h）与工资自动扣减，加班时长按日期类型设上限
-- **实时薪资预览** — 录入时实时计算预估薪资，请假记录显示预计扣减金额
+- **加班记录管理** — 工作日 / 休息日 / 节假日三种类型；支持请假标记（半天 4H / 全天 8H）与工资自动扣减，加班时长按日期类型设上限
+- **实时薪资预览** — 录入时实时计算加班薪资，请假记录显示预计扣减金额
 - **快速提报** — 首页一键记录今日加班，自动判定日期类型；常用时长快捷档 + 滑块微调，单次弹窗会话只允许提交一次，杜绝连点重复入库
 - **统计报表** — 月度 / 年度视图切换；月度日历卡片（点击日期查看当日明细）与分类统计，年度按月趋势与类型占比
 - **智能日期识别** — Uapis 节假日日历（默认）/ MXNZP / 自定义 API 三种数据源自动判定工作日、休息日与节假日，支持调休规则与缓存
@@ -25,7 +23,7 @@
 
 ### 扩展能力
 
-- **多渠道推送** — 钉钉、飞书、企业微信、WxPusher、Telegram、Discord、自定义 WebHook（结构化 JSON 载荷）
+- **多渠道推送** — 钉钉、飞书、企业微信、WxPusher、Telegram、Discord、自定义 WebHook（结构化 JSON 载荷）。可读文本与日历事件标题中的时长统一为小时制（`0.5H` / `1H` / `1.5H`），旧版「x小时y分钟」/「X.XX小时」文案不再输出，按文本解析的下游需适配；删除日历事件时仍同时匹配新旧标题以清理历史数据
 - **日历同步** — 自动将加班记录写入系统日历，支持批量同步
 - **备份与恢复** — ZIP 导入 / 导出（`records.json` + `settings.json`）、自动备份（本地 / WebDAV 云端双模式）、WebDAV 手动上传下载
 - **MCP 服务** — 内置基于 Ktor 的 Model Context Protocol 服务，AI 助手可通过标准协议读写加班数据
@@ -33,7 +31,7 @@
 
 ### 个性化与交互
 
-- **主题模式** — 跟随系统 / 浅色 / 深色 / Monet 浅色 / Monet 深色；全局强调色与三种加班类型标识色均可自定义
+- **主题模式** — 跟随系统 / 浅色 / 深色 / Monet 跟随系统 / Monet 浅色 / Monet 深色；全局强调色与三种加班类型标识色均可自定义
 - **底栏样式** — 图标+文字 / 仅图标；可切换悬浮胶囊底栏（毛玻璃背景，离底距离 0~64dp 可调），普通底栏同样带高斯模糊
 - **返回预测** — 缩放淡入 / 横向滑动 / 纵向滑动 / 纯淡入淡出 / 无动画；横向滑动可指定退出方向（跟随手势 / 恒定向右 / 恒定向左）。手势来源边缘由 Activity 层采集，从屏幕左右两侧返回时「跟随手势」都能正确翻转
 - **一致性交互** — 设置开关整行可点击切换；提示条改为偏左限宽显示，避开右下角悬浮加号且不拦截其触摸；删除确认开关、重复点击首页 tab 回到顶部
@@ -66,16 +64,7 @@
 | compileSdk / targetSdk | 37 |
 | minSdk | 33（Android 13，与 miuix-blur 对齐） |
 | JVM Target / Source Compatibility | 17 / Java 17 |
-| versionName / versionCode | 1.0.0 / 1（tag 构建时由流水线同步版本号） |
-| 签名 | release 从环境变量或 `local.properties` 注入 keystore |
 
-### 依赖兼容策略（MiuiX 0.9.4）
-
-MIUIX 是 Compose Multiplatform 库，其 AAR 重打包了 `org.jetbrains.compose.*` 下的 AndroidX Compose 类，与 AndroidX BOM 存在类冲突。`app/build.gradle.kts` 的处理：
-
-1. 四个 miuix 依赖统一 `exclude` 掉 `foundation` / `runtime` / `ui` / `animation` 四组传递依赖，保留 `material3-window-size-class` 等运行时必需部分
-2. 版本交由 AndroidX Compose BOM 2026.09.00 统一管理，并用 `resolutionStrategy.force` 把 `androidx.compose.*` 钉在 **1.12.1**，消除版本冲突告警
-3. 不升版、不 fork、不混入 Material3 —— MiuiX 0.9.4 依赖保持不变
 
 ### 设计令牌与组件层
 

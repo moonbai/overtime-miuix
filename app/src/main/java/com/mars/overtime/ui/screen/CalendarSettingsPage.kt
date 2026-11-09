@@ -13,7 +13,9 @@ import com.mars.overtime.data.repository.SettingsRepository
 import com.mars.overtime.push.CalendarSyncManager
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.snackbar.showCustomToast
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 
@@ -112,7 +114,10 @@ fun CalendarSettingsPage(
                                 permissionLauncher.launch(CalendarSyncManager.calendarPermissions())
                                 return@launch
                             }
-                            val msg = when (val result = CalendarSyncManager.syncAll(context, records)) {
+                            // 批量同步会先清空日历再逐条写 Provider，必须切到 IO 线程
+                            val msg = when (val result = withContext(Dispatchers.IO) {
+                                CalendarSyncManager.syncAll(context, records)
+                            }) {
                                 is CalendarSyncManager.SyncResult.Success -> "同步完成"
                                 is CalendarSyncManager.SyncResult.PermissionDenied -> {
                                     hasPermission = false

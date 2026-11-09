@@ -264,7 +264,7 @@ private fun HomeWidgetGrid(
                         .offset(x = rect.x + dxDp, y = rect.y + dyDp)
                         .size(rect.w, rect.h)
                         .zIndex(if (isDragged) 1f else 0f)
-                        .shadow(if (isDragged) 8.dp else 0.dp, AppShapes.radiusLg)
+                        .shadow(if (isDragged) AppDimens.widgetDragElevation else 0.dp, AppShapes.radiusLg)
                         // 常态给白卡片一层极淡描边，让它在浅灰大背景上「浮」起来；
                         // 编辑态改用主题色描边提示可操作。
                         .border(

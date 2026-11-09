@@ -1,11 +1,14 @@
 package com.mars.overtime.ui.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -19,17 +22,23 @@ import com.mars.overtime.ui.component.AppConfirmFab
 import com.mars.overtime.ui.component.LocalFabAnchor
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.snackbar.showCustomToast
+import com.mars.overtime.util.AppDateFormats
 import com.mars.overtime.util.HolidayDataSource
 import com.mars.overtime.util.HolidayManager
 import com.mars.overtime.util.RecordSyncHelper
 import com.mars.overtime.util.SalaryCalculator
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
+import com.mars.overtime.util.rememberBlurEnabled
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.mars.overtime.ui.theme.AppDimens
+import com.mars.overtime.ui.theme.AppShapes
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToLong
@@ -104,7 +113,7 @@ fun AddEditRecordPage(
     // 依据所选日期自动判定加班类型（除非用户已手动更改、或为请假记录）
     LaunchedEffect(selectedDate, isLeave, typeManuallyChanged) {
         if (isLeave || typeManuallyChanged) return@LaunchedEffect
-        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(selectedDate)
+        val dateStr = AppDateFormats.isoDay(selectedDate.time)
         val autoType = HolidayManager.getOvertimeType(dateStr)
         selectedType = autoType
         autoTypeHint = autoType.label
@@ -223,11 +232,11 @@ fun AddEditRecordPage(
                     inserted = true
                     // 同步动作在当前协程内串行执行并整体兜底：
                     // 记录本身已入库，后续推送/日历/备份的任何异常都不得影响保存结果与页面跳转。
-                    val calendarResult = try {
+                    val failures = try {
                         RecordSyncHelper.afterSave(context, repository, settingsRepository, saved, oldRecord)
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        null
+                        listOf("联动同步未完成")
                     }
                     // 先返回首页，再显示吐司，确保吐司在首页上可见
                     navController.navigate("main") {
@@ -235,7 +244,7 @@ fun AddEditRecordPage(
                     }
                     val baseMsg = if (recordId != null) "已更新记录" else "已保存记录"
                     snackbarHostState.showCustomToast(
-                        RecordSyncHelper.calendarHint(calendarResult) ?: baseMsg
+                        RecordSyncHelper.formatHint(baseMsg, failures)
                     )
                 }
             } catch (e: Exception) {
@@ -248,32 +257,56 @@ fun AddEditRecordPage(
         }
     }
 
+    // 与主界面 / 设置二级页一致：内容层延伸到顶栏背后作为毛玻璃采样源；
+    // 窗口背景透明时由 Scaffold 自己铺满主题背景，避免深色下透出黑底。
+    val navBackdrop = rememberLayerBackdrop()
+    val blurSupported = rememberBlurEnabled()
     Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MiuixTheme.colorScheme.background),
         topBar = {
-            SmallTopAppBar(
-                title = if (isEdit) "编辑记录" else "添加记录",
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
-                    }
-                }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .textureBlur(
+                        backdrop = navBackdrop,
+                        shape = AppShapes.radiusZero,
+                        blurRadius = 40f,
+                        enabled = blurSupported
+                    )
+            ) {
+                SmallTopAppBar(
+                    title = if (isEdit) "编辑记录" else "添加记录",
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
+                        }
+                    },
+                    color = if (blurSupported) Color.Transparent
+                    else MiuixTheme.colorScheme.surface
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         // 外层 Box 与 MainScreen 承载入口加号 FAB 的 Box 同为 Scaffold 的满屏内容层，
         // 因此两边以 Alignment.BottomEnd + 相同 padding 计算出的屏幕坐标完全一致。
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(navBackdrop)
+        ) {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
+                modifier = Modifier.fillMaxSize(),
+                // 列表自己避让状态栏/顶栏/系统导航栏，内容仍延伸到顶栏背后供毛玻璃采样；
                 // 底部预留随加号锚点联动：确认按钮上移后，末项仍不会被遮挡
                 contentPadding = PaddingValues(
                     start = AppDimens.pageHorizontal,
-                    top = AppDimens.pageVertical,
+                    top = AppDimens.pageVertical + paddingValues.calculateTopPadding(),
                     end = AppDimens.pageHorizontal,
-                    bottom = fabAnchorBottom + AppDimens.fabSize + AppDimens.pageVertical
+                    bottom = fabAnchorBottom + AppDimens.fabSize + AppDimens.pageVertical +
+                        paddingValues.calculateBottomPadding()
                 ),
                 verticalArrangement = Arrangement.spacedBy(AppDimens.groupSpacing)
             ) {
@@ -287,7 +320,7 @@ fun AddEditRecordPage(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = if (isLeave) "预计扣减" else "预估薪资",
+                            text = if (isLeave) "预计扣减" else "加班薪资",
                             style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
@@ -304,7 +337,7 @@ fun AddEditRecordPage(
             item {
                 BasicComponent(
                     title = "日期",
-                    summary = SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault()).format(selectedDate),
+                    summary = AppDateFormats.displayDay(selectedDate.time),
                     onClick = { showDatePicker = true }
                 )
             }
@@ -458,7 +491,7 @@ fun AddEditRecordPage(
             BackHandler(enabled = true) { showDurationPicker = false }
             OverlayDialog(
                 show = showDurationPicker,
-                title = "选择加班时长（0.5 小时梯度，最多 ${maxDurationHours.toInt()}h）",
+                title = "选择加班时长",
                 onDismissRequest = { showDurationPicker = false }
             ) {
                 Column(
@@ -469,12 +502,7 @@ fun AddEditRecordPage(
                         value = pickDurationIndex,
                         onValueChange = { pickDurationIndex = it },
                         range = 0 until durationOptions.size,
-                        label = {
-                            val h = durationOptions[it]
-                            val hi = h.toInt()
-                            val m = ((h - hi) * 60).toInt()
-                            if (m > 0) "${hi}h${m}m" else "${hi}h"
-                        },
+                        label = { SalaryCalculator.formatHours(durationOptions[it]) },
                         modifier = Modifier.heightIn(min = 180.dp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -497,7 +525,12 @@ fun AddEditRecordPage(
             title = "选择类型",
             onDismissRequest = { showTypePicker = false }
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            // DropdownImpl 的背景是 drawRect 直角绘制，外层整体裁成圆角卡片
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(AppShapes.radiusMd)
+            ) {
                 val typeEntries = OvertimeType.entries
                 typeEntries.forEachIndexed { index, type ->
                     FullWidthDropdownItem(
@@ -531,7 +564,7 @@ fun AddEditRecordPage(
                     range = 0 until leaveOptions.size,
                     label = {
                         val h = kotlin.math.abs(leaveOptions[it])
-                        "${h.toInt()}小时${if (h >= 8.0) "（全天）" else "（半天）"}"
+                        "${SalaryCalculator.formatHours(h)}${if (h >= 8.0) "-全天" else "-半天"}"
                     },
                     modifier = Modifier.heightIn(min = 180.dp)
                 )
@@ -609,7 +642,7 @@ private suspend fun saveRecord(
     leaveDuration: Double
 ): OvertimeRecord? {
     // 请假记录：时长取 leaveDuration（半天 -4 / 全天 -8），工资按标准日薪比例扣减（负值）
-    val duration = if (isLeave) leaveDuration.toDouble() else durationHours
+    val duration = if (isLeave) leaveDuration else durationHours
     val amount = if (isLeave) SalaryCalculator.calculateLeaveDeduction(baseSalary, duration)
     else SalaryCalculator.calculateOvertimeAmount(baseSalary, type, rate, duration)
 

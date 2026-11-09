@@ -1,5 +1,8 @@
 package com.mars.overtime.ui.screen
+import com.mars.overtime.ui.theme.AppBody1Medium
+import com.mars.overtime.ui.theme.AppBody2Medium
 import com.mars.overtime.ui.theme.AppDimens
+import com.mars.overtime.ui.theme.AppHeadline2Bold
 import com.mars.overtime.ui.theme.AppIconSize
 import com.mars.overtime.ui.theme.AppShapes
 
@@ -207,7 +210,7 @@ fun AboutPage(navController: NavHostController) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 cornerRadius = AppDimens.cardCorner,
-                insideMargin = PaddingValues(28.dp)
+                insideMargin = PaddingValues(AppDimens.spaceLg + AppDimens.spaceXxs)
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -219,7 +222,7 @@ fun AboutPage(navController: NavHostController) {
                     // 深色主题下也能让彩色图标保持原貌。
                     Box(
                         modifier = Modifier
-                            .size(104.dp)
+                            .size(AppDimens.aboutIconBox)
                             .clip(AppShapes.radiusXxl)
                             .background(Color.White),
                         contentAlignment = Alignment.Center
@@ -229,16 +232,16 @@ fun AboutPage(navController: NavHostController) {
                                 bitmap = bitmap.asImageBitmap(),
                                 contentDescription = "应用图标",
                                 contentScale = ContentScale.Fit,
-                                modifier = Modifier.size(84.dp)
+                                modifier = Modifier.size(AppDimens.aboutIcon)
                             )
                         } ?: Icon(
                             MiuixIcons.AppRecording,
                             contentDescription = "应用图标",
                             tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(68.dp)
+                            modifier = Modifier.size(AppDimens.aboutIconFallback)
                         )
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(AppDimens.spaceMd))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center,
@@ -246,23 +249,21 @@ fun AboutPage(navController: NavHostController) {
                     ) {
                         Text(
                             text = "加班记",
-                            style = MiuixTheme.textStyles.headline2,
-                            fontWeight = FontWeight.Bold,
+                            style = AppHeadline2Bold(),
                             color = MiuixTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(AppDimens.spaceXs))
                         Text(
                             text = "v$versionName",
                             style = MiuixTheme.textStyles.body1,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(AppDimens.spaceSm))
                     Text(
                         text = "用心记录，每一份付出都值得被看见",
-                        style = MiuixTheme.textStyles.body1,
+                        style = AppBody1Medium(),
                         color = MiuixTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center
@@ -281,7 +282,7 @@ fun AboutPage(navController: NavHostController) {
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.padding(
                         horizontal = AppDimens.itemHorizontal,
-                        vertical = 12.dp
+                        vertical = AppDimens.spaceSm
                     )
                 )
             }
@@ -452,12 +453,11 @@ private fun UpdateResultDialogs(
                 // 版本、包名、数据来源拆成独立行，不再挤在 summary 的小号文字里
                 Text(
                     text = "v$versionName  →  v${info.latestVersion}",
-                    style = MiuixTheme.textStyles.body1,
-                    fontWeight = FontWeight.Medium,
+                    style = AppBody1Medium(),
                     color = MiuixTheme.colorScheme.onSurface
                 )
                 if (info.sizeBytes > 0) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AppDimens.spaceXxs))
                     Text(
                         text = "安装包：${info.apkName.ifBlank { "APK" }}（${formatApkSize(info.sizeBytes)}）",
                         style = MiuixTheme.textStyles.footnote1,
@@ -466,26 +466,25 @@ private fun UpdateResultDialogs(
                 }
                 val notes = cleanReleaseNotes(info.releaseNotes)
                 if (notes.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(AppDimens.spaceSm))
                     Text(
                         text = "更新内容",
-                        style = MiuixTheme.textStyles.body2,
-                        fontWeight = FontWeight.Medium,
+                        style = AppBody2Medium(),
                         color = MiuixTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AppDimens.spaceXxs))
                     // 与按钮同宽（不再额外水平内缩），限高后可滚动
                     Text(
                         text = notes,
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier
-                            .heightIn(max = 200.dp)
+                            .heightIn(max = AppDimens.releaseNotesMaxHeight)
                             .verticalScroll(rememberScrollState())
                     )
                 }
                 if (info.source.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(AppDimens.spaceXs))
                     Text(
                         text = "数据来源：${info.source}",
                         style = MiuixTheme.textStyles.footnote1,
@@ -493,7 +492,7 @@ private fun UpdateResultDialogs(
                     )
                 }
                 if (info.downloadUrl.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(AppDimens.spaceXs))
                     TextButton(
                         text = "查看发布页",
                         onClick = {
@@ -503,7 +502,7 @@ private fun UpdateResultDialogs(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(AppDimens.spaceSm))
                 // 与全项目弹窗一致：两个等宽按钮横向排列；主操作显式用主色
                 Row(modifier = Modifier.fillMaxWidth()) {
                     TextButton(
@@ -511,7 +510,7 @@ private fun UpdateResultDialogs(
                         onClick = { onDismiss() },
                         modifier = Modifier.weight(1f)
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(AppDimens.spaceSm))
                     Button(
                         onClick = {
                             // 优先直达 APK 直链；解析不到资源时退回发布页
@@ -545,7 +544,7 @@ private fun UpdateResultDialogs(
                     onClick = { onDismiss() },
                     modifier = Modifier.weight(1f)
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(AppDimens.spaceSm))
                 Button(
                     onClick = {
                         // 与更新弹窗一致：优先直达 APK，解析不到资源时才回退发布页
@@ -622,7 +621,7 @@ private fun FeatureCell(
         // 与设置行、底栏导航同一套单色语言，底色不再花花绿绿。
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(AppDimens.featureIconBox)
                 .clip(AppShapes.radiusMd)
                 .background(MiuixTheme.colorScheme.surfaceContainer),
             contentAlignment = Alignment.Center
@@ -637,8 +636,7 @@ private fun FeatureCell(
         Spacer(modifier = Modifier.height(AppDimens.spaceXxs2))
         Text(
             text = feature.title,
-            style = MiuixTheme.textStyles.body2,
-            fontWeight = FontWeight.Medium,
+            style = AppBody2Medium(),
             textAlign = TextAlign.Center
         )
     }

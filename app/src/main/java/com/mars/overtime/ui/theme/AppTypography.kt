@@ -38,8 +38,20 @@ fun AppBody1Semibold(): TextStyle =
     MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.SemiBold)
 
 @Composable
+fun AppBody2Medium(): TextStyle =
+    MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Medium)
+
+@Composable
 fun AppBody2Semibold(): TextStyle =
     MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.SemiBold)
+
+@Composable
+fun AppFootnote1Bold(): TextStyle =
+    MiuixTheme.textStyles.footnote1.copy(fontWeight = FontWeight.Bold)
+
+@Composable
+fun AppFootnote1Medium(): TextStyle =
+    MiuixTheme.textStyles.footnote1.copy(fontWeight = FontWeight.Medium)
 
 @Composable
 fun AppHeadline1Bold(): TextStyle =

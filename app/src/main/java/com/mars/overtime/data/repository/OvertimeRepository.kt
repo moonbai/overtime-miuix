@@ -26,6 +26,8 @@ class OvertimeRepository(private val database: AppDatabase) {
     private val dao = database.overtimeDao()
     
     fun getAllRecords(): Flow<List<OvertimeRecord>> = dao.getAllRecords()
+
+    fun observeRecordCount(): Flow<Int> = dao.observeRecordCount()
     
     suspend fun getRecordById(id: Long): OvertimeRecord? = dao.getRecordById(id)
     

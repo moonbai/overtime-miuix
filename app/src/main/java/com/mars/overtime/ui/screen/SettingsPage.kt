@@ -2,16 +2,18 @@ package com.mars.overtime.ui.screen
 
 import android.content.Context
 import android.content.pm.PackageManager
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.mars.overtime.ui.theme.AppDimens
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 设置首页：按「用户想做什么」而非技术模块分组，入口名称与二级页顶栏标题保持一致。
@@ -25,14 +27,16 @@ import top.yukonga.miuix.kmp.icon.extended.*
 @Composable
 fun SettingsPage(
     navController: NavHostController,
-    topReserve: Dp = 0.dp,
-    bottomReserve: Dp = 0.dp
+    topReserve: Dp = AppDimens.zero,
+    bottomReserve: Dp = AppDimens.zero
 ) {
     val context = LocalContext.current
     val versionName = remember { getVersionName(context) }
 
     SettingsList(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MiuixTheme.colorScheme.background),
         topReserve = topReserve,
         bottomReserve = bottomReserve
     ) {

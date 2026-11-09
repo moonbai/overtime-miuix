@@ -4,27 +4,48 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.mars.overtime.util.AppDefaults
 import com.mars.overtime.util.HolidayDataSource
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
+/**
+ * 主题模式白名单与展示顺序：外观设置页的选项、持久化校验、备份导入共用这一份，
+ * 避免旧备份或异常写入的非法值落到主题分支里。
+ */
+val THEME_MODES = listOf(
+    "system", "light", "dark", "monet_system", "monet_light", "monet_dark"
+)
+
 class SettingsRepository(private val context: Context) {
-    // Theme settings
-    val themeMode: Flow<String> = context.dataStore.data.map { it[KEY_THEME_MODE] ?: "system" }
-    val accentColor: Flow<Int> = context.dataStore.data.map { it[KEY_ACCENT_COLOR] ?: 0xFF3482FF.toInt() }
-    val bottomBarStyle: Flow<String> = context.dataStore.data.map { it[KEY_BOTTOM_BAR_STYLE] ?: "ICON_TEXT" }
-    val quickSubmit: Flow<Boolean> = context.dataStore.data.map { it[KEY_QUICK_SUBMIT] ?: false }
+    /**
+     * DataStore 每次写入都会发出一个新的 [Preferences] 实例，即使内容完全一致。
+     * 任一设置项（尤其是文本输入每按键即写）原本会把所有 collectAsState 全部唤醒一次，
+     * 这里按内容去重，只有真正变化的设置才通知订阅者。
+     */
+    private val settingsFlow: Flow<Preferences> = context.dataStore.data
+        .distinctUntilChanged { old, new -> old.asMap() == new.asMap() }
+
+    // Theme settings：非法值统一回退到「跟随系统」
+    val themeMode: Flow<String> = settingsFlow.map {
+        val mode = it[KEY_THEME_MODE] ?: "system"
+        if (mode in THEME_MODES) mode else "system"
+    }
+    val accentColor: Flow<Int> = settingsFlow.map { it[KEY_ACCENT_COLOR] ?: AppDefaults.PRIMARY_ARGB }
+    val bottomBarStyle: Flow<String> = settingsFlow.map { it[KEY_BOTTOM_BAR_STYLE] ?: "ICON_TEXT" }
+    val quickSubmit: Flow<Boolean> = settingsFlow.map { it[KEY_QUICK_SUBMIT] ?: false }
 
     // 删除二次确认开关（关闭后点删除立即移除记录，配合可撤销通知条兜底）
-    val deleteConfirmEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_DELETE_CONFIRM] ?: true }
+    val deleteConfirmEnabled: Flow<Boolean> = settingsFlow.map { it[KEY_DELETE_CONFIRM] ?: true }
 
     // 首页小组件：启用并按此顺序展示（逗号分隔的组件 id）。
     // 读取时过滤掉未知 id（版本演进后旧配置不崩），空配置回退默认值。
     // 仅用于旧备份导入/迁移兜底，新布局由 [homeLayout] 管理。
-    val homeWidgets: Flow<List<String>> = context.dataStore.data.map { prefs ->
+    val homeWidgets: Flow<List<String>> = settingsFlow.map { prefs ->
         val saved = prefs[KEY_HOME_WIDGETS]
             ?.split(',')
             ?.map { it.trim() }
@@ -37,7 +58,7 @@ class SettingsRepository(private val context: Context) {
     // 读取时由 ui 层 normalizeLayout 校正，保留字段仅为兼容旧版本与备份导入。
     // 优先读新格式 `home_layout`；缺失时回退旧 `home_widgets`（全部按 1x1 处理），
     // 再缺失回退默认布局。写入统一走 [setHomeLayout] 落到 `home_layout`。
-    val homeLayout: Flow<List<WidgetPlacement>> = context.dataStore.data.map { prefs ->
+    val homeLayout: Flow<List<WidgetPlacement>> = settingsFlow.map { prefs ->
         val layoutRaw = prefs[KEY_HOME_LAYOUT]
         val items = if (layoutRaw != null) {
             parseLayout(layoutRaw)
@@ -53,101 +74,113 @@ class SettingsRepository(private val context: Context) {
     }
 
     // 首页概览卡展示模式：total=总时长/薪资/记录数；by_type=净时长+分类型工时
-    val homeOverviewMode: Flow<String> = context.dataStore.data.map { it[KEY_HOME_OVERVIEW_MODE] ?: "total" }
+    val homeOverviewMode: Flow<String> = settingsFlow.map { it[KEY_HOME_OVERVIEW_MODE] ?: "total" }
 
     // Monet 动态取色（使用系统壁纸动态配色）
-    val monetEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_MONET_ENABLED] ?: false }
+    val monetEnabled: Flow<Boolean> = settingsFlow.map { it[KEY_MONET_ENABLED] ?: false }
 
     // 悬浮底栏（FloatingNavigationBar）
-    val useFloatingNav: Flow<Boolean> = context.dataStore.data.map { it[KEY_FLOATING_NAV] ?: false }
+    val useFloatingNav: Flow<Boolean> = settingsFlow.map { it[KEY_FLOATING_NAV] ?: false }
 
     // 悬浮底栏与屏幕底部的距离（dp，不含系统导航栏安全区），范围 0..64
-    val floatingNavBottomOffset: Flow<Int> = context.dataStore.data
+    val floatingNavBottomOffset: Flow<Int> = settingsFlow
         .map { (it[KEY_FLOATING_NAV_BOTTOM_OFFSET] ?: DEFAULT_FLOATING_NAV_BOTTOM_OFFSET).coerceIn(0, 64) }
 
     // 预测性返回总开关：关闭后返回不做任何动画（瞬时返回），也禁用系统返回手势预览
-    val predictiveBackEnabled: Flow<Boolean> = context.dataStore.data
+    val predictiveBackEnabled: Flow<Boolean> = settingsFlow
         .map { it[KEY_PREDICTIVE_BACK_ENABLED] ?: DEFAULT_PREDICTIVE_BACK_ENABLED }
 
     // 页面返回转场动画（预测性返回手势预览复用同一组规格），仅在总开关开启时生效
-    val predictiveBackTransition: Flow<String> = context.dataStore.data
+    val predictiveBackTransition: Flow<String> = settingsFlow
         .map { it[KEY_PREDICTIVE_BACK_TRANSITION] ?: DEFAULT_PREDICTIVE_BACK_TRANSITION }
 
     // 横向返回的退出方向：跟随手势 / 恒定向右 / 恒定向左，仅在动画为 SLIDE_HORIZONTAL 时生效
-    val backExitDirection: Flow<String> = context.dataStore.data
+    val backExitDirection: Flow<String> = settingsFlow
         .map { it[KEY_BACK_EXIT_DIRECTION] ?: DEFAULT_BACK_EXIT_DIRECTION }
 
     // 薪资计算口径：月计薪天数 / 每日工时，可在「基础设置」中调整
-    val workingDaysPerMonth: Flow<Double> = context.dataStore.data
+    val workingDaysPerMonth: Flow<Double> = settingsFlow
         .map { it[KEY_WORKING_DAYS_PER_MONTH] ?: DEFAULT_WORKING_DAYS_PER_MONTH }
-    val hoursPerDay: Flow<Double> = context.dataStore.data
+    val hoursPerDay: Flow<Double> = settingsFlow
         .map { it[KEY_HOURS_PER_DAY] ?: DEFAULT_HOURS_PER_DAY }
 
     // 加班类型配色（统计日历等使用）
-    val typeColorWorkday: Flow<Int> = context.dataStore.data.map { it[KEY_TYPE_COLOR_WORKDAY] ?: 0xFF3482FF.toInt() }
-    val typeColorWeekend: Flow<Int> = context.dataStore.data.map { it[KEY_TYPE_COLOR_WEEKEND] ?: 0xFF34C759.toInt() }
-    val typeColorHoliday: Flow<Int> = context.dataStore.data.map { it[KEY_TYPE_COLOR_HOLIDAY] ?: 0xFFFF7043.toInt() }
+    val typeColorWorkday: Flow<Int> = settingsFlow.map { it[KEY_TYPE_COLOR_WORKDAY] ?: AppDefaults.PRIMARY_ARGB }
+    val typeColorWeekend: Flow<Int> = settingsFlow.map { it[KEY_TYPE_COLOR_WEEKEND] ?: AppDefaults.WEEKEND_ARGB }
+    val typeColorHoliday: Flow<Int> = settingsFlow.map { it[KEY_TYPE_COLOR_HOLIDAY] ?: AppDefaults.HOLIDAY_ARGB }
 
     // Salary settings
-    val baseSalary: Flow<Double> = context.dataStore.data.map { it[KEY_BASE_SALARY] ?: 2200.0 }
-    val workdayRate: Flow<Double> = context.dataStore.data.map { it[KEY_WORKDAY_RATE] ?: 1.5 }
-    val weekendRate: Flow<Double> = context.dataStore.data.map { it[KEY_WEEKEND_RATE] ?: 2.0 }
-    val holidayRate: Flow<Double> = context.dataStore.data.map { it[KEY_HOLIDAY_RATE] ?: 3.0 }
+    val baseSalary: Flow<Double> = settingsFlow.map { it[KEY_BASE_SALARY] ?: 2200.0 }
+    val workdayRate: Flow<Double> = settingsFlow.map { it[KEY_WORKDAY_RATE] ?: 1.5 }
+    val weekendRate: Flow<Double> = settingsFlow.map { it[KEY_WEEKEND_RATE] ?: 2.0 }
+    val holidayRate: Flow<Double> = settingsFlow.map { it[KEY_HOLIDAY_RATE] ?: 3.0 }
 
     // MCP settings
-    val mcpEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_MCP_ENABLED] ?: false }
-    val mcpPort: Flow<Int> = context.dataStore.data.map { it[KEY_MCP_PORT] ?: 8080 }
+    val mcpEnabled: Flow<Boolean> = settingsFlow.map { it[KEY_MCP_ENABLED] ?: false }
+    val mcpPort: Flow<Int> = settingsFlow.map { it[KEY_MCP_PORT] ?: 8080 }
 
     // Push settings
-    val pushEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_PUSH_ENABLED] ?: false }
-    val pushChannel: Flow<String> = context.dataStore.data.map { it[KEY_PUSH_CHANNEL] ?: "none" }
-    val pushDingTalk: Flow<String> = context.dataStore.data.map { it[KEY_PUSH_DINGTALK] ?: "" }
-    val pushDingTalkSecret: Flow<String> = context.dataStore.data.map { it[KEY_PUSH_DINGTALK_SECRET] ?: "" }
-    val pushFeishu: Flow<String> = context.dataStore.data.map { it[KEY_PUSH_FEISHU] ?: "" }
-    val pushFeishuSecret: Flow<String> = context.dataStore.data.map { it[KEY_PUSH_FEISHU_SECRET] ?: "" }
-    val pushWeCom: Flow<String> = context.dataStore.data.map { it[KEY_PUSH_WECOM] ?: "" }
-    val pushWeComSecret: Flow<String> = context.dataStore.data.map { it[KEY_PUSH_WECOM_SECRET] ?: "" }
-    val pushWxPusher: Flow<String> = context.dataStore.data.map { it[KEY_PUSH_WXPUSHER] ?: "" }
-    val pushTelegram: Flow<String> = context.dataStore.data.map { it[KEY_PUSH_TELEGRAM] ?: "" }
-    val pushTelegramChatId: Flow<String> = context.dataStore.data.map { it[KEY_PUSH_TELEGRAM_CHATID] ?: "" }
-    val pushDiscord: Flow<String> = context.dataStore.data.map { it[KEY_PUSH_DISCORD] ?: "" }
-    val pushDiscordUsername: Flow<String> = context.dataStore.data.map { it[KEY_PUSH_DISCORD_USERNAME] ?: "" }
-    val pushCustom: Flow<String> = context.dataStore.data.map { it[KEY_PUSH_CUSTOM] ?: "" }
-    val pushCustomHeaders: Flow<String> = context.dataStore.data.map { it[KEY_PUSH_CUSTOM_HEADERS] ?: "" }
+    val pushEnabled: Flow<Boolean> = settingsFlow.map { it[KEY_PUSH_ENABLED] ?: false }
+    val pushChannel: Flow<String> = settingsFlow.map { it[KEY_PUSH_CHANNEL] ?: "none" }
+    val pushDingTalk: Flow<String> = settingsFlow.map { it[KEY_PUSH_DINGTALK] ?: "" }
+    val pushDingTalkSecret: Flow<String> = settingsFlow.map { it[KEY_PUSH_DINGTALK_SECRET] ?: "" }
+    val pushFeishu: Flow<String> = settingsFlow.map { it[KEY_PUSH_FEISHU] ?: "" }
+    val pushFeishuSecret: Flow<String> = settingsFlow.map { it[KEY_PUSH_FEISHU_SECRET] ?: "" }
+    val pushWeCom: Flow<String> = settingsFlow.map { it[KEY_PUSH_WECOM] ?: "" }
+    val pushWeComSecret: Flow<String> = settingsFlow.map { it[KEY_PUSH_WECOM_SECRET] ?: "" }
+    val pushWxPusher: Flow<String> = settingsFlow.map { it[KEY_PUSH_WXPUSHER] ?: "" }
+    val pushTelegram: Flow<String> = settingsFlow.map { it[KEY_PUSH_TELEGRAM] ?: "" }
+    val pushTelegramChatId: Flow<String> = settingsFlow.map { it[KEY_PUSH_TELEGRAM_CHATID] ?: "" }
+    val pushDiscord: Flow<String> = settingsFlow.map { it[KEY_PUSH_DISCORD] ?: "" }
+    val pushDiscordUsername: Flow<String> = settingsFlow.map { it[KEY_PUSH_DISCORD_USERNAME] ?: "" }
+    val pushCustom: Flow<String> = settingsFlow.map { it[KEY_PUSH_CUSTOM] ?: "" }
+    val pushCustomHeaders: Flow<String> = settingsFlow.map { it[KEY_PUSH_CUSTOM_HEADERS] ?: "" }
 
     // Calendar sync
-    val calendarSyncEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_CALENDAR_SYNC] ?: false }
+    val calendarSyncEnabled: Flow<Boolean> = settingsFlow.map { it[KEY_CALENDAR_SYNC] ?: false }
 
     // WebDAV / Cloud backup
-    val webdavEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_WEBDAV_ENABLED] ?: false }
-    val webdavUrl: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_URL] ?: "" }
-    val webdavUsername: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_USERNAME] ?: "" }
-    val webdavPassword: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_PASSWORD] ?: "" }
-    val webdavPath: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_PATH] ?: "/overtime_backup/" }
+    val webdavEnabled: Flow<Boolean> = settingsFlow.map { it[KEY_WEBDAV_ENABLED] ?: false }
+    val webdavUrl: Flow<String> = settingsFlow.map { it[KEY_WEBDAV_URL] ?: "" }
+    val webdavUsername: Flow<String> = settingsFlow.map { it[KEY_WEBDAV_USERNAME] ?: "" }
+    val webdavPassword: Flow<String> = settingsFlow.map { it[KEY_WEBDAV_PASSWORD] ?: "" }
+    val webdavPath: Flow<String> = settingsFlow.map { it[KEY_WEBDAV_PATH] ?: "/overtime_backup/" }
 
     // Auto backup
-    val autoBackupEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_AUTO_BACKUP_ENABLED] ?: false }
-    val autoBackupLocation: Flow<String> = context.dataStore.data.map { it[KEY_AUTO_BACKUP_LOCATION] ?: "local" }
+    val autoBackupEnabled: Flow<Boolean> = settingsFlow.map { it[KEY_AUTO_BACKUP_ENABLED] ?: false }
+    val autoBackupLocation: Flow<String> = settingsFlow.map { it[KEY_AUTO_BACKUP_LOCATION] ?: "local" }
 
     // 导入时可选择的自定义备份目录（SAF 目录树 URI）。
     // 仅保存在本机：URI 与设备/授权绑定，换设备或重装后失效，故不写入备份导出映射，
     // 避免恢复旧备份时把一个无效 URI 覆盖到当前设置。
-    val customBackupDirUri: Flow<String> = context.dataStore.data.map { it[KEY_CUSTOM_BACKUP_DIR_URI] ?: "" }
+    val customBackupDirUri: Flow<String> = settingsFlow.map { it[KEY_CUSTOM_BACKUP_DIR_URI] ?: "" }
 
     // Holiday settings
     // Timor 服务已下线：旧配置 / 旧备份里的 TIMOR 与其它未知值统一迁移到默认数据源，
     // 避免各页面 valueOf 失败后回退结果不一致。
-    val holidayDataSource: Flow<String> = context.dataStore.data.map { prefs ->
+    val holidayDataSource: Flow<String> = settingsFlow.map { prefs ->
         val saved = prefs[KEY_HOLIDAY_DATA_SOURCE]
         if (saved != null && HolidayDataSource.entries.any { it.name == saved }) saved
         else HolidayDataSource.UAPIS.name
     }
-    val holidayCustomUrl: Flow<String> = context.dataStore.data.map { it[KEY_HOLIDAY_CUSTOM_URL] ?: "" }
-    val holidayMxnzpAppId: Flow<String> = context.dataStore.data.map { it[KEY_HOLIDAY_MXNZP_APP_ID] ?: "" }
-    val holidayMxnzpAppSecret: Flow<String> = context.dataStore.data.map { it[KEY_HOLIDAY_MXNZP_APP_SECRET] ?: "" }
-    val holidayIgnoreHoliday: Flow<Boolean> = context.dataStore.data.map { it[KEY_HOLIDAY_IGNORE_HOLIDAY] ?: false }
+    val holidayCustomUrl: Flow<String> = settingsFlow.map { it[KEY_HOLIDAY_CUSTOM_URL] ?: "" }
+    val holidayMxnzpAppId: Flow<String> = settingsFlow.map { it[KEY_HOLIDAY_MXNZP_APP_ID] ?: "" }
+    val holidayMxnzpAppSecret: Flow<String> = settingsFlow.map { it[KEY_HOLIDAY_MXNZP_APP_SECRET] ?: "" }
+    val holidayIgnoreHoliday: Flow<Boolean> = settingsFlow.map { it[KEY_HOLIDAY_IGNORE_HOLIDAY] ?: false }
 
     suspend fun setThemeMode(mode: String) { context.dataStore.edit { it[KEY_THEME_MODE] = mode } }
+
+    /**
+     * 主题模式与 Monet 开关必须在同一次 edit 中写入：分两次写时若中间被打断，
+     * 会出现「模式已切到 Monet 但 monet_enabled 仍为 false」的半生效状态。
+     */
+    suspend fun setTheme(mode: String) {
+        val safe = if (mode in THEME_MODES) mode else "system"
+        context.dataStore.edit {
+            it[KEY_THEME_MODE] = safe
+            it[KEY_MONET_ENABLED] = safe.startsWith("monet_")
+        }
+    }
     suspend fun setAccentColor(color: Int) { context.dataStore.edit { it[KEY_ACCENT_COLOR] = color } }
     suspend fun setBottomBarStyle(style: String) { context.dataStore.edit { it[KEY_BOTTOM_BAR_STYLE] = style } }
     suspend fun setQuickSubmit(enabled: Boolean) { context.dataStore.edit { it[KEY_QUICK_SUBMIT] = enabled } }
@@ -254,9 +287,9 @@ class SettingsRepository(private val context: Context) {
                     KEY_HOURS_PER_DAY.name ->
                         prefs[KEY_HOURS_PER_DAY] =
                             (value.toDoubleOrNull() ?: DEFAULT_HOURS_PER_DAY).coerceAtLeast(0.01)
-                    KEY_TYPE_COLOR_WORKDAY.name -> prefs[KEY_TYPE_COLOR_WORKDAY] = value.toIntOrNull() ?: 0xFF3482FF.toInt()
-                    KEY_TYPE_COLOR_WEEKEND.name -> prefs[KEY_TYPE_COLOR_WEEKEND] = value.toIntOrNull() ?: 0xFF34C759.toInt()
-                    KEY_TYPE_COLOR_HOLIDAY.name -> prefs[KEY_TYPE_COLOR_HOLIDAY] = value.toIntOrNull() ?: 0xFFFF7043.toInt()
+                    KEY_TYPE_COLOR_WORKDAY.name -> prefs[KEY_TYPE_COLOR_WORKDAY] = value.toIntOrNull() ?: AppDefaults.PRIMARY_ARGB
+                    KEY_TYPE_COLOR_WEEKEND.name -> prefs[KEY_TYPE_COLOR_WEEKEND] = value.toIntOrNull() ?: AppDefaults.WEEKEND_ARGB
+                    KEY_TYPE_COLOR_HOLIDAY.name -> prefs[KEY_TYPE_COLOR_HOLIDAY] = value.toIntOrNull() ?: AppDefaults.HOLIDAY_ARGB
                     KEY_BASE_SALARY.name -> prefs[KEY_BASE_SALARY] = value.toDoubleOrNull() ?: 2200.0
                     KEY_WORKDAY_RATE.name -> prefs[KEY_WORKDAY_RATE] = value.toDoubleOrNull() ?: 1.5
                     KEY_WEEKEND_RATE.name -> prefs[KEY_WEEKEND_RATE] = value.toDoubleOrNull() ?: 2.0

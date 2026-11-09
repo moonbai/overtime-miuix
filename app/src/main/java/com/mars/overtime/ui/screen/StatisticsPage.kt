@@ -19,20 +19,29 @@ import androidx.navigation.NavHostController
 import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.data.repository.OvertimeRepository
+import com.mars.overtime.ui.component.rememberAppRecords
 import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.util.AppDefaults
 import com.mars.overtime.util.HolidayDataSource
 import com.mars.overtime.util.HolidayManager
 import com.mars.overtime.util.SalaryCalculator
 import top.yukonga.miuix.kmp.basic.*
+import com.mars.overtime.util.rememberBlurEnabled
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.mars.overtime.ui.theme.AppDimens
+import com.mars.overtime.ui.theme.AppFootnote1Bold
+import com.mars.overtime.ui.theme.AppFootnote1Medium
 import com.mars.overtime.ui.theme.AppShapes
 import com.mars.overtime.ui.theme.AppTitle3Semibold
 import com.mars.overtime.ui.component.EmptyState
+import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
@@ -118,6 +127,77 @@ private fun buildDayCategories(selectedMonth: String, ignoreHoliday: Boolean): M
     return result
 }
 
+/**
+ * 主页小组件跳转进入的独立统计页。
+ *
+ * 底部 tab 内的统计页位于 MainScreen 的 Scaffold 中；NavHost 的 "statistics" 是
+ * 独立目的地，这里复用同样的 Scaffold + 返回顶栏与顶栏高斯模糊，由框架处理状态栏
+ * 避让，避免首个日期卡片压在状态栏上。
+ */
+@Composable
+fun StatisticsDetailScreen(
+    navController: NavHostController,
+    repository: OvertimeRepository,
+    settingsRepository: SettingsRepository,
+    initialMonth: String? = null,
+    onBack: () -> Unit
+) {
+    val navBackdrop = rememberLayerBackdrop()
+    val blurSupported = rememberBlurEnabled()
+    // 窗口背景透明后，二级页需自己铺满主题背景（含状态栏区域），避免顶栏透出黑底
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MiuixTheme.colorScheme.background)
+    ) {
+        Scaffold(
+            topBar = {
+                // 与主界面一致：内容层延伸到顶栏背后作为毛玻璃采样源；
+                // 不支持运行时 shader 时回退到不透明 surface，保证标题可读。
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .textureBlur(
+                            backdrop = navBackdrop,
+                            shape = AppShapes.radiusZero,
+                            blurRadius = 40f,
+                            enabled = blurSupported
+                        )
+                ) {
+                    SmallTopAppBar(
+                        title = "统计",
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
+                            }
+                        },
+                        color = if (blurSupported) Color.Transparent
+                        else MiuixTheme.colorScheme.surface
+                    )
+                }
+            },
+            snackbarHost = { SnackbarHost(LocalSnackbarHostState.current) }
+        ) { paddingValues ->
+            // 内容层铺满整屏（延伸到顶栏背后供毛玻璃采样），列表自己用 Scaffold
+            // 实测的顶部/底部 padding 避让状态栏、顶栏与系统导航栏。
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .layerBackdrop(navBackdrop)
+            ) {
+                StatisticsPage(
+                    navController = navController,
+                    repository = repository,
+                    settingsRepository = settingsRepository,
+                    initialMonth = initialMonth,
+                    topReserve = paddingValues.calculateTopPadding(),
+                    bottomReserve = paddingValues.calculateBottomPadding()
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun StatisticsPage(
     navController: NavHostController,
@@ -127,42 +207,52 @@ fun StatisticsPage(
     topReserve: Dp = 0.dp,
     bottomReserve: Dp = 0.dp
 ) {
-    // 全部记录：用于动态计算可统计的月份范围（最早记录月 ~ 当前月）
-    val allRecords by repository.getAllRecords().collectAsState(initial = emptyList())
+    // 全部记录：用于动态计算可统计的月份范围（最早记录月 ~ 当前月）。
+    // initial=null 区分「尚未加载」与「确无记录」，与记录页口径一致。
+    val recordsSnapshot by rememberAppRecords(repository)
+    val allRecords = recordsSnapshot.orEmpty()
 
-    val yearMonths by remember(allRecords) {
-        derivedStateOf {
-            val cal = Calendar.getInstance()
-            val endY = cal.get(Calendar.YEAR)
-            val endM = cal.get(Calendar.MONTH) + 1
-            val startYM = if (allRecords.isEmpty()) {
-                String.format("%04d-%02d", endY, endM)
-            } else {
-                val minCal = Calendar.getInstance().apply { timeInMillis = allRecords.minOf { it.date } }
-                String.format("%04d-%02d", minCal.get(Calendar.YEAR), minCal.get(Calendar.MONTH) + 1)
-            }
-            val list = mutableListOf<String>()
-            var y = startYM.substring(0, 4).toInt()
-            var m = startYM.substring(5, 7).toInt()
-            while (y < endY || (y == endY && m <= endM)) {
-                list.add(String.format("%04d-%02d", y, m))
-                m++
-                if (m > 12) { m = 1; y++ }
-            }
-            list
+    // 这里只依赖 allRecords 一个输入，用 remember 计算即可；
+    // derivedStateOf 套在以 allRecords 为 key 的 remember 里没有意义，反而多一层 State 订阅。
+    val yearMonths = remember(allRecords) {
+        val cal = Calendar.getInstance()
+        val endY = cal.get(Calendar.YEAR)
+        val endM = cal.get(Calendar.MONTH) + 1
+        val startYM = if (allRecords.isEmpty()) {
+            String.format(Locale.US, "%04d-%02d", endY, endM)
+        } else {
+            val minCal = Calendar.getInstance().apply { timeInMillis = allRecords.minOf { it.date } }
+            String.format(Locale.US, "%04d-%02d", minCal.get(Calendar.YEAR), minCal.get(Calendar.MONTH) + 1)
         }
+        val list = mutableListOf<String>()
+        var y = startYM.substring(0, 4).toInt()
+        var m = startYM.substring(5, 7).toInt()
+        while (y < endY || (y == endY && m <= endM)) {
+            list.add(String.format(Locale.US, "%04d-%02d", y, m))
+            m++
+            if (m > 12) { m = 1; y++ }
+        }
+        list
     }
 
     var selectedMonth by remember { mutableStateOf(initialMonth ?: SalaryCalculator.getCurrentYearMonth()) }
     var selectedYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR).toString()) }
     var viewMode by remember { mutableStateOf(StatsViewMode.MONTH) }
-    var stats by remember { mutableStateOf<com.mars.overtime.data.repository.MonthlyStats?>(null) }
-    var yearlyStats by remember { mutableStateOf<com.mars.overtime.data.repository.YearlyStats?>(null) }
-    var monthRecords by remember { mutableStateOf<List<OvertimeRecord>>(emptyList()) }
+    // 切月/切年/切视图时立即丢弃上一轮的异步结果：旧写法只有日历结果会刷新，
+    // 统计数字在 LaunchedEffect 回填前会残留一个月的上月数据。
+    var stats by remember(selectedMonth) {
+        mutableStateOf<com.mars.overtime.data.repository.MonthlyStats?>(null)
+    }
+    var monthRecords by remember(selectedMonth) {
+        mutableStateOf<List<OvertimeRecord>>(emptyList())
+    }
+    var yearlyStats by remember(selectedMonth, selectedYear, viewMode) {
+        mutableStateOf<com.mars.overtime.data.repository.YearlyStats?>(null)
+    }
 
-    val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
-    val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
-    val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = 0xFFFF7043.toInt())
+    val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = AppDefaults.PRIMARY_ARGB)
+    val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = AppDefaults.WEEKEND_ARGB)
+    val typeColorHoliday by settingsRepository.typeColorHoliday.collectAsState(initial = AppDefaults.HOLIDAY_ARGB)
 
     // 日期底色与「添加记录」页的自动类型判定同源：读取同一份节假日配置，
     // 复用 HolidayManager 的缓存 / 拉取结果，保证两页对同一天给出相同结论。
@@ -299,45 +389,40 @@ fun StatisticsPage(
         }
     }
 
-    // 年度维度：按月趋势（分类型，供堆叠色条）+ 类型占比
-    val yearTrend by remember(allRecords, selectedYear) {
-        derivedStateOf {
-            val y = selectedYear.toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
-            val cal = Calendar.getInstance()
-            (1..12).map { m ->
-                var leave = 0.0; var workday = 0.0; var weekend = 0.0; var holiday = 0.0
-                allRecords.filter { rec ->
-                    cal.timeInMillis = rec.date
-                    cal.get(Calendar.YEAR) == y && cal.get(Calendar.MONTH) + 1 == m
-                }.forEach { rec ->
-                    if (rec.isLeave) leave += rec.durationHours else when (rec.type) {
-                        OvertimeType.WORKDAY -> workday += rec.durationHours
-                        OvertimeType.WEEKEND -> weekend += rec.durationHours
-                        OvertimeType.HOLIDAY -> holiday += rec.durationHours
-                    }
+    // 年度维度：一次全表遍历同时算出「按月趋势」与「类型占比」。
+    // 旧写法 (1..12).map { allRecords.filter { ... } } 要遍历 13 次，年视图切月时明显卡顿。
+    val yearlyAggregate = remember(allRecords, selectedYear) {
+        val y = selectedYear.toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
+        val cal = Calendar.getInstance()
+        // 12 个月，每月 4 个累计值：请假 / 工作日 / 休息日 / 节假日
+        val buckets = Array(12) { DoubleArray(4) }
+        var typeWd = 0.0; var typeWe = 0.0; var typeHo = 0.0
+        allRecords.forEach { rec ->
+            cal.timeInMillis = rec.date
+            if (cal.get(Calendar.YEAR) != y) return@forEach
+            val month = cal.get(Calendar.MONTH)
+            val bucket = buckets[month]
+            if (rec.isLeave) {
+                bucket[0] += rec.durationHours
+            } else when (rec.type) {
+                OvertimeType.WORKDAY -> {
+                    bucket[1] += rec.durationHours; typeWd += rec.durationHours
                 }
-                MonthTrend(m, leave, workday, weekend, holiday)
-            }
-        }
-    }
-    val yearTypeRatio by remember(allRecords, selectedYear) {
-        derivedStateOf {
-            val y = selectedYear.toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
-            val cal = Calendar.getInstance()
-            var workday = 0.0; var weekend = 0.0; var holiday = 0.0
-            allRecords.filter { rec ->
-                cal.timeInMillis = rec.date
-                cal.get(Calendar.YEAR) == y && !rec.isLeave
-            }.forEach { rec ->
-                when (rec.type) {
-                    OvertimeType.WORKDAY -> workday += rec.durationHours
-                    OvertimeType.WEEKEND -> weekend += rec.durationHours
-                    OvertimeType.HOLIDAY -> holiday += rec.durationHours
+                OvertimeType.WEEKEND -> {
+                    bucket[2] += rec.durationHours; typeWe += rec.durationHours
+                }
+                OvertimeType.HOLIDAY -> {
+                    bucket[3] += rec.durationHours; typeHo += rec.durationHours
                 }
             }
-            Triple(workday, weekend, holiday)
         }
+        val trend = buckets.mapIndexed { index, v ->
+            MonthTrend(index + 1, v[0], v[1], v[2], v[3])
+        }
+        Pair(trend, Triple(typeWd, typeWe, typeHo))
     }
+    val yearTrend = yearlyAggregate.first
+    val yearTypeRatio = yearlyAggregate.second
 
     LazyColumn(
         modifier = Modifier
@@ -443,12 +528,12 @@ fun StatisticsPage(
                 StatsCard(
                     title = "$selectedMonth 统计",
                     items = listOf(
-                        "总时长" to (stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0小时"),
-                        "预估薪资" to (stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00"),
+                        "总时长" to (stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0H"),
+                        "加班薪资" to (stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00"),
                         "记录数" to "${stats?.recordCount ?: 0}条",
-                        "工作日加班" to (stats?.let { SalaryCalculator.formatHours(it.workdayHours) } ?: "0小时"),
-                        "休息日加班" to (stats?.let { SalaryCalculator.formatHours(it.weekendHours) } ?: "0小时"),
-                        "节假日加班" to (stats?.let { SalaryCalculator.formatHours(it.holidayHours) } ?: "0小时")
+                        "工作日加班" to (stats?.let { SalaryCalculator.formatHours(it.workdayHours) } ?: "0H"),
+                        "休息日加班" to (stats?.let { SalaryCalculator.formatHours(it.weekendHours) } ?: "0H"),
+                        "节假日加班" to (stats?.let { SalaryCalculator.formatHours(it.holidayHours) } ?: "0H")
                     )
                 )
             }
@@ -459,8 +544,8 @@ fun StatisticsPage(
             StatsCard(
                 title = if (viewMode == StatsViewMode.YEAR) "${selectedYear} 年度统计" else "${selectedMonth.split("-")[0]} 年度统计",
                 items = listOf(
-                    "年度总时长" to (yearlyStats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0小时"),
-                    "年度预估薪资" to (yearlyStats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
+                    "年度总时长" to (yearlyStats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0H"),
+                    "年度加班薪资" to (yearlyStats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
                 )
             )
         }
@@ -524,7 +609,7 @@ fun StatisticsPage(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "合计净时长: ${SalaryCalculator.formatHours(dayNet)}",
+                            text = "合计加班时长: ${SalaryCalculator.formatHours(dayNet)}",
                             style = MiuixTheme.textStyles.body2,
                             fontWeight = FontWeight.SemiBold,
                             color = if (dayNet < 0) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary
@@ -662,7 +747,7 @@ private fun YearTrendCard(yearTrend: List<MonthTrend>, typeColor: (OvertimeType)
     Card(modifier = Modifier.fillMaxWidth(), cornerRadius = AppDimens.cardCorner) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "按月趋势（净时长）",
+                text = "按月趋势",
                 style = MiuixTheme.textStyles.title3,
                 fontWeight = FontWeight.SemiBold
             )
@@ -790,6 +875,12 @@ private fun RatioItem(color: Color, label: String, value: Double, total: Double)
     }
 }
 
+private data class CalendarMonth(
+    val weeks: List<List<Int?>>,
+    val isCurrentMonth: Boolean,
+    val todayDay: Int
+)
+
 @Composable
 private fun CalendarCard(
     selectedMonth: String,
@@ -799,31 +890,33 @@ private fun CalendarCard(
     dayBackground: (DayCategory) -> Color,
     onDayClick: (Int) -> Unit = {}
 ) {
-    val parts = selectedMonth.split("-")
-    val year = parts[0].toInt()
-    val month = parts[1].toInt()
-
-    val cal = Calendar.getInstance().apply {
-        set(year, month - 1, 1)
+    // 42 格数据与「今天」判定按月份缓存：滚动 / 重组时不再重建列表、重算日期，
+    // 只有切月才重新构造一次。
+    val calendar = remember(selectedMonth) {
+        val parts = selectedMonth.split("-")
+        val year = parts[0].toInt()
+        val month = parts[1].toInt()
+        val cal = Calendar.getInstance().apply { set(year, month - 1, 1) }
+        val leadingEmpty = cal.get(Calendar.DAY_OF_WEEK) - 1 // 1=周日 .. 7=周六
+        val totalDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+        val today = Calendar.getInstance()
+        val cells = mutableListOf<Int?>()
+        repeat(leadingEmpty) { cells.add(null) }
+        for (d in 1..totalDays) cells.add(d)
+        while (cells.size % 7 != 0) cells.add(null)
+        CalendarMonth(
+            weeks = cells.chunked(7),
+            isCurrentMonth = today.get(Calendar.YEAR) == year &&
+                today.get(Calendar.MONTH) + 1 == month,
+            todayDay = today.get(Calendar.DAY_OF_MONTH)
+        )
     }
-    val firstWeekday = cal.get(Calendar.DAY_OF_WEEK) // 1=周日 .. 7=周六
-    val leadingEmpty = firstWeekday - 1
-    val totalDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val today = Calendar.getInstance()
-    val isCurrentMonth = today.get(Calendar.YEAR) == year && today.get(Calendar.MONTH) + 1 == month
-    val todayDay = today.get(Calendar.DAY_OF_MONTH)
-
-    // 构建单元格：前导空格 + 1..totalDays
-    val cells = mutableListOf<Int?>()
-    repeat(leadingEmpty) { cells.add(null) }
-    for (d in 1..totalDays) cells.add(d)
-    while (cells.size % 7 != 0) cells.add(null)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = AppDimens.cardCorner
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(AppDimens.cardInnerPadding)) {
             val weekdays = listOf("日", "一", "二", "三", "四", "五", "六")
             Row(modifier = Modifier.fillMaxWidth()) {
                 weekdays.forEach { w ->
@@ -836,22 +929,22 @@ private fun CalendarCard(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            cells.chunked(7).forEach { week ->
+            Spacer(modifier = Modifier.height(AppDimens.spaceXs))
+            calendar.weeks.forEach { week ->
                 Row(modifier = Modifier.fillMaxWidth()) {
                     week.forEach { day ->
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(2.dp),
+                                .padding(AppDimens.chartBarRadius),
                             contentAlignment = Alignment.Center
                         ) {
                             if (day == null) {
-                                Spacer(modifier = Modifier.height(40.dp))
+                                Spacer(modifier = Modifier.height(AppDimens.dayCellHeight))
                             } else {
                                 val agg = dayAgg[day]
                                 val category = dayCategories[day] ?: DayCategory.WORKDAY
-                                val isToday = isCurrentMonth && day == todayDay
+                                val isToday = calendar.isCurrentMonth && day == calendar.todayDay
                                 // 每一天都可点击查看当日明细：无记录时弹窗展示空态，
                                 // 避免用户误以为该日期无法查看。底色按「日期属性」而非
                                 // 「是否有记录」着色，所以无记录的休息日/节假日同样有底色。
@@ -871,12 +964,12 @@ private fun CalendarCard(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 4.dp)
+                                            .padding(vertical = AppDimens.spaceXxs)
                                     ) {
                                         Text(
                                             text = day.toString(),
-                                            style = MiuixTheme.textStyles.footnote1,
-                                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                                            style = if (isToday) AppFootnote1Bold()
+                                            else MiuixTheme.textStyles.footnote1,
                                             color = if (isToday) MiuixTheme.colorScheme.primary
                                             else MiuixTheme.colorScheme.onSurface
                                         )
@@ -887,13 +980,12 @@ private fun CalendarCard(
                                             val net = agg.netHours
                                             Text(
                                                 text = compactHours(net),
-                                                style = MiuixTheme.textStyles.footnote1,
-                                                fontWeight = FontWeight.Medium,
+                                                style = AppFootnote1Medium(),
                                                 color = if (net < 0) MiuixTheme.colorScheme.error
-                                                else Color.Black
+                                                else MiuixTheme.colorScheme.onSurface
                                             )
                                         } else {
-                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Spacer(modifier = Modifier.height(AppDimens.spaceMd))
                                         }
                                     }
                                 }
@@ -901,23 +993,14 @@ private fun CalendarCard(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AppDimens.spaceXxs))
             }
         }
     }
 }
 
-private fun compactHours(hours: Double): String {
-    val sign = if (hours < 0) "-" else ""
-    val absH = abs(hours)
-    val h = absH.toInt()
-    val m = ((absH - h) * 60).toInt()
-    return when {
-        m <= 0 -> "$sign${h}h"
-        h <= 0 -> "$sign${m}m"
-        else -> "$sign${h}h${m}"
-    }
-}
+/** 图表 / 日历格也用全局小时制，避免同一页面出现 8h30 与 8.5H 两套写法。 */
+private fun compactHours(hours: Double): String = SalaryCalculator.formatHours(hours)
 
 @Composable
 private fun StatsCard(title: String, items: List<Pair<String, String>>) {

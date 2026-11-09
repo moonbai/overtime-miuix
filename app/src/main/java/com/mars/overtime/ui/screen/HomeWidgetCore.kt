@@ -42,7 +42,7 @@ const val GRID_COLUMNS = 2
  * 取 128dp（内容区 100dp）：数值卡放得下「标题 / 主数值 / 进度条 / 胶囊」四层，
  * 2x1 图表卡也放得下「标题 / 摘要行 / 图形 / 图例」而不互相挤压。
  */
-val CELL_HEIGHT: Dp = 128.dp
+val CELL_HEIGHT: Dp = AppDimens.widgetCellHeight
 
 // ───────────────────────── 组件目录 ─────────────────────────
 

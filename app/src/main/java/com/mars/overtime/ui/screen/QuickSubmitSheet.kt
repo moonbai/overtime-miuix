@@ -11,7 +11,9 @@ import androidx.compose.ui.unit.dp
 import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.data.repository.OvertimeRepository
+import com.mars.overtime.ui.component.rememberAppRecords
 import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.util.AppDateFormats
 import com.mars.overtime.util.HolidayDataSource
 import com.mars.overtime.util.HolidayManager
 import com.mars.overtime.util.RecordSyncHelper
@@ -61,13 +63,14 @@ fun QuickSubmitSheet(
     val holidayIgnoreHoliday by settingsRepository.holidayIgnoreHoliday.collectAsState(initial = false)
 
     val today = remember { Date() }
-    val dateStr = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(today) }
-    val dateLabel = remember { SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault()).format(today) }
+    val dateStr = remember { AppDateFormats.isoDay(today.time) }
+    val dateLabel = remember { AppDateFormats.displayDay(today.time) }
 
     // 今日已有记录（用于「今日已记录」提示）
-    val allRecords by repository.getAllRecords().collectAsState(initial = emptyList())
+    val allRecordsSnapshot by rememberAppRecords(repository)
+    val allRecords = allRecordsSnapshot.orEmpty()
     val todayRecords = remember(allRecords, dateStr) {
-        allRecords.filter { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(it.date)) == dateStr }
+        allRecords.filter { AppDateFormats.isoDay(it.date) == dateStr }
     }
 
     var selectedType by remember { mutableStateOf(OvertimeType.WORKDAY) }
@@ -91,8 +94,13 @@ fun QuickSubmitSheet(
         if (enabled) leaveDuration = -4.0
     }
 
-    // 弹出时复位提交状态并按当天日期自动判定加班类型
-    LaunchedEffect(show) {
+    // 弹出时复位提交状态并按当天日期自动判定加班类型。
+    // 节假日配置也纳入 key：设置里改了数据源/密钥后，下次弹出立即按新配置重判，
+    // 不再沿用旧缓存直到用户手动重新选择类型。
+    LaunchedEffect(
+        show, holidayDataSource, holidayCustomUrl,
+        holidayMxnzpAppId, holidayMxnzpAppSecret, holidayIgnoreHoliday
+    ) {
         if (show) {
             saving = false
             submitGuard.set(false)
@@ -139,7 +147,7 @@ fun QuickSubmitSheet(
         onDismissRequest = { if (!saving) onDismiss() }
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // 预估薪资
+            // 加班薪资
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -257,8 +265,7 @@ fun QuickSubmitSheet(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            // 不能用 h.toInt()：0.5h 会被渲染成「0h」
-                            text = if (h % 1.0 == 0.0) "${h.toInt()}h" else "${h}h",
+                            text = SalaryCalculator.formatHours(h),
                             style = MiuixTheme.textStyles.body2,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                             modifier = Modifier
@@ -293,12 +300,12 @@ fun QuickSubmitSheet(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "0.5h",
+                        text = SalaryCalculator.formatHours(0.5),
                         style = MiuixTheme.textStyles.footnote1,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
                     Text(
-                        text = "最多${maxDurationHours.toInt()}h",
+                        text = "最多${SalaryCalculator.formatHours(maxDurationHours)}",
                         style = MiuixTheme.textStyles.footnote1,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
@@ -359,17 +366,15 @@ fun QuickSubmitSheet(
                                 val id = repository.insert(record)
                                 inserted = true
                                 // 记录已入库，同步环节的失败不应影响提交结果，仅转为提示文案
-                                val calendarResult = try {
+                                val failures = try {
                                     RecordSyncHelper.afterSave(
                                         context, repository, settingsRepository, record.copy(id = id)
                                     )
                                 } catch (e: Exception) {
                                     e.printStackTrace()
-                                    null
+                                    listOf("联动同步未完成")
                                 }
-                                onSaved(
-                                    RecordSyncHelper.calendarHint(calendarResult) ?: "已提报今日加班"
-                                )
+                                onSaved(RecordSyncHelper.formatHint("已提报今日加班", failures))
                                 onDismiss()
                                 // 不复位 saving / submitGuard：弹窗关闭后本组件仍在组合树中，
                                 // 状态由下次打开时的 LaunchedEffect(show) 统一复位。

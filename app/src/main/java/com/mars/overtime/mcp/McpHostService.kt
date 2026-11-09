@@ -362,7 +362,7 @@ class McpHostService : Service() {
                 name = "add_overtime_record",
                 description = "添加一条加班或请假记录。参数 date(YYYY-MM-DD)、type(WORKDAY/WEEKEND/HOLIDAY)、" +
                     "durationHours(加班小时数，0.5为梯度)、note(可选)、isLeave(是否为请假)、leaveHours(请假小时数，仅 4 或 8，默认 4)。" +
-                    "加班时长上限与 App 内一致：工作日最多 8h，休息日/节假日最多 12h，超出部分自动压到上限。" +
+                    "加班时长上限与 App 内一致：工作日最多 8H，休息日/节假日最多 12H，超出部分自动压到上限。" +
                     "写入后会与 App 内保存一样触发推送、日历同步与自动备份。",
                 required = listOf("date"),
                 properties = mapOf(
@@ -396,13 +396,13 @@ class McpHostService : Service() {
             ))
             add(toolSpec(
                 name = "get_monthly_stats",
-                description = "获取指定月份的加班统计：总时长、预估薪资、记录数、各类别时长。",
+                description = "获取指定月份的加班统计：总时长、加班薪资、记录数、各类别时长。",
                 required = listOf("month"),
                 properties = mapOf("month" to schema("string", "月份，格式 YYYY-MM"))
             ))
             add(toolSpec(
                 name = "get_yearly_stats",
-                description = "获取指定年份的加班年度统计：总时长、预估薪资、记录数与各类别时长。",
+                description = "获取指定年份的加班年度统计：总时长、加班薪资、记录数与各类别时长。",
                 required = listOf("year"),
                 properties = mapOf("year" to schema("string", "年份，格式 YYYY"))
             ))
@@ -494,9 +494,9 @@ class McpHostService : Service() {
         }
 
         val text = if (isLeave) {
-            "已添加请假记录：$dateStr，时长 ${-durationHours} 小时，扣款 ¥${-amount}"
+            "已添加请假记录：$dateStr，时长 ${SalaryCalculator.formatHours(-durationHours)}，扣款 ¥${-amount}"
         } else {
-            "已添加加班记录：$dateStr（${type.name}），时长 $durationHours 小时，预估 ¥$amount"
+            "已添加加班记录：$dateStr（${type.name}），时长 ${SalaryCalculator.formatHours(durationHours)}，预估 ¥$amount"
         }
         return toolResult(
             text = text,
@@ -561,7 +561,7 @@ class McpHostService : Service() {
             addProperty("weekendHours", stats.weekendHours)
             addProperty("holidayHours", stats.holidayHours)
         }
-        val text = "$month 统计：共 ${stats.recordCount} 条，总时长 ${stats.totalHours} 小时，预估 ¥${stats.totalAmount}"
+        val text = "$month 统计：共 ${stats.recordCount} 条，总时长 ${SalaryCalculator.formatHours(stats.totalHours)}，预估 ¥${stats.totalAmount}"
         return toolResult(text = text, structuredContent = s)
     }
 
@@ -595,7 +595,7 @@ class McpHostService : Service() {
             addProperty("weekendHours", weekendHours)
             addProperty("holidayHours", holidayHours)
         }
-        val text = "$year 年度统计：共 ${records.size} 条，总时长 ${stats.totalHours} 小时，预估 ¥${stats.totalAmount}"
+        val text = "$year 年度统计：共 ${records.size} 条，总时长 ${SalaryCalculator.formatHours(stats.totalHours)}，预估 ¥${stats.totalAmount}"
         return toolResult(text = text, structuredContent = s)
     }
 
@@ -666,7 +666,7 @@ class McpHostService : Service() {
 
         targets.forEach { repository.delete(it) }
         val text = "已删除 ${targets.size} 条记录：" + targets.joinToString("；") { r ->
-            "${sdf.format(Date(r.date))}（${r.type.name}）${r.durationHours}h"
+            "${sdf.format(Date(r.date))}（${r.type.name}）${SalaryCalculator.formatHours(r.durationHours)}"
         }
         return toolResult(
             text = text,

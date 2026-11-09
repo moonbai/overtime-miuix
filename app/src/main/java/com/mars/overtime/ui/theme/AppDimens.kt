@@ -70,4 +70,27 @@ object AppDimens {
     // ── 紧凑/微型间距（页面特有的 6/14dp 等保持原字面量，避免引入过多令牌）──
     val spaceXxs2 = 6.dp
     val itemPaddingH = 14.dp
+
+    // ── 首页小组件网格 ──
+    val hairline = 1.dp              // 编辑态描边、图表细柱间隙
+    val widgetDragElevation = 8.dp   // 拖动中的抬升阴影
+    val widgetCellHeight = 128.dp    // 1x1 卡片高度，2x1 / 2x2 由它推导（容纳标题/数值/进度条/胶囊四层）
+    val widgetDonutSize = 96.dp      // 2x2 卡片内环形图直径
+    val overviewLabelWidth = 48.dp  // 概览卡分类行标签列宽
+    val overviewValueWidth = 56.dp  // 概览卡分类行数值列宽
+
+    // ── 关于页插画与功能图标 ──
+    val aboutIconBox = 104.dp
+    val aboutIcon = 84.dp
+    val aboutIconFallback = 68.dp
+    val featureIconBox = 44.dp
+    val releaseNotesMaxHeight = 200.dp
+    val dayCellHeight = 40.dp           // 统计页日历单个日期格高度
+
+    // ── 首页空状态插画 ──
+    val emptyCanvas = 156.dp
+    val emptyCircle = 140.dp
+    val emptyDotLarge = 42.dp
+    val emptyDotSmall = 30.dp
+    val emptyIcon = 64.dp
 }

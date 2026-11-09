@@ -7,6 +7,7 @@ import android.provider.CalendarContract
 import android.util.Log
 import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.model.OvertimeType
+import com.mars.overtime.util.SalaryCalculator
 import java.util.Calendar
 import java.util.TimeZone
 
@@ -142,8 +143,13 @@ object CalendarSyncManager {
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
 
+    /** 事件标题统一使用小时制（如「工作日延时-2H」）。 */
     private fun eventTitle(record: OvertimeRecord): String =
-        "${typeStr(record.type)}-${"%.2f".format(record.durationHours)}小时"
+        "${typeStr(record.type)}-${SalaryCalculator.formatHours(kotlin.math.abs(record.durationHours))}"
+
+    /** 升级前的标题格式（如「工作日延时-2.00小时」），删除旧事件时用于兼容匹配。 */
+    private fun legacyEventTitle(record: OvertimeRecord): String =
+        "${typeStr(record.type)}-${String.format(java.util.Locale.US, "%.2f", record.durationHours)}小时"
 
     /** 写入单条记录到系统日历。 */
     fun addEvent(context: Context, record: OvertimeRecord): SyncResult {
@@ -190,13 +196,20 @@ object CalendarSyncManager {
         val calendarId = getOrCreateCalendarId(context) ?: return SyncResult.ProviderRejected
 
         val startTime = eventStartTime(record)
-        val title = eventTitle(record)
+        // 同时匹配新旧标题：升级前写入的事件仍是「X.XX小时」格式，否则无法删除
         val selection = "${CalendarContract.Events.CALENDAR_ID} = ? AND " +
-            "${CalendarContract.Events.TITLE} = ? AND ${CalendarContract.Events.DTSTART} = ?"
-        val selectionArgs = arrayOf(calendarId.toString(), title, startTime.toString())
+            "${CalendarContract.Events.TITLE} IN (?, ?) AND ${CalendarContract.Events.DTSTART} = ?"
+        val selectionArgs = arrayOf(
+            calendarId.toString(),
+            eventTitle(record),
+            legacyEventTitle(record),
+            startTime.toString()
+        )
 
         return try {
-            context.contentResolver.delete(CalendarContract.Events.CONTENT_URI, selection, selectionArgs)
+            val deleted = context.contentResolver.delete(CalendarContract.Events.CONTENT_URI, selection, selectionArgs)
+            // 0 行是幂等情况（事件此前已删除），只有异常才代表 Provider 拒绝，保留日志便于排查
+            if (deleted == 0) Log.i(TAG, "未找到匹配的日历事件（可能已删除）")
             SyncResult.Success
         } catch (e: SecurityException) {
             Log.w(TAG, "删除日历事件被拒绝：${e.message}")
