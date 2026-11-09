@@ -35,6 +35,7 @@ import com.mars.overtime.ui.theme.AppShapes
 import com.mars.overtime.ui.theme.AppTitle3Semibold
 import com.mars.overtime.ui.theme.AppBody1Medium
 import com.mars.overtime.ui.theme.AppBody1Semibold
+import com.mars.overtime.ui.theme.AppFootnote1Bold
 import com.mars.overtime.util.SalaryCalculator
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
