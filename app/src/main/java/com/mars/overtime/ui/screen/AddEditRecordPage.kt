@@ -337,7 +337,7 @@ fun AddEditRecordPage(
             item {
                 BasicComponent(
                     title = "日期",
-                    summary = SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault()).format(selectedDate),
+                    summary = AppDateFormats.displayDay(selectedDate.time),
                     onClick = { showDatePicker = true }
                 )
             }
