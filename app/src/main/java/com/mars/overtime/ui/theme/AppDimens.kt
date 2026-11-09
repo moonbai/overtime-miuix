@@ -79,6 +79,13 @@ object AppDimens {
     val overviewLabelWidth = 48.dp  // 概览卡分类行标签列宽
     val overviewValueWidth = 56.dp  // 概览卡分类行数值列宽
 
+    // ── 关于页插画与功能图标 ──
+    val aboutIconBox = 104.dp
+    val aboutIcon = 84.dp
+    val aboutIconFallback = 68.dp
+    val featureIconBox = 44.dp
+    val releaseNotesMaxHeight = 200.dp
+
     // ── 首页空状态插画 ──
     val emptyCanvas = 156.dp
     val emptyCircle = 140.dp

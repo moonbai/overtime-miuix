@@ -476,9 +476,11 @@ private fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit) {
     ) {
         Text(
             text = text,
-            style = MiuixTheme.textStyles.footnote1,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+            style = if (selected) AppFootnote1Bold() else MiuixTheme.textStyles.footnote1,
+            modifier = Modifier.padding(
+                horizontal = AppDimens.itemPaddingH,
+                vertical = AppDimens.spaceXs
+            )
         )
     }
 }
