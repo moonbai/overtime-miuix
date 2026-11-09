@@ -97,7 +97,8 @@ class MainActivity : ComponentActivity() {
         // 深色，浅色模式下表现为「返回预览闪一下深色」。不透明底色既挡住该深色，
         // 又因与 Compose 背景同色，主题切换时不会露出旧的白色/黑色，白闪同样消除。
         window.setBackgroundDrawable(
-            android.graphics.drawable.ColorDrawable(0xFFFFFFFF.toInt())
+            // 与浅色主题 colorScheme.background 同色；setContent 内会按 darkTheme 动态覆盖
+            android.graphics.drawable.ColorDrawable(0xFFF1F3F7.toInt())
         )
 
         // 通知点击冷启动：从 intent 读取目标路由（如 MCP 服务子界面）

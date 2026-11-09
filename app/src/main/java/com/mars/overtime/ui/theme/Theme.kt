@@ -18,13 +18,12 @@ fun OvertimeTheme(
 ) {
     // Miuix 浅色默认把 background 与 surfaceContainer 都设成纯白 (#FFFFFFFF)，
     // 于是首页/记录/统计页的 Card 与白色大背景完全同色、看不出独立卡片。
-    // 这里只在浅色配色里把 surfaceContainer 系列压低一档到浅灰蓝：大背景保持纯白，
-    // 卡片即可稳定辨识；深色配色本身已有层级差，沿用框架默认不动。
+    // 用户要求卡片保持纯白，因此改为把「页面大背景」压到浅灰蓝：
+    // 白色卡片浮在浅灰底上，边界清晰；深色配色沿用框架默认（本身已有层级差）。
+    // window 背景与转场兜底底色都取 colorScheme.background，会自动跟随。
     val lightColors = remember {
         lightColorScheme(
-            surfaceContainer = Color(0xFFF0F3F8),
-            surfaceContainerHigh = Color(0xFFE7ECF4),
-            surfaceContainerHighest = Color(0xFFDDE5F0)
+            background = Color(0xFFF1F3F7)
         )
     }
     val controller = remember(darkTheme, keyColor, monet) {

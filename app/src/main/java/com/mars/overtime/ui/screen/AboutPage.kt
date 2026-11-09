@@ -575,14 +575,14 @@ private data class AboutFeature(
 @Composable
 private fun FeatureGrid() {
     // 图标按语义选配：本地记录=Notes、推送=Send、智能识别=Scan、
-    // 云端备份=UploadCloud、薪资计算=BankCards、日历同步=Months。
-    // 旧版用 Info / Alarm / AppRecording 表达记录 / 推送 / 识别，语义完全错配。
+    // 云端备份=UploadCloud、薪资计算=HorizontalSplit（与设置页「基础设置」薪资入口一致）、
+    // 日历同步=Months。旧版用 Info / Alarm / AppRecording 表达记录 / 推送 / 识别，语义完全错配。
     val features = listOf(
         AboutFeature("本地记录", MiuixIcons.Notes),
         AboutFeature("多渠道推送", MiuixIcons.Send),
         AboutFeature("智能识别", MiuixIcons.Scan),
         AboutFeature("云端备份", MiuixIcons.UploadCloud),
-        AboutFeature("薪资计算", MiuixIcons.BankCards),
+        AboutFeature("薪资计算", MiuixIcons.HorizontalSplit),
         AboutFeature("日历同步", MiuixIcons.Months)
     )
     val rows = features.chunked(2)

@@ -68,14 +68,12 @@ fun RecordsPage(
     bottomReserve: androidx.compose.ui.unit.Dp = 0.dp,
     listState: LazyListState = rememberLazyListState()
 ) {
-    val records by repository.getAllRecords().collectAsState(initial = emptyList())
-    // 从其它页面切回记录页时，collectAsState 的首帧是空列表，若直接按空列表渲染
-    // 会闪一下「还没有加班记录」。记录流真正发出首帧前先显示占位骨架，
-    // 加载完成后再按真实数据决定空态 / 列表（与首页 recordsLoaded 同款保护）。
-    var recordsLoaded by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        repository.getAllRecords().collect { recordsLoaded = true }
-    }
+    // 「是否已加载」与「记录内容」取自同一份快照：initial=null 表示尚未加载。
+    // 旧写法用 initial=emptyList() + 独立 LaunchedEffect 打标记，两者更新不同步时
+    // 会出现 loaded=true 但 records 仍为空的一帧，切 tab 时恰好闪一下「还没有记录」。
+    val recordsSnapshot by repository.getAllRecords().collectAsState(initial = null)
+    val recordsLoaded = recordsSnapshot != null
+    val records = recordsSnapshot.orEmpty()
 
     // 用户配置的加班类型配色，用于记录标题与统计保持一致
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
