@@ -513,11 +513,12 @@ fun MainNavHost(
         }
         composable(route = "statistics?month={month}") { backStackEntry ->
             PageSnackbarScope {
-                StatisticsPage(
+                StatisticsDetailScreen(
                     navController = navController,
                     repository = repository,
                     settingsRepository = settingsRepository,
-                    initialMonth = backStackEntry.arguments?.getString("month")
+                    initialMonth = backStackEntry.arguments?.getString("month"),
+                    onBack = { navController.popBackStack() }
                 )
             }
         }

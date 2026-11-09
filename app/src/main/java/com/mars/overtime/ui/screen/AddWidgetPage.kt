@@ -72,11 +72,10 @@ fun AddWidgetPage(
         }
         items(items = WIDGET_CATALOG, key = { it.id }) { def ->
             val present = layout.any { it.id == def.id }
-            SettingsGroup(title = def.title) {
+            SettingsGroup {
                 BasicComponent(
-                    title = def.desc,
-                    summary = (if (def.isChart) "图表组件" else "数值组件") +
-                        "　·　尺寸 ${def.fixedSpanX}×${def.fixedSpanY}（固定）",
+                    title = def.title,
+                    summary = def.desc,
                     onClick = {}
                 )
                 // 实时预览：按该组件的固定尺寸等比渲染

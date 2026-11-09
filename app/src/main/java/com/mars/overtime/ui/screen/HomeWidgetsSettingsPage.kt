@@ -27,13 +27,10 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/** 固定尺寸标签：1×1 / 2×1 / 2×2 */
-private fun spanLabel(p: WidgetPlacement): String = "${p.spanX}×${p.spanY}"
-
 /**
  * 首页小组件配置页：
  * - 概览卡展示模式：总览（时长/薪资/条数）或 分类（净时长 + 分类型工时条）；
- * - 小组件：列出已添加项（含固定尺寸），可删除；新增在添加页、排序在首页长按完成。
+ * - 小组件：列出已添加项，可删除；新增在添加页、排序在首页长按完成。
  */
 @Composable
 fun HomeWidgetsSettingsPage(
@@ -60,8 +57,8 @@ fun HomeWidgetsSettingsPage(
         item {
             SettingsGroup(title = "概览卡展示") {
                 listOf(
-                    "total" to Pair("总览", "总时长 · 预估薪资 · 记录数"),
-                    "by_type" to Pair("分类", "净时长与薪资，附分类型工时条")
+                    "total" to Pair("总览", "总加班时长 · 加班薪资 · 加班次数"),
+                    "by_type" to Pair("分类", "加班时长与薪资，按分类展示工时条")
                 ).forEach { (mode, meta) ->
                     BasicComponent(
                         title = meta.first,
@@ -99,7 +96,7 @@ fun HomeWidgetsSettingsPage(
                     val def = widgetDef(p.id)
                     BasicComponent(
                         title = def?.title ?: p.id,
-                        summary = "${def?.desc ?: ""}　·　固定尺寸 ${spanLabel(p)}",
+                        summary = def?.desc ?: "",
                         endActions = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(

@@ -199,7 +199,7 @@ fun HomePage(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (editingState.value) "完成" else "管理小组件",
+                                text = if (editingState.value) "完成" else "编辑",
                                 style = MiuixTheme.textStyles.footnote1
                             )
                         }
@@ -418,11 +418,11 @@ private fun MonthlyOverviewCard(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     StatItem(
-                        "净时长",
+                        "加班时长",
                         stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0小时"
                     )
-                    StatItem("预估薪资", stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
-                    StatItem("记录数", "${stats?.recordCount ?: 0}条")
+                    StatItem("加班薪资", stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
+                    StatItem("加班次数", "${stats?.recordCount ?: 0}次")
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 listOf(
@@ -471,7 +471,7 @@ private fun MonthlyOverviewCard(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     StatItem("总时长", stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0小时")
-                    StatItem("预估薪资", stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
+                    StatItem("加班薪资", stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
                     StatItem("记录数", "${stats?.recordCount ?: 0}条")
                 }
             }

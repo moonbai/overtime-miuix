@@ -33,6 +33,7 @@ import com.mars.overtime.ui.theme.AppDimens
 import com.mars.overtime.ui.theme.AppShapes
 import com.mars.overtime.ui.theme.AppTitle3Semibold
 import com.mars.overtime.ui.component.EmptyState
+import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
@@ -116,6 +117,55 @@ private fun buildDayCategories(selectedMonth: String, ignoreHoliday: Boolean): M
         }
     }
     return result
+}
+
+/**
+ * 主页小组件跳转进入的独立统计页。
+ *
+ * 底部 tab 内的统计页位于 MainScreen 的 Scaffold 中，由 Scaffold 消费状态栏 insets
+ * 并通过 topReserve 下传给列表；而 NavHost 的 "statistics" 是独立目的地，不在该
+ * Scaffold 内。这里补上与其他二级页一致的 Scaffold + 返回顶栏，由框架避让状态栏，
+ * 否则列表首个日期卡片只有 16dp 留白，会直接压在状态栏上。
+ */
+@Composable
+fun StatisticsDetailScreen(
+    navController: NavHostController,
+    repository: OvertimeRepository,
+    settingsRepository: SettingsRepository,
+    initialMonth: String? = null,
+    onBack: () -> Unit
+) {
+    // 窗口背景透明后，二级页需自己铺满主题背景（含状态栏区域），避免顶栏透出黑底
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MiuixTheme.colorScheme.background)
+    ) {
+        Scaffold(
+            topBar = {
+                SmallTopAppBar(
+                    title = "统计",
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
+                        }
+                    }
+                )
+            },
+            snackbarHost = { SnackbarHost(LocalSnackbarHostState.current) }
+        ) { paddingValues ->
+            // Scaffold 实测 padding 已包含状态栏、顶栏与底部系统栏；
+            // 内容层从这里开始，列表只需自己的 16dp 页边距。
+            Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                StatisticsPage(
+                    navController = navController,
+                    repository = repository,
+                    settingsRepository = settingsRepository,
+                    initialMonth = initialMonth
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -524,7 +574,7 @@ fun StatisticsPage(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "合计净时长: ${SalaryCalculator.formatHours(dayNet)}",
+                            text = "合计加班时长: ${SalaryCalculator.formatHours(dayNet)}",
                             style = MiuixTheme.textStyles.body2,
                             fontWeight = FontWeight.SemiBold,
                             color = if (dayNet < 0) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary
@@ -662,7 +712,7 @@ private fun YearTrendCard(yearTrend: List<MonthTrend>, typeColor: (OvertimeType)
     Card(modifier = Modifier.fillMaxWidth(), cornerRadius = AppDimens.cardCorner) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "按月趋势（净时长）",
+                text = "按月趋势",
                 style = MiuixTheme.textStyles.title3,
                 fontWeight = FontWeight.SemiBold
             )

@@ -571,7 +571,7 @@ private fun DonutChart(segs: List<TypeSeg>, net: Double) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "净时长",
+                    text = "加班时长",
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     maxLines = 1,
