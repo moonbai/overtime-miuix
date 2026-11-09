@@ -78,9 +78,11 @@ fun widgetTitle(id: String): String = widgetDef(id)?.title ?: id
  * 布局读取时统一按目录固定尺寸校正跨度：
  * 旧版本允许用户调整尺寸，持久化里可能残留任意 spanX/spanY，
  * 这里全部归位到设计尺寸，保证「尺寸完全由代码决定」且旧数据平滑升级。
+ * 同时按 id 去重：拖拽与 key() 都以 id 为唯一标识，重复 id 会让多张卡片
+ * 同时被判定为「正在拖动」，旧备份导入的重复项需在此收敛掉。
  */
 fun normalizeLayout(items: List<WidgetPlacement>): List<WidgetPlacement> =
-    items.map { p ->
+    items.distinctBy { it.id }.map { p ->
         val def = widgetDef(p.id)
         if (def != null) p.copy(spanX = def.fixedSpanX, spanY = def.fixedSpanY) else p.normalized()
     }

@@ -212,7 +212,7 @@ fun HomePage(
 
 /**
  * 2 列固定跨度小组件网格：每个组件按 [packGrid] 排版后绝对定位。
- * - 长按进入编辑态并开始拖动排序（跟随手指，跨过其它卡片中心即交换）；
+ * - 长按进入编辑态并开始拖动：仅被拖卡片跟随手指，松手后按落点一次性排序；
  * - 编辑态下右上 × 移除组件；非编辑态点击卡片按类型跳转。
  */
 @Composable
@@ -248,15 +248,46 @@ private fun HomeWidgetGrid(
         val density = LocalDensity.current
         val refState = remember { mutableStateOf(GridRef(draft, rects, cells, cellW, cellH)) }
         refState.value = GridRef(draft, rects, cells, cellW, cellH)
+        // 拖动开始时的布局快照：拖动期间 draft 不变，松手时按固定 rect 判定落位
+        val dragStartRefState = remember { mutableStateOf<GridRef?>(null) }
 
         Box(Modifier.fillMaxWidth().height(totalHeight)) {
-            draft.forEach { item ->
+            draft.forEachIndexed { index, item ->
                 key(item.id) {
-                val index = draft.indexOf(item)
                 val rect = rects[index]
                 val isDragged = draggingIdState.value == item.id
                 val dxDp = if (isDragged) density.run { dragOffsetPxState.value.x.toDp() } else 0.dp
                 val dyDp = if (isDragged) density.run { dragOffsetPxState.value.y.toDp() } else 0.dp
+                // 拖动中只更新偏移，排序统一在松手时做一次：旧实现每次 onDrag 都重排
+                // draft，rects 随之变化导致整组卡片跟着抖动、像多个组件同时被拖动。
+                fun finishDrag(applyReorder: Boolean) {
+                    if (draggingIdState.value != item.id) return
+                    val startRef = dragStartRefState.value
+                    val offset = dragOffsetPxState.value
+                    if (applyReorder && startRef != null) {
+                        val idx = startRef.draft.indexOfFirst { it.id == item.id }
+                        if (idx >= 0) {
+                            val dx = density.run { offset.x.toDp().value }
+                            val dy = density.run { offset.y.toDp().value }
+                            val cx = startRef.rects[idx].cx + dx
+                            val cy = startRef.rects[idx].cy + dy
+                            val target = startRef.rects.withIndex()
+                                .filter { it.index != idx }
+                                .minByOrNull { (it.value.cx - cx) * (it.value.cx - cx) + (it.value.cy - cy) * (it.value.cy - cy) }
+                                ?.index
+                            val minDragPx = density.run { 24.dp.toPx() }
+                            if (target != null && offset.getDistance() > minDragPx) {
+                                val moved = startRef.draft.toMutableList()
+                                val dragged = moved.removeAt(idx)
+                                moved.add(target.coerceAtMost(moved.size), dragged)
+                                onChange(moved)
+                            }
+                        }
+                    }
+                    draggingIdState.value = null
+                    dragOffsetPxState.value = Offset.Zero
+                    dragStartRefState.value = null
+                }
                 Box(
                     Modifier
                         .offset(x = rect.x + dxDp, y = rect.y + dyDp)
@@ -276,35 +307,14 @@ private fun HomeWidgetGrid(
                                     editingState.value = true
                                     draggingIdState.value = item.id
                                     dragOffsetPxState.value = Offset.Zero
+                                    dragStartRefState.value = refState.value
                                 },
                                 onDrag = { _, dragAmount ->
-                                    val id = draggingIdState.value
-                                    if (id != item.id) return@detectDragGesturesAfterLongPress
+                                    if (draggingIdState.value != item.id) return@detectDragGesturesAfterLongPress
                                     dragOffsetPxState.value += dragAmount
-                                    val ref = refState.value
-                                    val idx = ref.draft.indexOfFirst { it.id == item.id }
-                                    if (idx < 0) return@detectDragGesturesAfterLongPress
-                                    val dx = density.run { dragOffsetPxState.value.x.toDp().value }
-                                    val dy = density.run { dragOffsetPxState.value.y.toDp().value }
-                                    val cx = ref.rects[idx].cx + dx
-                                    val cy = ref.rects[idx].cy + dy
-                                    val target = ref.rects.withIndex()
-                                        .filter { it.index != idx }
-                                        .minByOrNull { (it.value.cx - cx) * (it.value.cx - cx) + (it.value.cy - cy) * (it.value.cy - cy) }
-                                        ?.index
-                                    if (target != null && target != idx) {
-                                        val moved = ref.draft.toMutableList()
-                                        val it2 = moved.removeAt(idx)
-                                        moved.add(target.coerceAtMost(moved.size), it2)
-                                        onChange(moved)
-                                    }
                                 },
-                                onDragEnd = {
-                                    if (draggingIdState.value == item.id) {
-                                        draggingIdState.value = null
-                                        dragOffsetPxState.value = Offset.Zero
-                                    }
-                                }
+                                onDragEnd = { finishDrag(applyReorder = true) },
+                                onDragCancel = { finishDrag(applyReorder = false) }
                             )
                         }
                 ) {
