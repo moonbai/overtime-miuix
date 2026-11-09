@@ -22,7 +22,7 @@ import com.mars.overtime.ui.theme.AppDimens
 import com.mars.overtime.ui.theme.AppIconSize
 import com.mars.overtime.ui.theme.AppShapes
 import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
+import com.mars.overtime.util.rememberBlurEnabled
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
@@ -116,7 +116,7 @@ fun SettingsScreen(
     // 与主界面 / 独立统计页一致：内容层延伸到顶栏背后作为采样源，
     // 不支持运行时 shader 时回退到不透明 surface，保证标题始终可读。
     val navBackdrop = rememberLayerBackdrop()
-    val blurSupported = isRuntimeShaderSupported()
+    val blurSupported = rememberBlurEnabled()
     Box(
         modifier = Modifier
             .fillMaxSize()

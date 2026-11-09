@@ -28,7 +28,7 @@ import com.mars.overtime.util.RecordSyncHelper
 import com.mars.overtime.util.SalaryCalculator
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
+import com.mars.overtime.util.rememberBlurEnabled
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
@@ -259,7 +259,7 @@ fun AddEditRecordPage(
     // 与主界面 / 设置二级页一致：内容层延伸到顶栏背后作为毛玻璃采样源；
     // 窗口背景透明时由 Scaffold 自己铺满主题背景，避免深色下透出黑底。
     val navBackdrop = rememberLayerBackdrop()
-    val blurSupported = isRuntimeShaderSupported()
+    val blurSupported = rememberBlurEnabled()
     Scaffold(
         modifier = Modifier
             .fillMaxSize()

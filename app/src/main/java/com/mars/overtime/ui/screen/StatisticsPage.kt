@@ -24,7 +24,7 @@ import com.mars.overtime.util.HolidayDataSource
 import com.mars.overtime.util.HolidayManager
 import com.mars.overtime.util.SalaryCalculator
 import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
+import com.mars.overtime.util.rememberBlurEnabled
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
@@ -139,7 +139,7 @@ fun StatisticsDetailScreen(
     onBack: () -> Unit
 ) {
     val navBackdrop = rememberLayerBackdrop()
-    val blurSupported = isRuntimeShaderSupported()
+    val blurSupported = rememberBlurEnabled()
     // 窗口背景透明后，二级页需自己铺满主题背景（含状态栏区域），避免顶栏透出黑底
     Box(
         modifier = Modifier
