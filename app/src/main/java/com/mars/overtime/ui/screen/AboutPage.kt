@@ -232,7 +232,7 @@ fun AboutPage(navController: NavHostController) {
                                 bitmap = bitmap.asImageBitmap(),
                                 contentDescription = "应用图标",
                                 contentScale = ContentScale.Fit,
-                                modifier = Modifier.size(84.dp)
+                                modifier = Modifier.size(AppDimens.aboutIcon)
                             )
                         } ?: Icon(
                             MiuixIcons.AppRecording,

@@ -114,8 +114,13 @@ fun AddWidgetPage(
                         .padding(vertical = AppDimens.spaceXs),
                     contentAlignment = Alignment.Center
                 ) {
-                    val cellW = (maxWidth - AppDimens.groupSpacing) / GRID_COLUMNS
-                    val w = cellW * def.fixedSpanX + AppDimens.groupSpacing * (def.fixedSpanX - 1)
+                    // 按首页真实网格宽度计算：首页内容区 = 屏幕宽 - 两侧页面留白。
+                    // 设置页分组卡片可能略窄，用 coerceAtMost 兜底，而不是缩放卡片内文字。
+                    val homeGridWidth = LocalConfiguration.current.screenWidthDp.dp -
+                        AppDimens.pageHorizontal * 2
+                    val cellW = (homeGridWidth - AppDimens.groupSpacing) / GRID_COLUMNS
+                    val w = (cellW * def.fixedSpanX + AppDimens.groupSpacing * (def.fixedSpanX - 1))
+                        .coerceAtMost(maxWidth)
                     val h = CELL_HEIGHT * def.fixedSpanY + AppDimens.groupSpacing * (def.fixedSpanY - 1)
                     Box(
                         Modifier
