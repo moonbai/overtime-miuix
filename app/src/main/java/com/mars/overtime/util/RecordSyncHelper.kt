@@ -6,7 +6,9 @@ import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
 import com.mars.overtime.push.CalendarSyncManager
 import com.mars.overtime.push.PushManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 
 /**
  * 记录保存后的统一同步逻辑：推送、日历同步、自动备份。
@@ -28,12 +30,17 @@ object RecordSyncHelper {
         record: OvertimeRecord,
         oldRecord: OvertimeRecord? = null
     ): CalendarSyncManager.SyncResult? {
+        // 以下三类动作都涉及 ContentResolver / 文件 / 网络 IO，统一切到 IO 线程，
+        // 避免保存记录时在主线程做磁盘或 Provider 操作造成掉帧。
+
         // 1) 推送到所选渠道。推送属于旁路能力，网络异常等失败不应影响后续同步与保存结果。
         try {
-            if (settingsRepository.pushEnabled.first()) {
-                val channel = settingsRepository.pushChannel.first()
-                if (channel != "none") {
-                    PushManager.sendToSelectedChannel(channel, settingsRepository.exportSettingsMap(), record)
+            withContext(Dispatchers.IO) {
+                if (settingsRepository.pushEnabled.first()) {
+                    val channel = settingsRepository.pushChannel.first()
+                    if (channel != "none") {
+                        PushManager.sendToSelectedChannel(channel, settingsRepository.exportSettingsMap(), record)
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -44,29 +51,33 @@ object RecordSyncHelper {
         //    而不是静默吞掉（此前 SecurityException 会直接冒泡导致提交崩溃）。
         var calendarResult: CalendarSyncManager.SyncResult? = null
         if (settingsRepository.calendarSyncEnabled.first()) {
-            calendarResult = if (!CalendarSyncManager.hasCalendarPermission(context)) {
-                CalendarSyncManager.SyncResult.PermissionDenied
-            } else {
-                oldRecord?.let { CalendarSyncManager.removeEvents(context, it) }
-                CalendarSyncManager.addEvent(context, record)
+            calendarResult = withContext(Dispatchers.IO) {
+                if (!CalendarSyncManager.hasCalendarPermission(context)) {
+                    CalendarSyncManager.SyncResult.PermissionDenied
+                } else {
+                    oldRecord?.let { CalendarSyncManager.removeEvents(context, it) }
+                    CalendarSyncManager.addEvent(context, record)
+                }
             }
         }
 
         // 3) 自动备份（内部会自行检查开关）。同样做兜底，避免备份失败吞掉日历同步结果。
         try {
-            val settingsMap = settingsRepository.exportSettingsMap()
-            val webdavEnabled = settingsMap["webdav_enabled"]?.toBoolean() ?: false
-            val location = settingsMap["auto_backup_location"] ?: "local"
-            val webdavConfig = if (webdavEnabled && location == "cloud") {
-                WebDavManager.WebDavConfig(
-                    baseUrl = settingsMap["webdav_url"] ?: "",
-                    username = settingsMap["webdav_username"] ?: "",
-                    password = settingsMap["webdav_password"] ?: "",
-                    remotePath = settingsMap["webdav_path"] ?: "/overtime_backup/"
-                )
-            } else null
-            val allRecords = repository.getAllRecords().first()
-            BackupManager.performAutoBackup(context, allRecords, settingsMap, webdavConfig)
+            withContext(Dispatchers.IO) {
+                val settingsMap = settingsRepository.exportSettingsMap()
+                val webdavEnabled = settingsMap["webdav_enabled"]?.toBoolean() ?: false
+                val location = settingsMap["auto_backup_location"] ?: "local"
+                val webdavConfig = if (webdavEnabled && location == "cloud") {
+                    WebDavManager.WebDavConfig(
+                        baseUrl = settingsMap["webdav_url"] ?: "",
+                        username = settingsMap["webdav_username"] ?: "",
+                        password = settingsMap["webdav_password"] ?: "",
+                        remotePath = settingsMap["webdav_path"] ?: "/overtime_backup/"
+                    )
+                } else null
+                val allRecords = repository.getAllRecords().first()
+                BackupManager.performAutoBackup(context, allRecords, settingsMap, webdavConfig)
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }

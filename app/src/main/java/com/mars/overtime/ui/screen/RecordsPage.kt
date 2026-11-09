@@ -34,6 +34,8 @@ import com.mars.overtime.ui.theme.AppBody1Medium
 import com.mars.overtime.ui.theme.AppBody1Semibold
 import com.mars.overtime.util.SalaryCalculator
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.launch
@@ -139,13 +141,23 @@ private fun parseRecordDateQuery(raw: String): RecordDateQuery? {
     }
 }
 
-/** 复用 [Calendar] 比较记录日期，避免为每条记录新建实例。 */
-private fun matchesRecordDate(cal: Calendar, millis: Long, q: RecordDateQuery): Boolean {
-    cal.timeInMillis = millis
-    return (q.year == null || cal.get(Calendar.YEAR) == q.year) &&
-            (q.month == null || cal.get(Calendar.MONTH) + 1 == q.month) &&
-            (q.day == null || cal.get(Calendar.DAY_OF_MONTH) == q.day)
-}
+/**
+ * 每条记录的搜索索引：在记录变化时预计算一次，输入时只做字符串 / 整数比较，
+ * 不再每次按键都对全表做日期格式化、时长格式化。
+ */
+private data class RecordSearchIndex(
+    val monthKey: String,
+    val hoursText: String,
+    val hoursNumber: String,
+    val year: Int,
+    val month: Int,
+    val day: Int
+)
+
+private fun matchesRecordDate(index: RecordSearchIndex, q: RecordDateQuery): Boolean =
+    (q.year == null || index.year == q.year) &&
+            (q.month == null || index.month == q.month) &&
+            (q.day == null || index.day == q.day)
 
 /** 时长的纯数字写法（8.5 → "8.5"），让数字输入也能命中「8.5H」。 */
 private fun durationNumberText(hours: Double): String {
@@ -181,8 +193,14 @@ fun RecordsPage(
     // 「删除二次确认」设置项：关闭时直接删除，仅靠 Snackbar 撤销
     val deleteConfirmEnabled by settingsRepository.deleteConfirmEnabled.collectAsState(initial = true)
 
-    // 搜索与筛选
+    // 搜索与筛选：输入框实时回显，过滤条件去抖后再触发一次全表扫描
     var searchQuery by remember { mutableStateOf("") }
+    var debouncedQuery by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        snapshotFlow { searchQuery }
+            .debounce(150L)
+            .collect { debouncedQuery = it }
+    }
     var recordFilter by remember { mutableStateOf<RecordFilter>(RecordFilter.All) }
 
     // 删除确认对话框
@@ -249,30 +267,47 @@ fun RecordsPage(
         }
     }
 
-    // 过滤 + 按月分组（倒序）
-    val monthFormatter = remember { SimpleDateFormat("yyyy-MM", Locale.getDefault()) }
-    val grouped by remember(records, searchQuery, recordFilter) {
-        derivedStateOf {
-            val q = searchQuery.trim()
-            // 日期词先解析一次，逐条记录只做年/月/日比较
-            val dateQuery = parseRecordDateQuery(q)
-            val calendar = Calendar.getInstance()
-            records.filter { rec ->
-                val currentFilter = recordFilter
-                val matchFilter = when (currentFilter) {
-                    RecordFilter.All -> true
-                    RecordFilter.Leave -> rec.isLeave
-                    is RecordFilter.Type -> !rec.isLeave && rec.type == currentFilter.t
-                }
-                val matchQuery = q.isEmpty() || rec.note.contains(q, ignoreCase = true)
-                        || monthFormatter.format(Date(rec.date)).contains(q)
-                        || SalaryCalculator.formatHours(rec.durationHours).contains(q)
-                        || durationNumberText(rec.durationHours).contains(q)
-                        || (dateQuery != null && matchesRecordDate(calendar, rec.date, dateQuery))
-                matchFilter && matchQuery
-            }.groupBy { monthFormatter.format(Date(it.date)) }
-                .toSortedMap(compareByDescending { it })
+    // 搜索索引按 records 变化重算一次；过滤 + 按月分组（倒序）也合成一次遍历。
+    // 旧写法每次按键都对全表做日期 / 时长格式化，再 filter + groupBy + 排序。
+    val searchIndex = remember(records) {
+        val monthFormatter = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+        val cal = Calendar.getInstance()
+        records.map { rec ->
+            cal.timeInMillis = rec.date
+            RecordSearchIndex(
+                monthKey = monthFormatter.format(Date(rec.date)),
+                hoursText = SalaryCalculator.formatHours(rec.durationHours),
+                hoursNumber = durationNumberText(rec.durationHours),
+                year = cal.get(Calendar.YEAR),
+                month = cal.get(Calendar.MONTH) + 1,
+                day = cal.get(Calendar.DAY_OF_MONTH)
+            )
         }
+    }
+    val grouped: Map<String, List<OvertimeRecord>> = remember(
+        records, searchIndex, debouncedQuery, recordFilter
+    ) {
+        val q = debouncedQuery.trim()
+        val dateQuery = parseRecordDateQuery(q)
+        val currentFilter = recordFilter
+        val buckets = java.util.TreeMap<String, MutableList<OvertimeRecord>>(compareByDescending { it })
+        for (i in records.indices) {
+            val rec = records[i]
+            val matchFilter = when (currentFilter) {
+                RecordFilter.All -> true
+                RecordFilter.Leave -> rec.isLeave
+                is RecordFilter.Type -> !rec.isLeave && rec.type == currentFilter.t
+            }
+            if (!matchFilter) continue
+            val index = searchIndex[i]
+            val matchQuery = q.isEmpty() || rec.note.contains(q, ignoreCase = true)
+                || index.monthKey.contains(q)
+                || index.hoursText.contains(q)
+                || index.hoursNumber.contains(q)
+                || (dateQuery != null && matchesRecordDate(index, dateQuery))
+            if (matchQuery) buckets.getOrPut(index.monthKey) { mutableListOf() }.add(rec)
+        }
+        buckets
     }
 
     LazyColumn(
@@ -350,7 +385,7 @@ fun RecordsPage(
         } else {
             grouped.forEach { (month, list) ->
                 val parts = month.split("-")
-                stickyHeader {
+                stickyHeader(key = month) {
                     Surface(
                         color = MiuixTheme.colorScheme.surface,
                         modifier = Modifier.fillMaxWidth()
@@ -358,7 +393,10 @@ fun RecordsPage(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                                .padding(
+                                    vertical = AppDimens.spaceXxs2,
+                                    horizontal = AppDimens.spaceXxs
+                                ),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
@@ -543,11 +581,14 @@ private fun RecordCard(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
-    // 日期格式：同年显示 MM-dd，跨年显示 yyyy-MM-dd
-    val cal = java.util.Calendar.getInstance().apply { time = Date(record.date) }
-    val now = java.util.Calendar.getInstance()
-    val datePattern = if (cal.get(java.util.Calendar.YEAR) == now.get(java.util.Calendar.YEAR)) "MM-dd" else "yyyy-MM-dd"
-    val dateStr = SimpleDateFormat(datePattern, Locale.getDefault()).format(Date(record.date))
+    // 日期格式：同年显示 MM-dd，跨年显示 yyyy-MM-dd。
+    // 结果按 record.date 缓存，滚动重组时不再重复 new Calendar / SimpleDateFormat。
+    val dateStr = remember(record.date) {
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = record.date }
+        val nowYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+        val pattern = if (cal.get(java.util.Calendar.YEAR) == nowYear) "MM-dd" else "yyyy-MM-dd"
+        SimpleDateFormat(pattern, Locale.getDefault()).format(Date(record.date))
+    }
     val displayLabel = if (record.isLeave) "请假" else record.type.label
     val typeColor = if (record.isLeave) {
         MiuixTheme.colorScheme.error

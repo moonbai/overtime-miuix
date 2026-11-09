@@ -149,7 +149,7 @@ object CalendarSyncManager {
 
     /** 升级前的标题格式（如「工作日延时-2.00小时」），删除旧事件时用于兼容匹配。 */
     private fun legacyEventTitle(record: OvertimeRecord): String =
-        "${typeStr(record.type)}-${"%.2f".format(record.durationHours)}小时"
+        "${typeStr(record.type)}-${String.format(java.util.Locale.US, "%.2f", record.durationHours)}小时"
 
     /** 写入单条记录到系统日历。 */
     fun addEvent(context: Context, record: OvertimeRecord): SyncResult {
@@ -207,7 +207,9 @@ object CalendarSyncManager {
         )
 
         return try {
-            context.contentResolver.delete(CalendarContract.Events.CONTENT_URI, selection, selectionArgs)
+            val deleted = context.contentResolver.delete(CalendarContract.Events.CONTENT_URI, selection, selectionArgs)
+            // 0 行是幂等情况（事件此前已删除），只有异常才代表 Provider 拒绝，保留日志便于排查
+            if (deleted == 0) Log.i(TAG, "未找到匹配的日历事件（可能已删除）")
             SyncResult.Success
         } catch (e: SecurityException) {
             Log.w(TAG, "删除日历事件被拒绝：${e.message}")

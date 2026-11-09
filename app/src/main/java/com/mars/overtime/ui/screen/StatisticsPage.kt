@@ -206,27 +206,27 @@ fun StatisticsPage(
     // 全部记录：用于动态计算可统计的月份范围（最早记录月 ~ 当前月）
     val allRecords by repository.getAllRecords().collectAsState(initial = emptyList())
 
-    val yearMonths by remember(allRecords) {
-        derivedStateOf {
-            val cal = Calendar.getInstance()
-            val endY = cal.get(Calendar.YEAR)
-            val endM = cal.get(Calendar.MONTH) + 1
-            val startYM = if (allRecords.isEmpty()) {
-                String.format("%04d-%02d", endY, endM)
-            } else {
-                val minCal = Calendar.getInstance().apply { timeInMillis = allRecords.minOf { it.date } }
-                String.format("%04d-%02d", minCal.get(Calendar.YEAR), minCal.get(Calendar.MONTH) + 1)
-            }
-            val list = mutableListOf<String>()
-            var y = startYM.substring(0, 4).toInt()
-            var m = startYM.substring(5, 7).toInt()
-            while (y < endY || (y == endY && m <= endM)) {
-                list.add(String.format("%04d-%02d", y, m))
-                m++
-                if (m > 12) { m = 1; y++ }
-            }
-            list
+    // 这里只依赖 allRecords 一个输入，用 remember 计算即可；
+    // derivedStateOf 套在以 allRecords 为 key 的 remember 里没有意义，反而多一层 State 订阅。
+    val yearMonths = remember(allRecords) {
+        val cal = Calendar.getInstance()
+        val endY = cal.get(Calendar.YEAR)
+        val endM = cal.get(Calendar.MONTH) + 1
+        val startYM = if (allRecords.isEmpty()) {
+            String.format(Locale.US, "%04d-%02d", endY, endM)
+        } else {
+            val minCal = Calendar.getInstance().apply { timeInMillis = allRecords.minOf { it.date } }
+            String.format(Locale.US, "%04d-%02d", minCal.get(Calendar.YEAR), minCal.get(Calendar.MONTH) + 1)
         }
+        val list = mutableListOf<String>()
+        var y = startYM.substring(0, 4).toInt()
+        var m = startYM.substring(5, 7).toInt()
+        while (y < endY || (y == endY && m <= endM)) {
+            list.add(String.format(Locale.US, "%04d-%02d", y, m))
+            m++
+            if (m > 12) { m = 1; y++ }
+        }
+        list
     }
 
     var selectedMonth by remember { mutableStateOf(initialMonth ?: SalaryCalculator.getCurrentYearMonth()) }
@@ -375,45 +375,40 @@ fun StatisticsPage(
         }
     }
 
-    // 年度维度：按月趋势（分类型，供堆叠色条）+ 类型占比
-    val yearTrend by remember(allRecords, selectedYear) {
-        derivedStateOf {
-            val y = selectedYear.toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
-            val cal = Calendar.getInstance()
-            (1..12).map { m ->
-                var leave = 0.0; var workday = 0.0; var weekend = 0.0; var holiday = 0.0
-                allRecords.filter { rec ->
-                    cal.timeInMillis = rec.date
-                    cal.get(Calendar.YEAR) == y && cal.get(Calendar.MONTH) + 1 == m
-                }.forEach { rec ->
-                    if (rec.isLeave) leave += rec.durationHours else when (rec.type) {
-                        OvertimeType.WORKDAY -> workday += rec.durationHours
-                        OvertimeType.WEEKEND -> weekend += rec.durationHours
-                        OvertimeType.HOLIDAY -> holiday += rec.durationHours
-                    }
+    // 年度维度：一次全表遍历同时算出「按月趋势」与「类型占比」。
+    // 旧写法 (1..12).map { allRecords.filter { ... } } 要遍历 13 次，年视图切月时明显卡顿。
+    val yearlyAggregate = remember(allRecords, selectedYear) {
+        val y = selectedYear.toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
+        val cal = Calendar.getInstance()
+        // 12 个月，每月 4 个累计值：请假 / 工作日 / 休息日 / 节假日
+        val buckets = Array(12) { DoubleArray(4) }
+        var typeWd = 0.0; var typeWe = 0.0; var typeHo = 0.0
+        allRecords.forEach { rec ->
+            cal.timeInMillis = rec.date
+            if (cal.get(Calendar.YEAR) != y) return@forEach
+            val month = cal.get(Calendar.MONTH)
+            val bucket = buckets[month]
+            if (rec.isLeave) {
+                bucket[0] += rec.durationHours
+            } else when (rec.type) {
+                OvertimeType.WORKDAY -> {
+                    bucket[1] += rec.durationHours; typeWd += rec.durationHours
                 }
-                MonthTrend(m, leave, workday, weekend, holiday)
-            }
-        }
-    }
-    val yearTypeRatio by remember(allRecords, selectedYear) {
-        derivedStateOf {
-            val y = selectedYear.toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
-            val cal = Calendar.getInstance()
-            var workday = 0.0; var weekend = 0.0; var holiday = 0.0
-            allRecords.filter { rec ->
-                cal.timeInMillis = rec.date
-                cal.get(Calendar.YEAR) == y && !rec.isLeave
-            }.forEach { rec ->
-                when (rec.type) {
-                    OvertimeType.WORKDAY -> workday += rec.durationHours
-                    OvertimeType.WEEKEND -> weekend += rec.durationHours
-                    OvertimeType.HOLIDAY -> holiday += rec.durationHours
+                OvertimeType.WEEKEND -> {
+                    bucket[2] += rec.durationHours; typeWe += rec.durationHours
+                }
+                OvertimeType.HOLIDAY -> {
+                    bucket[3] += rec.durationHours; typeHo += rec.durationHours
                 }
             }
-            Triple(workday, weekend, holiday)
         }
+        val trend = buckets.mapIndexed { index, v ->
+            MonthTrend(index + 1, v[0], v[1], v[2], v[3])
+        }
+        Pair(trend, Triple(typeWd, typeWe, typeHo))
     }
+    val yearTrend = yearlyAggregate.first
+    val yearTypeRatio = yearlyAggregate.second
 
     LazyColumn(
         modifier = Modifier
@@ -966,7 +961,7 @@ private fun CalendarCard(
                                                 style = MiuixTheme.textStyles.footnote1,
                                                 fontWeight = FontWeight.Medium,
                                                 color = if (net < 0) MiuixTheme.colorScheme.error
-                                                else Color.Black
+                                                else MiuixTheme.colorScheme.onSurface
                                             )
                                         } else {
                                             Spacer(modifier = Modifier.height(16.dp))

@@ -243,9 +243,12 @@ private fun HomeWidgetGrid(
         val totalHeight = cellH * totalRows + gap * (totalRows - 1)
         val density = LocalDensity.current
         val refState = remember { mutableStateOf(GridRef(draft, rects, cells, cellW, cellH)) }
-        refState.value = GridRef(draft, rects, cells, cellW, cellH)
+        // 组合阶段不写状态：等本次组合成功后再把最新排版同步给手势闭包读取
+        SideEffect { refState.value = GridRef(draft, rects, cells, cellW, cellH) }
         // 拖动开始时的布局快照：拖动期间 draft 不变，松手时按固定 rect 判定落位
         val dragStartRefState = remember { mutableStateOf<GridRef?>(null) }
+        // 松手时读取最新 draft：拖动中若删除了组件，避免用旧快照把删除回滚
+        val currentDraft by rememberUpdatedState(draft)
 
         Box(Modifier.fillMaxWidth().height(totalHeight)) {
             draft.forEachIndexed { index, item ->
@@ -260,7 +263,7 @@ private fun HomeWidgetGrid(
                     if (draggingIdState.value != item.id) return
                     val startRef = dragStartRefState.value
                     val offset = dragOffsetPxState.value
-                    if (applyReorder && startRef != null) {
+                    if (applyReorder && startRef != null && currentDraft.size == startRef.draft.size) {
                         val idx = startRef.draft.indexOfFirst { it.id == item.id }
                         if (idx >= 0) {
                             val dx = density.run { offset.x.toDp().value }
@@ -300,7 +303,7 @@ private fun HomeWidgetGrid(
                                 AppShapes.radiusLg
                             ) else Modifier
                         )
-                        .pointerInput(Unit) {
+                        .pointerInput(item.id) {
                             detectDragGesturesAfterLongPress(
                                 onDragStart = {
                                     editingState.value = true

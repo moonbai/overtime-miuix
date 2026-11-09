@@ -61,13 +61,15 @@ fun QuickSubmitSheet(
     val holidayIgnoreHoliday by settingsRepository.holidayIgnoreHoliday.collectAsState(initial = false)
 
     val today = remember { Date() }
-    val dateStr = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(today) }
+    // 复用同一个格式化器：旧写法在 filter 的每条记录里都 new 一个 SimpleDateFormat
+    val dayFormatter = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
+    val dateStr = remember { dayFormatter.format(today) }
     val dateLabel = remember { SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault()).format(today) }
 
     // 今日已有记录（用于「今日已记录」提示）
     val allRecords by repository.getAllRecords().collectAsState(initial = emptyList())
     val todayRecords = remember(allRecords, dateStr) {
-        allRecords.filter { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(it.date)) == dateStr }
+        allRecords.filter { dayFormatter.format(Date(it.date)) == dateStr }
     }
 
     var selectedType by remember { mutableStateOf(OvertimeType.WORKDAY) }

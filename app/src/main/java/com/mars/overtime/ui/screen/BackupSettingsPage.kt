@@ -199,9 +199,11 @@ fun BackupSettingsPage(
         scope.launch {
             val settings = settingsRepository.exportSettingsMap()
             try {
-                context.contentResolver.openOutputStream(uri)?.use { os ->
-                    val ok = BackupManager.exportZip(records, settings, os)
-                    if (!ok) throw Exception("ZIP 打包失败")
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { os ->
+                        val ok = BackupManager.exportZip(records, settings, os)
+                        if (!ok) throw Exception("ZIP 打包失败")
+                    }
                 }
                 showToast("导出成功（ZIP 包含记录与设置）")
             } catch (e: Exception) {
@@ -222,20 +224,22 @@ fun BackupSettingsPage(
         }
         scope.launch {
             try {
-                val fileName = uri.lastPathSegment ?: ""
-                val data: BackupData? = if (fileName.endsWith(".zip", ignoreCase = true)) {
-                    val tmpFile = File(context.cacheDir, "import_tmp.zip")
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        FileOutputStream(tmpFile).use { output ->
-                            input.copyTo(output)
+                val data: BackupData? = withContext(Dispatchers.IO) {
+                    val fileName = uri.lastPathSegment ?: ""
+                    if (fileName.endsWith(".zip", ignoreCase = true)) {
+                        val tmpFile = File(context.cacheDir, "import_tmp.zip")
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            FileOutputStream(tmpFile).use { output ->
+                                input.copyTo(output)
+                            }
                         }
+                        val result = BackupManager.importZip(tmpFile.absolutePath)
+                        tmpFile.delete()
+                        result
+                    } else {
+                        val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText()
+                        if (json != null) BackupManager.deserialize(json) else null
                     }
-                    val result = BackupManager.importZip(tmpFile.absolutePath)
-                    tmpFile.delete()
-                    result
-                } else {
-                    val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText()
-                    if (json != null) BackupManager.deserialize(json) else null
                 }
                 if (data == null) {
                     showToast("文件解析失败")
