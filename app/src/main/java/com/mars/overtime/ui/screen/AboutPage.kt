@@ -248,8 +248,7 @@ fun AboutPage(navController: NavHostController) {
                     ) {
                         Text(
                             text = "加班记",
-                            style = MiuixTheme.textStyles.headline2,
-                            fontWeight = FontWeight.Bold,
+                            style = AppHeadline2Bold(),
                             color = MiuixTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.width(AppDimens.spaceXs))
@@ -262,9 +261,8 @@ fun AboutPage(navController: NavHostController) {
                     Spacer(modifier = Modifier.height(AppDimens.spaceSm))
                     Text(
                         text = "用心记录，每一份付出都值得被看见",
-                        style = MiuixTheme.textStyles.body1,
+                        style = AppBody1Medium(),
                         color = MiuixTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center
