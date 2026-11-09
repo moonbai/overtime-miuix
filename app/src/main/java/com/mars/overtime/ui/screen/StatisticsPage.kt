@@ -36,6 +36,8 @@ import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.mars.overtime.ui.theme.AppDimens
+import com.mars.overtime.ui.theme.AppFootnote1Bold
+import com.mars.overtime.ui.theme.AppFootnote1Medium
 import com.mars.overtime.ui.theme.AppShapes
 import com.mars.overtime.ui.theme.AppTitle3Semibold
 import com.mars.overtime.ui.component.EmptyState
