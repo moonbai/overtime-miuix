@@ -332,6 +332,8 @@ fun SettingsPrimaryButton(
     Button(
         onClick = onClick,
         enabled = enabled,
+        colors = ButtonDefaults.buttonColorsPrimary(),
+        cornerRadius = AppDimens.controlCorner,
         modifier = modifier.fillMaxWidth()
     ) {
         Text(text)
