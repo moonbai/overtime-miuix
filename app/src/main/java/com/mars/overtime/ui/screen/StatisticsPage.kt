@@ -50,6 +50,21 @@ private data class DayAggregate(
 private enum class StatsViewMode { MONTH, YEAR }
 
 /**
+ * 年度「按月趋势」单月分类型时长。
+ * 请假记为负（与记录存储口径一致，本质是负数的休息日）：不参与条形分色，仅体现在净时长。
+ */
+private data class MonthTrend(
+    val month: Int,
+    val leave: Double,
+    val workday: Double,
+    val weekend: Double,
+    val holiday: Double
+) {
+    /** 净时长：加班为正、请假为负，二者相抵 */
+    val net: Double get() = leave + workday + weekend + holiday
+}
+
+/**
  * 统计页「阅读视图」（月度日历卡片）中每个日期格子的三类属性。
  * 与 HolidayManager 的统一档位一一对应：0=工作日 / 1、2=休息日 / 3=法定节假日。
  */
@@ -283,17 +298,24 @@ fun StatisticsPage(
         }
     }
 
-    // 年度维度：按月趋势 + 类型占比
+    // 年度维度：按月趋势（分类型，供堆叠色条）+ 类型占比
     val yearTrend by remember(allRecords, selectedYear) {
         derivedStateOf {
             val y = selectedYear.toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
             val cal = Calendar.getInstance()
             (1..12).map { m ->
-                val sum = allRecords.filter { rec ->
+                var leave = 0.0; var workday = 0.0; var weekend = 0.0; var holiday = 0.0
+                allRecords.filter { rec ->
                     cal.timeInMillis = rec.date
                     cal.get(Calendar.YEAR) == y && cal.get(Calendar.MONTH) + 1 == m
-                }.sumOf { it.durationHours }
-                m to sum
+                }.forEach { rec ->
+                    if (rec.isLeave) leave += rec.durationHours else when (rec.type) {
+                        OvertimeType.WORKDAY -> workday += rec.durationHours
+                        OvertimeType.WEEKEND -> weekend += rec.durationHours
+                        OvertimeType.HOLIDAY -> holiday += rec.durationHours
+                    }
+                }
+                MonthTrend(m, leave, workday, weekend, holiday)
             }
         }
     }
@@ -443,7 +465,7 @@ fun StatisticsPage(
         // 年度视图：按月趋势 + 类型占比
         if (viewMode == StatsViewMode.YEAR) {
             item {
-                YearTrendCard(yearTrend = yearTrend)
+                YearTrendCard(yearTrend = yearTrend, typeColor = typeColor)
             }
             item {
                 TypeRatioCard(
@@ -633,7 +655,7 @@ private fun LegendItem(color: Color, label: String) {
 }
 
 @Composable
-private fun YearTrendCard(yearTrend: List<Pair<Int, Double>>) {
+private fun YearTrendCard(yearTrend: List<MonthTrend>, typeColor: (OvertimeType) -> Color) {
     Card(modifier = Modifier.fillMaxWidth(), cornerRadius = AppDimens.cardCorner) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -642,7 +664,7 @@ private fun YearTrendCard(yearTrend: List<Pair<Int, Double>>) {
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(12.dp))
-            val hasData = yearTrend.any { abs(it.second) > 0.0 }
+            val hasData = yearTrend.any { it.net != 0.0 }
             if (!hasData) {
                 // 全年无记录：画 12 根灰条是噪音，改为空态提示
                 EmptyState(
@@ -651,8 +673,9 @@ private fun YearTrendCard(yearTrend: List<Pair<Int, Double>>) {
                     subtitle = "添加记录后这里会按月展示"
                 )
             } else {
-            val maxAbs = yearTrend.maxOfOrNull { abs(it.second) } ?: 0.0
-            yearTrend.forEach { (month, hours) ->
+            // 条长以「月内三类加班合计」为基准（请假为负数的休息日，不参与分色，仅体现在净时长标签）
+            val maxTotal = yearTrend.maxOfOrNull { it.workday + it.weekend + it.holiday } ?: 0.0
+            yearTrend.forEach { trend ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -660,7 +683,7 @@ private fun YearTrendCard(yearTrend: List<Pair<Int, Double>>) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "${month}月",
+                        text = "${trend.month}月",
                         style = MiuixTheme.textStyles.footnote1,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.width(36.dp)
@@ -671,24 +694,31 @@ private fun YearTrendCard(yearTrend: List<Pair<Int, Double>>) {
                             .height(14.dp)
                             .background(MiuixTheme.colorScheme.secondaryContainer, AppShapes.radiusSm)
                     ) {
-                        if (maxAbs > 0) {
-                            val fraction = (abs(hours) / maxAbs).toFloat().coerceIn(0f, 1f)
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(fraction)
-                                    .height(14.dp)
-                                    .background(
-                                        if (hours < 0) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.primary,
-                                        AppShapes.radiusSm
-                                    )
-                            )
+                        if (maxTotal > 0) {
+                            // 与图例同源同色：工作日/休息日/节假日三类依次堆叠
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                listOf(
+                                    OvertimeType.WORKDAY to trend.workday,
+                                    OvertimeType.WEEKEND to trend.weekend,
+                                    OvertimeType.HOLIDAY to trend.holiday
+                                ).forEach { (type, hours) ->
+                                    if (hours > 0) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth((hours / maxTotal).toFloat().coerceIn(0f, 1f))
+                                                .height(14.dp)
+                                                .background(typeColor(type), AppShapes.radiusSm)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = compactHours(hours),
+                        text = compactHours(trend.net),
                         style = MiuixTheme.textStyles.footnote1,
-                        color = if (hours < 0) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurface,
+                        color = if (trend.net < 0) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.width(56.dp),
                         textAlign = TextAlign.End
                     )
