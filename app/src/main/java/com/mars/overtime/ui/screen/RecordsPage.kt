@@ -492,7 +492,7 @@ private fun RecordsLoadingPlaceholder() {
                 Modifier
                     .fillMaxWidth()
                     .height(64.dp)
-                    .clip(RoundedCornerShape(AppDimens.cardCorner))
+                    .clip(AppShapes.radiusLg)
                     .background(MiuixTheme.colorScheme.surfaceContainer)
             )
         }

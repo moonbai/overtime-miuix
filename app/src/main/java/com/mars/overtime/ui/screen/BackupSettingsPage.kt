@@ -698,7 +698,9 @@ fun BackupSettingsPage(
                         firstText = "测试连接",
                         onFirstClick = {
                             scope.launch {
-                                val ok = WebDavManager.testConnection(buildWebDavConfig())
+                                val ok = withContext(Dispatchers.IO) {
+                                    WebDavManager.testConnection(buildWebDavConfig())
+                                }
                                 showToast(if (ok) "连接成功" else "连接失败")
                             }
                         },
@@ -709,15 +711,19 @@ fun BackupSettingsPage(
                                     this["auto_backup_enabled"] = "true"
                                     this["auto_backup_location"] = "cloud"
                                 }
-                                val fileName = DataMigrationUtil.generateBackupFileName()
-                                val localPath = DataMigrationUtil.getBackupFilePath(context, fileName)
-                                val okExport = BackupManager.exportZip(records, settings, localPath)
-                                if (!okExport) {
-                                    showToast("生成本地备份失败")
-                                    return@launch
+                                val result = withContext(Dispatchers.IO) {
+                                    val fileName = DataMigrationUtil.generateBackupFileName()
+                                    val localPath = DataMigrationUtil.getBackupFilePath(context, fileName)
+                                    if (!BackupManager.exportZip(records, settings, localPath)) null
+                                    else WebDavManager.uploadFile(buildWebDavConfig(), localPath, fileName)
                                 }
-                                val okUpload = WebDavManager.uploadFile(buildWebDavConfig(), localPath, fileName)
-                                showToast(if (okUpload) "上传成功" else "上传失败")
+                                showToast(
+                                    when (result) {
+                                        null -> "生成本地备份失败"
+                                        true -> "上传成功"
+                                        false -> "上传失败"
+                                    }
+                                )
                             }
                         }
                     )
