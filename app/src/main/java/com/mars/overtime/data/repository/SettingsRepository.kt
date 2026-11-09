@@ -33,7 +33,8 @@ class SettingsRepository(private val context: Context) {
         if (saved.isEmpty()) DEFAULT_HOME_LAYOUT.map { it.id } else saved
     }
 
-    // 首页小组件布局：带跨度的有序列表（id + spanX + spanY），支持 1x1/2x1/1x2/2x2。
+    // 首页小组件布局：带跨度的有序列表（id + spanX + spanY）。跨度由组件目录固定，
+    // 读取时由 ui 层 normalizeLayout 校正，保留字段仅为兼容旧版本与备份导入。
     // 优先读新格式 `home_layout`；缺失时回退旧 `home_widgets`（全部按 1x1 处理），
     // 再缺失回退默认布局。写入统一走 [setHomeLayout] 落到 `home_layout`。
     val homeLayout: Flow<List<WidgetPlacement>> = context.dataStore.data.map { prefs ->
@@ -440,7 +441,7 @@ val DEFAULT_HOME_LAYOUT = listOf(
 
 /**
  * 首页单个小组件的布局单元：组件 id + 网格跨度（列 spanX、行 spanY）。
- * 跨度用于 2 列网格中的 1x1 / 2x1 / 1x2 / 2x2 自由排布。
+ * 跨度用于 2 列网格排版；值由组件目录固定，用户不可调整。
  */
 data class WidgetPlacement(
     val id: String,

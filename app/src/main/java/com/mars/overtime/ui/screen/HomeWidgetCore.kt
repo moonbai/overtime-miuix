@@ -5,18 +5,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Density
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.data.repository.WidgetPlacement
@@ -36,33 +35,25 @@ import kotlin.math.abs
 /** 首页小组件网格列数（2 列），跨度 spanX 最大取此值 */
 const val GRID_COLUMNS = 2
 
-/** 网格基础单元高度（1x1 卡片高度），由它推导 2x1 / 1x2 / 2x2 */
+/** 网格基础单元高度（1x1 卡片高度），由它推导 2x1 / 2x2 */
 val CELL_HEIGHT: Dp = 104.dp
-
-/**
- * 卡片内容缩放比：卡片放大后文字/间距/图表元素同步放大。
- * 以「宽度」为主要依据——1x2 只是变高、宽度不变，文字若放大容易横向溢出，
- * 故保持 1f；2x1 与 2x2 变宽才放大，2x2 因面积最大再高一档。
- */
-fun widgetScale(spanX: Int, spanY: Int): Float = when {
-    spanX >= 2 && spanY >= 2 -> 1.45f
-    spanX >= 2 -> 1.3f
-    else -> 1f
-}
 
 // ───────────────────────── 组件目录 ─────────────────────────
 
 /**
  * 单个组件的定义（与 [WidgetPlacement.id] 对应）。
- * @param defaultSpanX/defaultSpanY 添加时的默认跨度
+ * 尺寸由 [fixedSpanX]/[fixedSpanY] 固定，用户不可调整：
+ * - 数值类内容短，1x1 足够；
+ * - 类型分布图例最多 4 项、每日工时最多 31 根柱，需整行宽度 → 2x1；
+ * - 年度趋势 12 根柱带月份标签、环形图带图例，宽高都吃紧 → 2x2。
  * @param isChart 是否为图表类组件（仅影响目录展示，渲染统一走 [WidgetBody]）
  */
 data class WidgetDef(
     val id: String,
     val title: String,
     val desc: String,
-    val defaultSpanX: Int,
-    val defaultSpanY: Int,
+    val fixedSpanX: Int,
+    val fixedSpanY: Int,
     val isChart: Boolean
 )
 
@@ -77,11 +68,22 @@ val WIDGET_CATALOG: List<WidgetDef> = listOf(
     WidgetDef("month_type", "类型分布", "本月工作日/周末/节假日工时对比", 2, 1, true),
     WidgetDef("month_daily", "每日工时", "本月每日净工时柱状趋势", 2, 1, true),
     WidgetDef("year_month", "年度趋势", "本年度各月净工时柱状", 2, 2, true),
-    WidgetDef("type_donut", "类型占比", "本月三类加班时长占比", 1, 2, true)
+    WidgetDef("type_donut", "类型占比", "本月三类加班时长占比", 2, 2, true)
 )
 
 fun widgetDef(id: String): WidgetDef? = WIDGET_CATALOG.firstOrNull { it.id == id }
 fun widgetTitle(id: String): String = widgetDef(id)?.title ?: id
+
+/**
+ * 布局读取时统一按目录固定尺寸校正跨度：
+ * 旧版本允许用户调整尺寸，持久化里可能残留任意 spanX/spanY，
+ * 这里全部归位到设计尺寸，保证「尺寸完全由代码决定」且旧数据平滑升级。
+ */
+fun normalizeLayout(items: List<WidgetPlacement>): List<WidgetPlacement> =
+    items.map { p ->
+        val def = widgetDef(p.id)
+        if (def != null) p.copy(spanX = def.fixedSpanX, spanY = def.fixedSpanY) else p.normalized()
+    }
 
 // ───────────────────────── 网格排版算法 ─────────────────────────
 
@@ -140,7 +142,7 @@ data class RectDp(val x: Dp, val y: Dp, val w: Dp, val h: Dp) {
         o.x >= x.value && o.x <= (x + w).value && o.y >= y.value && o.y <= (y + h).value
 }
 
-/** 拖拽/缩放过程中供手势闭包读取的最新排版快照（避免闭包捕获过期值） */
+/** 拖拽排序过程中供手势闭包读取的最新排版快照（避免闭包捕获过期值） */
 data class GridRef(
     val draft: List<WidgetPlacement>,
     val rects: List<RectDp>,
@@ -261,21 +263,18 @@ fun WidgetBody(
     agg: Aggregate,
     month: String,
     typeColor: (OvertimeType) -> Color,
-    modifier: Modifier = Modifier,
-    scale: Float = 1f
+    modifier: Modifier = Modifier
 ) {
-    // 覆盖 LocalDensity 让内部所有 dp / sp 等比缩放：数值、图例、图表条、间距
-    // 一次性跟随卡片尺寸，无需逐个改字号；fillMaxSize / weight 仍按卡片实际
-    // 尺寸自适应填充，不会被拉伸变形。
-    val density = LocalDensity.current
-    val scaledDensity = if (scale == 1f) density else Density(density.density * scale, density.fontScale)
-    CompositionLocalProvider(LocalDensity provides scaledDensity) {
+    // 尺寸已固定，不再整体放大文字（放大字号正是小卡片里文字溢出的元凶）。
+    // 所有文本单行 + 省略号 + 禁止换行，任意数据长度都不会遮挡或越界。
     Column(modifier.fillMaxSize()) {
         Text(
             text = widgetTitle(id),
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            maxLines = 1
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
         )
         Spacer(modifier = Modifier.height(6.dp))
         when (id) {
@@ -326,29 +325,68 @@ fun WidgetBody(
             else -> StatRows("--", "")
         }
     }
-    }
 }
 
 @Composable
 private fun StatRows(value: String, sub: String) {
-    Column(Modifier.fillMaxSize()) {
-        Text(
-            text = value,
-            style = AppHeadline2Bold(),
-            color = MiuixTheme.colorScheme.primary,
-            maxLines = 1
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val base = AppHeadline2Bold()
+        // 数值字号按可用高度收敛（1x1 内容区约 76dp），给标题、副标题和
+        // 间距留足空间；金额 / 长备注用省略号收尾，绝不换行挤到下一行。
+        val valueSp = minOf(base.fontSize.value, maxHeight.value * 0.42f).sp
+        Column(Modifier.fillMaxSize()) {
+            Text(
+                text = value,
+                style = base.copy(fontSize = valueSp),
+                color = MiuixTheme.colorScheme.primary,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = sub,
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/** 图例单项：色块 + 名称 + 数值，单行省略，宽度由外部 weight 分配 */
+@Composable
+private fun LegendItem(seg: TypeSeg, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .size(7.dp)
+                .background(seg.color, AppShapes.radiusXs)
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(Modifier.width(5.dp))
         Text(
-            text = sub,
+            text = seg.label,
             style = MiuixTheme.textStyles.footnote1,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            maxLines = 1
+            color = MiuixTheme.colorScheme.onSurface,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = SalaryCalculator.formatHours(seg.hours),
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurface,
+            maxLines = 1,
+            softWrap = false,
+            textAlign = TextAlign.End
         )
     }
 }
 
-/** 本月类型分布：单条横向堆叠条 + 图例（零工时类型不显示） */
+/** 本月类型分布：单条横向堆叠条 + 两列图例（零工时类型不显示） */
 @Composable
 private fun TypeBarChart(segs: List<TypeSeg>) {
     if (segs.isEmpty()) {
@@ -360,7 +398,7 @@ private fun TypeBarChart(segs: List<TypeSeg>) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(14.dp)
+                .height(12.dp)
                 .background(MiuixTheme.colorScheme.secondaryContainer, AppShapes.radiusSm)
         ) {
             Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -375,32 +413,19 @@ private fun TypeBarChart(segs: List<TypeSeg>) {
                 }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        segs.forEach { seg ->
+        Spacer(Modifier.height(6.dp))
+        // 2x1 卡片内容区只有约 76dp 高：4 项图例若排成 4 行会挤压文字，
+        // 改为两列、最多 2 行，并让图例整体占满剩余高度。
+        segs.chunked(2).forEach { rowSegs ->
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 2.dp),
+                    .weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    Modifier
-                        .size(8.dp)
-                        .background(seg.color, AppShapes.radiusXs)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = seg.label,
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = SalaryCalculator.formatHours(seg.hours),
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.End
-                )
+                rowSegs.forEach { seg -> LegendItem(seg, Modifier.weight(1f)) }
+                if (rowSegs.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }
@@ -487,7 +512,9 @@ private fun YearBarChart(monthlyNet: List<Pair<Int, Double>>, currentMonth: Int)
                         text = "$m",
                         style = MiuixTheme.textStyles.footnote1,
                         color = if (highlight) MiuixTheme.colorScheme.primary
-                        else MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
@@ -538,12 +565,17 @@ private fun DonutChart(segs: List<TypeSeg>, net: Double) {
                     text = SalaryCalculator.formatHours(net),
                     style = MiuixTheme.textStyles.body1,
                     color = MiuixTheme.colorScheme.primary,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "净时长",
                     style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }
@@ -551,34 +583,16 @@ private fun DonutChart(segs: List<TypeSeg>, net: Double) {
         Column(
             Modifier
                 .weight(1f)
-                .fillMaxWidth()
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.Center
         ) {
             segs.forEach { seg ->
-                Row(
+                LegendItem(
+                    seg,
                     Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        Modifier
-                            .size(8.dp)
-                            .background(seg.color, AppShapes.radiusXs)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = seg.label,
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = SalaryCalculator.formatHours(seg.hours),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.End
-                    )
-                }
+                        .padding(vertical = 3.dp)
+                )
             }
         }
     }
@@ -590,7 +604,10 @@ private fun EmptyChartHint(text: String) {
         Text(
             text = text,
             style = MiuixTheme.textStyles.footnote1,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -602,9 +619,7 @@ fun PreviewWidgetCard(
     agg: Aggregate,
     month: String,
     typeColor: (OvertimeType) -> Color,
-    modifier: Modifier = Modifier,
-    spanX: Int = 1,
-    spanY: Int = 1
+    modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier,
@@ -615,8 +630,7 @@ fun PreviewWidgetCard(
             id = id,
             agg = agg,
             month = month,
-            typeColor = typeColor,
-            scale = widgetScale(spanX, spanY)
+            typeColor = typeColor
         )
     }
 }

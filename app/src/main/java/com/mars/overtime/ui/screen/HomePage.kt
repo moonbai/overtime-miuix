@@ -3,7 +3,6 @@ package com.mars.overtime.ui.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.*
@@ -49,10 +48,10 @@ import java.util.Locale
 
 /**
  * 首页：信息面板。
- * 结构 = 月度概览卡（总览 / 分类两种模式）+ 可自定义小组件网格（2 列，支持
- * 1x1 / 2x1 / 1x2 / 2x2 自由跨度）。
+ * 结构 = 月度概览卡（总览 / 分类两种模式）+ 可自定义小组件网格（2 列，
+ * 各组件尺寸由目录固定为 1×1 / 2×1 / 2×2，不可调整）。
  *
- * 组件的长按拖动排序、右下角拖动/点击缩放、删除均在首页直接完成（编辑态）；
+ * 组件的长按拖动排序与删除在首页直接完成（编辑态）；尺寸由代码固定；
  * 「管理小组件」入口直达设置页做启用/添加管理。
  */
 @Composable
@@ -65,14 +64,12 @@ fun HomePage(
     bottomReserve: androidx.compose.ui.unit.Dp = 0.dp,
     listState: LazyListState = rememberLazyListState()
 ) {
-    val records by repository.getAllRecords().collectAsState(initial = emptyList())
-    // 标记记录流是否已真正发出首帧，避免从其它页返回首页时因 collectAsState 的
-    // 初始空值而一闪「无记录」空状态（插画 + 添加按钮）。未加载完成前按「有数据」渲染，
-    // 加载完成后若确为空才显示空状态。
-    var recordsLoaded by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        repository.getAllRecords().collect { recordsLoaded = true }
-    }
+    // 「是否已加载」与「记录内容」必须来自同一份快照：旧写法用 initial=emptyList()
+    // 加独立 LaunchedEffect 打标记，两者更新不同步时会出现 loaded=true 但 records
+    // 仍为空的一帧，于是切回首页/记录页恰好闪一下「无记录」空状态。
+    val recordsSnapshot by repository.getAllRecords().collectAsState(initial = null)
+    val recordsLoaded = recordsSnapshot != null
+    val records = recordsSnapshot.orEmpty()
     val currentMonth = remember { SalaryCalculator.getCurrentYearMonth() }
 
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
@@ -89,9 +86,10 @@ fun HomePage(
         }
     }
 
-    // 首页组件布局：以 DataStore 流为初值，本地 draft 为编辑期间的唯一真相，
-    // 拖动/缩放/删除/添加均写回 draft 并持久化；仅当未拖动时才从流同步（避免回写回声打架）。
-    val layoutValue by settingsRepository.homeLayout.collectAsState(initial = DEFAULT_HOME_LAYOUT)
+    // 首页组件布局：尺寸由目录固定，读取时统一校正（兼容旧版本残留的自定义跨度）；
+    // 本地 draft 为编辑期间的唯一真相，拖动排序/删除写回 draft 并持久化。
+    val layoutRaw by settingsRepository.homeLayout.collectAsState(initial = DEFAULT_HOME_LAYOUT)
+    val layoutValue = remember(layoutRaw) { normalizeLayout(layoutRaw) }
     var draft by remember { mutableStateOf(layoutValue) }
     val draggingIdState = remember { mutableStateOf<String?>(null) }
     val dragOffsetPxState = remember { mutableStateOf(Offset.Zero) }
@@ -149,7 +147,7 @@ fun HomePage(
                 )
             }
         } else {
-            // 小组件网格（2 列，可变跨度），长按拖动排序、编辑态缩放/删除
+            // 小组件网格（2 列，固定跨度），长按拖动排序、编辑态删除
             item(key = "widget_grid") {
                 HomeWidgetGrid(
                     draft = draft,
@@ -167,7 +165,7 @@ fun HomePage(
             if (editingState.value) {
                 item {
                     Text(
-                        text = "长按卡片拖动排序 · 拖动右下角缩放 · 点 × 移除",
+                        text = "长按卡片拖动排序 · 点 × 移除",
                         style = MiuixTheme.textStyles.footnote1,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.fillMaxWidth(),
@@ -213,9 +211,8 @@ fun HomePage(
 }
 
 /**
- * 2 列可变跨度小组件网格：每个组件按 [packGrid] 排版后绝对定位。
+ * 2 列固定跨度小组件网格：每个组件按 [packGrid] 排版后绝对定位。
  * - 长按进入编辑态并开始拖动排序（跟随手指，跨过其它卡片中心即交换）；
- * - 编辑态下右下角手柄可拖动改跨度（右/下→变大，左/上→变小），轻点循环 1x1→2x1→1x2→2x2；
  * - 编辑态下右上 × 移除组件；非编辑态点击卡片按类型跳转。
  */
 @Composable
@@ -319,13 +316,7 @@ private fun HomeWidgetGrid(
                         showIndication = true,
                         pressFeedbackType = PressFeedbackType.Sink
                     ) {
-                        WidgetBody(
-                            item.id,
-                            agg,
-                            month,
-                            typeColor,
-                            scale = widgetScale(item.spanX, item.spanY)
-                        )
+                        WidgetBody(item.id, agg, month, typeColor)
                     }
                     if (editingState.value) {
                         // 左上：拖拽提示
@@ -352,65 +343,6 @@ private fun HomeWidgetGrid(
                                 MiuixIcons.Delete,
                                 contentDescription = "移除",
                                 tint = MiuixTheme.colorScheme.error,
-                                modifier = Modifier.size(AppIconSize.xs)
-                            )
-                        }
-                        // 右下：缩放手柄（拖动改跨度 / 轻点循环）
-                        var acc by remember { mutableStateOf(Offset.Zero) }
-                        var start by remember { mutableStateOf<WidgetPlacement?>(null) }
-                        Box(
-                            Modifier.align(Alignment.BottomEnd).padding(2.dp).size(28.dp)
-                                .pointerInput(Unit) {
-                                    detectDragGestures(
-                                        onDragStart = {
-                                            start = refState.value.draft.firstOrNull { it.id == item.id }
-                                            acc = Offset.Zero
-                                        },
-                                        onDrag = { _, dragAmount ->
-                                            acc += dragAmount
-                                            val ax = density.run { acc.x.toDp() }
-                                            val ay = density.run { acc.y.toDp() }
-                                            val s = start ?: return@detectDragGestures
-                                            val sx = when {
-                                                ax > 36.dp -> 2
-                                                ax < -36.dp -> 1
-                                                else -> s.spanX
-                                            }
-                                            val sy = when {
-                                                ay > 36.dp -> 2
-                                                ay < -36.dp -> 1
-                                                else -> s.spanY
-                                            }
-                                            if (sx != s.spanX || sy != s.spanY) {
-                                                onChange(
-                                                    refState.value.draft.map {
-                                                        if (it.id == item.id) it.copy(spanX = sx, spanY = sy) else it
-                                                    }
-                                                )
-                                            }
-                                        },
-                                        onDragEnd = {
-                                            val s = start
-                                            if (s != null && kotlin.math.abs(acc.x) < 20f && kotlin.math.abs(acc.y) < 20f) {
-                                                val order = listOf(1 to 1, 2 to 1, 1 to 2, 2 to 2)
-                                                val i = order.indexOf(s.spanX to s.spanY)
-                                                val next = order[(i + 1) % 4]
-                                                onChange(
-                                                    refState.value.draft.map {
-                                                        if (it.id == item.id) it.copy(spanX = next.first, spanY = next.second) else it
-                                                    }
-                                                )
-                                            }
-                                            acc = Offset.Zero
-                                        }
-                                    )
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                MiuixIcons.VerticalSplit,
-                                contentDescription = "调整大小",
-                                tint = MiuixTheme.colorScheme.primary,
                                 modifier = Modifier.size(AppIconSize.xs)
                             )
                         }

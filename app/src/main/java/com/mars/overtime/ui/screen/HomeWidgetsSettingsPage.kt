@@ -27,13 +27,13 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/** 网格跨度中文：1x1 / 2x1 / 1x2 / 2x2 */
+/** 固定尺寸标签：1×1 / 2×1 / 2×2 */
 private fun spanLabel(p: WidgetPlacement): String = "${p.spanX}×${p.spanY}"
 
 /**
  * 首页小组件配置页：
  * - 概览卡展示模式：总览（时长/薪资/条数）或 分类（净时长 + 分类型工时条）；
- * - 小组件：列出已添加项（含跨度），可删除；新增/调整顺序/缩放在首页长按直接完成。
+ * - 小组件：列出已添加项（含固定尺寸），可删除；新增在添加页、排序在首页长按完成。
  */
 @Composable
 fun HomeWidgetsSettingsPage(
@@ -44,7 +44,9 @@ fun HomeWidgetsSettingsPage(
     val snackbarHostState = LocalSnackbarHostState.current
 
     val overviewMode by settingsRepository.homeOverviewMode.collectAsState(initial = "total")
-    val layout by settingsRepository.homeLayout.collectAsState(initial = DEFAULT_HOME_LAYOUT)
+    val layoutRaw by settingsRepository.homeLayout.collectAsState(initial = DEFAULT_HOME_LAYOUT)
+    // 尺寸由目录固定，读取时统一校正旧版本残留的自定义跨度
+    val layout = remember(layoutRaw) { normalizeLayout(layoutRaw) }
 
     fun persist(items: List<WidgetPlacement>) {
         scope.launch { settingsRepository.setHomeLayout(items) }
@@ -80,7 +82,7 @@ fun HomeWidgetsSettingsPage(
         item {
             SettingsGroup(title = "已添加组件") {
                 SettingsNote(
-                    text = "排序、缩放（1×1 / 2×1 / 1×2 / 2×2）与删除均在首页长按组件直接完成；\n点击下方「添加组件」可预览各种卡片样式后添加。"
+                    text = "组件尺寸按内容固定，无需调整；排序与删除在首页长按组件直接完成。\n点击下方「添加组件」可预览各种卡片样式后添加。"
                 )
                 if (layout.isEmpty()) {
                     Text(
@@ -97,7 +99,7 @@ fun HomeWidgetsSettingsPage(
                     val def = widgetDef(p.id)
                     BasicComponent(
                         title = def?.title ?: p.id,
-                        summary = "${def?.desc ?: ""}　·　大小 ${spanLabel(p)}",
+                        summary = "${def?.desc ?: ""}　·　固定尺寸 ${spanLabel(p)}",
                         endActions = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(
