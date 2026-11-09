@@ -139,7 +139,7 @@ fun QuickSubmitSheet(
         onDismissRequest = { if (!saving) onDismiss() }
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // 预估薪资
+            // 加班薪资
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

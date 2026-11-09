@@ -289,7 +289,7 @@ fun AddEditRecordPage(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = if (isLeave) "预计扣减" else "预估薪资",
+                            text = if (isLeave) "预计扣减" else "加班薪资",
                             style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
@@ -533,7 +533,7 @@ fun AddEditRecordPage(
                     range = 0 until leaveOptions.size,
                     label = {
                         val h = kotlin.math.abs(leaveOptions[it])
-                        "${SalaryCalculator.formatHours(h)}${if (h >= 8.0) "（全天）" else "（半天）"}"
+                        "${SalaryCalculator.formatHours(h)}${if (h >= 8.0) "-全天" else "-半天"}"
                     },
                     modifier = Modifier.heightIn(min = 180.dp)
                 )

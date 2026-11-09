@@ -396,13 +396,13 @@ class McpHostService : Service() {
             ))
             add(toolSpec(
                 name = "get_monthly_stats",
-                description = "获取指定月份的加班统计：总时长、预估薪资、记录数、各类别时长。",
+                description = "获取指定月份的加班统计：总时长、加班薪资、记录数、各类别时长。",
                 required = listOf("month"),
                 properties = mapOf("month" to schema("string", "月份，格式 YYYY-MM"))
             ))
             add(toolSpec(
                 name = "get_yearly_stats",
-                description = "获取指定年份的加班年度统计：总时长、预估薪资、记录数与各类别时长。",
+                description = "获取指定年份的加班年度统计：总时长、加班薪资、记录数与各类别时长。",
                 required = listOf("year"),
                 properties = mapOf("year" to schema("string", "年份，格式 YYYY"))
             ))

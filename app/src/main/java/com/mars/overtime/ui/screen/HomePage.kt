@@ -165,7 +165,7 @@ fun HomePage(
             if (editingState.value) {
                 item {
                     Text(
-                        text = "长按卡片拖动排序 · 点 × 移除",
+                        text = "长按卡片拖动排序 · 点 x 移除",
                         style = MiuixTheme.textStyles.footnote1,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.fillMaxWidth(),
@@ -193,7 +193,7 @@ fun HomePage(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                if (editingState.value) MiuixIcons.Ok else MiuixIcons.Settings,
+                                if (editingState.value) MiuixIcons.Ok else MiuixIcons.Edit,
                                 contentDescription = null,
                                 modifier = Modifier.size(AppIconSize.xs)
                             )

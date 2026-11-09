@@ -494,7 +494,7 @@ fun StatisticsPage(
                     title = "$selectedMonth 统计",
                     items = listOf(
                         "总时长" to (stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0H"),
-                        "预估薪资" to (stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00"),
+                        "加班薪资" to (stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00"),
                         "记录数" to "${stats?.recordCount ?: 0}条",
                         "工作日加班" to (stats?.let { SalaryCalculator.formatHours(it.workdayHours) } ?: "0H"),
                         "休息日加班" to (stats?.let { SalaryCalculator.formatHours(it.weekendHours) } ?: "0H"),
@@ -510,7 +510,7 @@ fun StatisticsPage(
                 title = if (viewMode == StatsViewMode.YEAR) "${selectedYear} 年度统计" else "${selectedMonth.split("-")[0]} 年度统计",
                 items = listOf(
                     "年度总时长" to (yearlyStats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0H"),
-                    "年度预估薪资" to (yearlyStats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
+                    "年度加班薪资" to (yearlyStats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
                 )
             )
         }

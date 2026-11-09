@@ -79,7 +79,7 @@ fun HomeWidgetsSettingsPage(
         item {
             SettingsGroup(title = "已添加组件") {
                 SettingsNote(
-                    text = "组件尺寸按内容固定，无需调整；排序与删除在首页长按组件直接完成。\n点击下方「添加组件」可预览各种卡片样式后添加。"
+                    text = "组件排序与删除可在首页长按组件操作\n点击下方「添加组件」可预览各种卡片样式后添加。"
                 )
                 if (layout.isEmpty()) {
                     Text(
@@ -122,7 +122,7 @@ fun HomeWidgetsSettingsPage(
         }
 
         item {
-            SettingsGroup(title = "添加") {
+            SettingsGroup {
                 BasicComponent(
                     title = "添加组件",
                     summary = "预览卡片样式后添加，支持数值与多种图表",

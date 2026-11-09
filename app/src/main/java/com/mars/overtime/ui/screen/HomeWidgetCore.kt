@@ -60,9 +60,9 @@ data class WidgetDef(
 /** 全部可选组件（含数值类与图表类），添加页与设置页共用 */
 val WIDGET_CATALOG: List<WidgetDef> = listOf(
     WidgetDef("month_hours", "当月工时", "本月净时长，附与上月的增减对比", 1, 1, false),
-    WidgetDef("month_salary", "本月薪资", "本月预估薪资（含请假扣款）", 1, 1, false),
+    WidgetDef("month_salary", "本月薪资", "本月加班薪资（含请假扣款）", 1, 1, false),
     WidgetDef("last_month_hours", "上月工时", "上月净时长与记录条数", 1, 1, false),
-    WidgetDef("year_total", "年度累计", "本年净时长与预估薪资", 1, 1, false),
+    WidgetDef("year_total", "年度累计", "本年净时长与加班薪资", 1, 1, false),
     WidgetDef("month_leave", "当月请假", "本月请假次数与扣款金额", 1, 1, false),
     WidgetDef("latest_record", "最近记录", "最近一条记录的类型、日期与时长", 1, 1, false),
     WidgetDef("month_type", "类型分布", "本月工作日/周末/节假日工时对比", 2, 1, true),
