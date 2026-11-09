@@ -414,15 +414,15 @@ private fun TypeBarChart(segs: List<TypeSeg>) {
                 }
             }
         }
-        Spacer(Modifier.height(6.dp))
-        // 2x1 卡片内容区只有约 76dp 高：4 项图例若排成 4 行会挤压文字，
+        Spacer(Modifier.height(AppDimens.spaceXxs2))
+        // 2x1 卡片内容区较矮：4 项图例若排成 4 行会挤压文字，
         // 改为两列、最多 2 行，并让图例整体占满剩余高度。
         segs.chunked(2).forEach { rowSegs ->
             Row(
                 Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(AppDimens.spaceXs),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 rowSegs.forEach { seg -> LegendItem(seg, Modifier.weight(1f)) }
@@ -431,6 +431,12 @@ private fun TypeBarChart(segs: List<TypeSeg>) {
         }
     }
 }
+
+/** 极小的数值也保留一个可见的最小柱高，避免 0.5H 相对 12H 时几乎看不见 */
+private const val MIN_BAR_FRACTION = 0.08f
+
+private fun barFraction(net: Double, maxAbs: Double): Float =
+    if (net == 0.0) 0f else (abs(net) / maxAbs).toFloat().coerceIn(MIN_BAR_FRACTION, 1f)
 
 /** 本月每日净工时柱状（最多 31 根，正负以主色/错误色区分） */
 @Composable
@@ -443,11 +449,10 @@ private fun DailyBarChart(dailyNet: List<Pair<Int, Double>>) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
         Row(
             Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.spacedBy(1.dp),
+            horizontalArrangement = Arrangement.spacedBy(AppDimens.hairline),
             verticalAlignment = Alignment.Bottom
         ) {
             dailyNet.forEach { (_, net) ->
-                val frac = (abs(net) / maxAbs).toFloat().coerceIn(0f, 1f)
                 Box(
                     Modifier
                         .weight(1f)
@@ -457,7 +462,7 @@ private fun DailyBarChart(dailyNet: List<Pair<Int, Double>>) {
                         Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .fillMaxHeight(frac)
+                            .fillMaxHeight(barFraction(net, maxAbs))
                             .background(
                                 if (net >= 0) MiuixTheme.colorScheme.primary
                                 else MiuixTheme.colorScheme.error,
@@ -479,11 +484,11 @@ private fun YearBarChart(monthlyNet: List<Pair<Int, Double>>, currentMonth: Int)
             Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(AppDimens.chartBarRadius),
             verticalAlignment = Alignment.Bottom
         ) {
             monthlyNet.forEach { (m, net) ->
-                val frac = (abs(net) / maxAbs).toFloat().coerceIn(0f, 1f)
+                val frac = barFraction(net, maxAbs)
                 val highlight = m == currentMonth
                 Column(
                     Modifier
@@ -508,7 +513,7 @@ private fun YearBarChart(monthlyNet: List<Pair<Int, Double>>, currentMonth: Int)
                                 )
                         )
                     }
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(AppDimens.chartBarRadius))
                     Text(
                         text = "$m",
                         style = MiuixTheme.textStyles.footnote1,
@@ -537,8 +542,8 @@ private fun DonutChart(segs: List<TypeSeg>, net: Double) {
     ) {
         Box(
             Modifier
-                .size(76.dp)
-                .padding(2.dp),
+                .size(AppDimens.widgetDonutSize)
+                .padding(AppDimens.chartBarRadius),
             contentAlignment = Alignment.Center
         ) {
             Canvas(Modifier.fillMaxSize()) {
@@ -564,7 +569,7 @@ private fun DonutChart(segs: List<TypeSeg>, net: Double) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = SalaryCalculator.formatHours(net),
-                    style = MiuixTheme.textStyles.body1,
+                    style = AppBody1Semibold(),
                     color = MiuixTheme.colorScheme.primary,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
@@ -580,7 +585,7 @@ private fun DonutChart(segs: List<TypeSeg>, net: Double) {
                 )
             }
         }
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(AppDimens.spaceXs))
         Column(
             Modifier
                 .weight(1f)
@@ -592,7 +597,7 @@ private fun DonutChart(segs: List<TypeSeg>, net: Double) {
                     seg,
                     Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 3.dp)
+                        .padding(vertical = AppDimens.spaceXxs)
                 )
             }
         }
