@@ -434,17 +434,28 @@ class SettingsRepository(private val context: Context) {
  * 顶层声明，供 parseLayout / 各页面导入共用。
  */
 val HomeWidgetIds = setOf(
-    "month_hours", "last_month_hours", "month_salary",
-    "year_total", "month_leave", "latest_record",
-    "month_type", "month_daily", "year_month", "type_donut"
+    // 本月概览（1x1）
+    "month_hours", "month_salary", "month_count", "avg_daily", "avg_record",
+    "max_single", "max_daily", "streak_days", "week_hours", "week_salary",
+    "last_month_hours", "year_total", "year_count", "month_leave", "latest_record",
+    // 类型分项（1x1）
+    "type_workday", "type_weekend", "type_holiday",
+    // 趋势图表（2x1）
+    "month_type", "month_daily", "last7_trend", "last6_month",
+    "rate_split", "type_amount", "month_compare",
+    // 大图分析（2x2）
+    "type_donut", "year_month", "calendar_heatmap", "month_summary"
 )
 
-/** 未配置时的默认布局：当月工时 / 本月薪资 / 上月工时 / 年度累计（均 1x1） */
+/**
+ * 未配置时的默认布局：两张核心数值卡 + 一张类型分布 + 一张每日趋势，
+ * 兼顾信息密度与图表展示；尺寸由目录固定，这里只写 id。
+ */
 val DEFAULT_HOME_LAYOUT = listOf(
     WidgetPlacement("month_hours"),
     WidgetPlacement("month_salary"),
-    WidgetPlacement("last_month_hours"),
-    WidgetPlacement("year_total")
+    WidgetPlacement("month_type"),
+    WidgetPlacement("month_daily")
 )
 
 /**

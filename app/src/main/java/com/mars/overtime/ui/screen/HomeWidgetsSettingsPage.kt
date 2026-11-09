@@ -82,7 +82,8 @@ fun HomeWidgetsSettingsPage(
         item {
             SettingsGroup(title = "已添加组件") {
                 SettingsNote(
-                    text = "组件尺寸按内容固定，无需调整；排序与删除在首页长按组件直接完成。\n点击下方「添加组件」可预览各种卡片样式后添加。"
+                    text = "共 ${WIDGET_CATALOG.size} 种组件，分为本月概览 / 类型分项 / 趋势图表 / 大图分析四类。" +
+                        "\n组件尺寸按内容固定，无需调整；排序与删除在首页长按组件直接完成。"
                 )
                 if (layout.isEmpty()) {
                     Text(
@@ -99,7 +100,7 @@ fun HomeWidgetsSettingsPage(
                     val def = widgetDef(p.id)
                     BasicComponent(
                         title = def?.title ?: p.id,
-                        summary = "${def?.desc ?: ""}　·　固定尺寸 ${spanLabel(p)}",
+                        summary = "${def?.category?.label ?: "组件"}　·　${def?.desc ?: ""}　·　固定尺寸 ${spanLabel(p)}",
                         endActions = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(
@@ -128,7 +129,7 @@ fun HomeWidgetsSettingsPage(
             SettingsGroup(title = "添加") {
                 BasicComponent(
                     title = "添加组件",
-                    summary = "预览卡片样式后添加，支持数值与多种图表",
+                    summary = "按分类筛选，预览卡片样式后添加（共 ${WIDGET_CATALOG.size} 种）",
                     startAction = {
                         Box(Modifier.padding(end = AppDimens.spaceSm)) {
                             Icon(

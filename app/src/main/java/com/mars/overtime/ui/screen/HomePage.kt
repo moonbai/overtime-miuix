@@ -108,7 +108,9 @@ fun HomePage(
 
     fun handleWidgetClick(id: String) {
         when (id) {
-            "month_leave", "latest_record" -> onOpenRecords()
+            // 明细类组件点进去看记录，其余分析类组件进统计页
+            "month_leave", "latest_record", "month_count", "avg_record",
+            "max_single", "max_daily", "streak_days" -> onOpenRecords()
             "last_month_hours" -> navController.navigate("statistics?month=${agg.lastMonth}")
             else -> navController.navigate("statistics")
         }
@@ -263,12 +265,15 @@ private fun HomeWidgetGrid(
                         .size(rect.w, rect.h)
                         .zIndex(if (isDragged) 1f else 0f)
                         .shadow(if (isDragged) 8.dp else 0.dp, AppShapes.radiusLg)
-                        .then(
-                            if (editingState.value) Modifier.border(
-                                1.dp,
-                                MiuixTheme.colorScheme.primary.copy(alpha = 0.35f),
-                                AppShapes.radiusLg
-                            ) else Modifier
+                        // 常态给白卡片一层极淡描边，让它在浅灰大背景上「浮」起来；
+                        // 编辑态改用主题色描边提示可操作。
+                        .border(
+                            1.dp,
+                            if (editingState.value)
+                                MiuixTheme.colorScheme.primary.copy(alpha = 0.35f)
+                            else
+                                MiuixTheme.colorScheme.onSurface.copy(alpha = 0.07f),
+                            AppShapes.radiusLg
                         )
                         .pointerInput(Unit) {
                             detectDragGesturesAfterLongPress(
@@ -391,26 +396,45 @@ private fun MonthlyOverviewCard(
     val maxType = maxOf(typeHours.first.first, typeHours.first.second, typeHours.first.third, 0.001)
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp),
+        // 不再额外内缩 4dp：与小组件网格左右边缘严格对齐
+        modifier = Modifier.fillMaxWidth(),
         cornerRadius = AppDimens.cardCorner
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
+            // 与小组件卡统一的设计语言：色点 + 标题 + 右侧口径徽标
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Box(
+                    Modifier
+                        .size(8.dp)
+                        .clip(AppShapes.pill)
+                        .background(MiuixTheme.colorScheme.primary)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "$month 概览",
                     style = AppTitle3Semibold(),
-                    color = MiuixTheme.colorScheme.primary,
+                    color = MiuixTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "本月",
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+            )
+            Spacer(modifier = Modifier.height(14.dp))
             if (mode == "by_type") {
                 // 分类模式：净时长为主数字，三类加班以类型色条并列展示
                 Row(
