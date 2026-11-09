@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.mars.overtime.util.AppDefaults
 import com.mars.overtime.util.HolidayDataSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -34,7 +35,7 @@ class SettingsRepository(private val context: Context) {
         val mode = it[KEY_THEME_MODE] ?: "system"
         if (mode in THEME_MODES) mode else "system"
     }
-    val accentColor: Flow<Int> = settingsFlow.map { it[KEY_ACCENT_COLOR] ?: 0xFF3482FF.toInt() }
+    val accentColor: Flow<Int> = settingsFlow.map { it[KEY_ACCENT_COLOR] ?: AppDefaults.PRIMARY_ARGB }
     val bottomBarStyle: Flow<String> = settingsFlow.map { it[KEY_BOTTOM_BAR_STYLE] ?: "ICON_TEXT" }
     val quickSubmit: Flow<Boolean> = settingsFlow.map { it[KEY_QUICK_SUBMIT] ?: false }
 
@@ -104,9 +105,9 @@ class SettingsRepository(private val context: Context) {
         .map { it[KEY_HOURS_PER_DAY] ?: DEFAULT_HOURS_PER_DAY }
 
     // 加班类型配色（统计日历等使用）
-    val typeColorWorkday: Flow<Int> = settingsFlow.map { it[KEY_TYPE_COLOR_WORKDAY] ?: 0xFF3482FF.toInt() }
-    val typeColorWeekend: Flow<Int> = settingsFlow.map { it[KEY_TYPE_COLOR_WEEKEND] ?: 0xFF34C759.toInt() }
-    val typeColorHoliday: Flow<Int> = settingsFlow.map { it[KEY_TYPE_COLOR_HOLIDAY] ?: 0xFFFF7043.toInt() }
+    val typeColorWorkday: Flow<Int> = settingsFlow.map { it[KEY_TYPE_COLOR_WORKDAY] ?: AppDefaults.PRIMARY_ARGB }
+    val typeColorWeekend: Flow<Int> = settingsFlow.map { it[KEY_TYPE_COLOR_WEEKEND] ?: AppDefaults.WEEKEND_ARGB }
+    val typeColorHoliday: Flow<Int> = settingsFlow.map { it[KEY_TYPE_COLOR_HOLIDAY] ?: AppDefaults.HOLIDAY_ARGB }
 
     // Salary settings
     val baseSalary: Flow<Double> = settingsFlow.map { it[KEY_BASE_SALARY] ?: 2200.0 }
@@ -286,9 +287,9 @@ class SettingsRepository(private val context: Context) {
                     KEY_HOURS_PER_DAY.name ->
                         prefs[KEY_HOURS_PER_DAY] =
                             (value.toDoubleOrNull() ?: DEFAULT_HOURS_PER_DAY).coerceAtLeast(0.01)
-                    KEY_TYPE_COLOR_WORKDAY.name -> prefs[KEY_TYPE_COLOR_WORKDAY] = value.toIntOrNull() ?: 0xFF3482FF.toInt()
-                    KEY_TYPE_COLOR_WEEKEND.name -> prefs[KEY_TYPE_COLOR_WEEKEND] = value.toIntOrNull() ?: 0xFF34C759.toInt()
-                    KEY_TYPE_COLOR_HOLIDAY.name -> prefs[KEY_TYPE_COLOR_HOLIDAY] = value.toIntOrNull() ?: 0xFFFF7043.toInt()
+                    KEY_TYPE_COLOR_WORKDAY.name -> prefs[KEY_TYPE_COLOR_WORKDAY] = value.toIntOrNull() ?: AppDefaults.PRIMARY_ARGB
+                    KEY_TYPE_COLOR_WEEKEND.name -> prefs[KEY_TYPE_COLOR_WEEKEND] = value.toIntOrNull() ?: AppDefaults.WEEKEND_ARGB
+                    KEY_TYPE_COLOR_HOLIDAY.name -> prefs[KEY_TYPE_COLOR_HOLIDAY] = value.toIntOrNull() ?: AppDefaults.HOLIDAY_ARGB
                     KEY_BASE_SALARY.name -> prefs[KEY_BASE_SALARY] = value.toDoubleOrNull() ?: 2200.0
                     KEY_WORKDAY_RATE.name -> prefs[KEY_WORKDAY_RATE] = value.toDoubleOrNull() ?: 1.5
                     KEY_WEEKEND_RATE.name -> prefs[KEY_WEEKEND_RATE] = value.toDoubleOrNull() ?: 2.0

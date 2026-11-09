@@ -99,7 +99,7 @@ class MainActivity : ComponentActivity() {
         // 又因与 Compose 背景同色，主题切换时不会露出旧的白色/黑色，白闪同样消除。
         window.setBackgroundDrawable(
             // 与浅色主题 colorScheme.background 同色；setContent 内会按 darkTheme 动态覆盖
-            android.graphics.drawable.ColorDrawable(0xFFF1F3F7.toInt())
+            android.graphics.drawable.ColorDrawable(AppDefaults.BACKGROUND_ARGB)
         )
 
         // 通知点击冷启动：从 intent 读取目标路由（如 MCP 服务子界面）
@@ -116,7 +116,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val themeMode by settingsRepository.themeMode.collectAsState(initial = "system")
-            val accentColor by settingsRepository.accentColor.collectAsState(initial = 0xFF3482FF.toInt())
+            val accentColor by settingsRepository.accentColor.collectAsState(initial = AppDefaults.PRIMARY_ARGB)
             val monetEnabled by settingsRepository.monetEnabled.collectAsState(initial = false)
 
             val darkTheme = when (themeMode) {
