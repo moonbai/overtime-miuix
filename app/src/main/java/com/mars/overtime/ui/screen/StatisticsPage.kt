@@ -234,9 +234,17 @@ fun StatisticsPage(
     var selectedMonth by remember { mutableStateOf(initialMonth ?: SalaryCalculator.getCurrentYearMonth()) }
     var selectedYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR).toString()) }
     var viewMode by remember { mutableStateOf(StatsViewMode.MONTH) }
-    var stats by remember { mutableStateOf<com.mars.overtime.data.repository.MonthlyStats?>(null) }
-    var yearlyStats by remember { mutableStateOf<com.mars.overtime.data.repository.YearlyStats?>(null) }
-    var monthRecords by remember { mutableStateOf<List<OvertimeRecord>>(emptyList()) }
+    // 切月/切年/切视图时立即丢弃上一轮的异步结果：旧写法只有日历结果会刷新，
+    // 统计数字在 LaunchedEffect 回填前会残留一个月的上月数据。
+    var stats by remember(selectedMonth) {
+        mutableStateOf<com.mars.overtime.data.repository.MonthlyStats?>(null)
+    }
+    var monthRecords by remember(selectedMonth) {
+        mutableStateOf<List<OvertimeRecord>>(emptyList())
+    }
+    var yearlyStats by remember(selectedMonth, selectedYear, viewMode) {
+        mutableStateOf<com.mars.overtime.data.repository.YearlyStats?>(null)
+    }
 
     val typeColorWorkday by settingsRepository.typeColorWorkday.collectAsState(initial = 0xFF3482FF.toInt())
     val typeColorWeekend by settingsRepository.typeColorWeekend.collectAsState(initial = 0xFF34C759.toInt())
