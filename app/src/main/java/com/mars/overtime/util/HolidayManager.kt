@@ -304,7 +304,7 @@ object HolidayManager {
             }
 
             if (url.isNotEmpty()) {
-                Log.d("HolidayManager", "请求节假日API: $url")
+                Log.d("HolidayManager", "请求节假日API: ${redactUrl(url)}")
                 val req = Request.Builder().url(url).build()
                 val res = client.newCall(req).execute()
                 val body = res.body?.string()
@@ -393,7 +393,7 @@ object HolidayManager {
 
             if (url.isEmpty()) return@withContext false
 
-            Log.d("HolidayManager", "拉取节假日: $url")
+            Log.d("HolidayManager", "拉取节假日: ${redactUrl(url)}")
             val req = Request.Builder().url(url).build()
             val res = client.newCall(req).execute()
             val body = res.body?.string()

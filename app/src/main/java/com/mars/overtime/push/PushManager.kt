@@ -3,6 +3,7 @@ package com.mars.overtime.push
 import android.util.Base64
 import android.util.Log
 import com.mars.overtime.data.database.OvertimeRecord
+import com.mars.overtime.util.redactUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -105,7 +106,7 @@ object PushManager {
 
         val isBotHook = feishuBotHookRegex.containsMatchIn(url)
         val isFeishuWorkflow = feishuWorkflowRegex.containsMatchIn(url)
-        if (isFeishuWorkflow) Log.d("PushManager", "飞书企业工作流 webhook: $url")
+        if (isFeishuWorkflow) Log.d("PushManager", "飞书企业工作流 webhook: ${redactUrl(url)}")
         // 官方机器人 hook 有协议限制：必须带 msg_type + content.text 才会发消息。
         // 因此仅对它额外附加协议字段（信息本体仍以平铺键名存在于 body 中），
         // 配置了密钥时再附带 timestamp / sign；其它地址保持纯平铺 JSON。

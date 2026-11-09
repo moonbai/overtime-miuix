@@ -92,7 +92,7 @@ object WebDavManager {
                 } else {
                     currentUrl
                 }
-                Log.d("WebDavManager", "创建目录: $mkcolUrl")
+                Log.d("WebDavManager", "创建目录: ${redactUrl(mkcolUrl)}")
                 val request = Request.Builder()
                     .url(mkcolUrl)
                     .method("MKCOL", null)
@@ -100,7 +100,7 @@ object WebDavManager {
                     .build()
                 val response = client.newCall(request).execute()
                 val success = response.isSuccessful || response.code in listOf(201, 204, 207)
-                Log.d("WebDavManager", "创建目录 $mkcolUrl: ${response.code}")
+                Log.d("WebDavManager", "创建目录 ${redactUrl(mkcolUrl)}: ${response.code}")
                 response.close()
             }
             true
@@ -183,7 +183,7 @@ object WebDavManager {
     suspend fun listFiles(config: WebDavConfig): List<String> = withContext(Dispatchers.IO) {
         try {
             val url = buildListUrl(config)
-            Log.d("WebDavManager", "列出文件从: $url")
+            Log.d("WebDavManager", "列出文件从: ${redactUrl(url)}")
 
             val request = Request.Builder()
                 .url(url)
@@ -246,7 +246,7 @@ object WebDavManager {
     suspend fun testConnection(config: WebDavConfig): Boolean = withContext(Dispatchers.IO) {
         try {
             val url = buildListUrl(config)
-            Log.d("WebDavManager", "测试连接: $url")
+            Log.d("WebDavManager", "测试连接: ${redactUrl(url)}")
 
             ensureDirectoryExists(config)
 

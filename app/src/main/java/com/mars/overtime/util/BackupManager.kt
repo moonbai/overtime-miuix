@@ -93,7 +93,7 @@ object BackupManager {
                 }
             }
 
-            if (records != null) BackupData(records!!, settings ?: emptyMap()) else null
+            if (records != null) BackupData(records, settings ?: emptyMap()) else null
         } catch (e: Exception) {
             e.printStackTrace()
             null
