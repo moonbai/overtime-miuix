@@ -12,7 +12,8 @@ import androidx.compose.ui.unit.dp
  */
 object AppIconSize {
     val xs = 18.dp  // 紧凑按钮图标（首页添加按钮）
-    val sm = 20.dp  // 设置行尾部图标、紧凑按钮图标
+    val sm = 20.dp  // 设置行尾部图标、紧凑按钮图标、密码框眼睛图标
+    val listIcon = 24.dp // 设置/列表行首图标：比 sm 略大，与加粗标题更协调
     val md = 24.dp  // FAB 主图标、标准图标按钮
     val lg = 26.dp  // 底栏导航图标
 }

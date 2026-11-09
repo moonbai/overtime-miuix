@@ -219,7 +219,7 @@ fun AboutPage(navController: NavHostController) {
                     // 深色主题下也能让彩色图标保持原貌。
                     Box(
                         modifier = Modifier
-                            .size(88.dp)
+                            .size(104.dp)
                             .clip(AppShapes.radiusXxl)
                             .background(Color.White),
                         contentAlignment = Alignment.Center
@@ -229,13 +229,13 @@ fun AboutPage(navController: NavHostController) {
                                 bitmap = bitmap.asImageBitmap(),
                                 contentDescription = "应用图标",
                                 contentScale = ContentScale.Fit,
-                                modifier = Modifier.size(68.dp)
+                                modifier = Modifier.size(84.dp)
                             )
                         } ?: Icon(
                             MiuixIcons.AppRecording,
                             contentDescription = "应用图标",
                             tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier.size(56.dp)
+                            modifier = Modifier.size(68.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
@@ -271,7 +271,6 @@ fun AboutPage(navController: NavHostController) {
             }
         }
 
-        item { Spacer(modifier = Modifier.height(AppDimens.groupSpacing)) }
 
         // 应用简介：归入标准分组容器，标题与卡片由 SettingsGroup 统一定义
         item {
@@ -288,7 +287,6 @@ fun AboutPage(navController: NavHostController) {
             }
         }
 
-        item { Spacer(modifier = Modifier.height(AppDimens.groupSpacing)) }
 
         // 主要功能：保留网格概览，但去掉「卡片套卡片」的嵌套，
         // 直接以图标 + 文字铺在分组卡片内，与全局卡片规范一致。
@@ -298,7 +296,6 @@ fun AboutPage(navController: NavHostController) {
             }
         }
 
-        item { Spacer(modifier = Modifier.height(AppDimens.groupSpacing)) }
 
         // 开发者 & 操作：与设置首页一致的 SettingsActionItem 跳转行
         item {
@@ -411,7 +408,6 @@ fun AboutPage(navController: NavHostController) {
             }
         }
 
-        item { Spacer(modifier = Modifier.height(AppDimens.groupSpacing)) }
 
         // 版权
         item {
@@ -424,7 +420,6 @@ fun AboutPage(navController: NavHostController) {
             )
         }
 
-        item { Spacer(modifier = Modifier.height(AppDimens.groupSpacing)) }
     }
 
 }

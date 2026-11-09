@@ -150,12 +150,15 @@ fun SettingsActionItem(
                 // 统一为单色主题色图标（默认 primary），与底栏导航、FAB 同一套语言；
                 // 不再为每个入口套 12% 彩色底盒，避免列表里出现一排杂乱的色块。
                 // 仅在确需单点强调时经 iconTint 覆盖颜色，默认留空即可。
-                Icon(
-                    vector,
-                    contentDescription = null,
-                    tint = iconTint ?: MiuixTheme.colorScheme.primary,
-                    modifier = Modifier.size(AppIconSize.sm)
-                )
+                // 图标放大到 listIcon（24dp）并右侧留白 12dp，与加粗标题更协调、间距更舒展。
+                Box(Modifier.padding(end = AppDimens.spaceSm)) {
+                    Icon(
+                        vector,
+                        contentDescription = null,
+                        tint = iconTint ?: MiuixTheme.colorScheme.primary,
+                        modifier = Modifier.size(AppIconSize.listIcon)
+                    )
+                }
             }
         },
         onClick = onClick
