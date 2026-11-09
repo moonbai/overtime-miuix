@@ -208,6 +208,7 @@ fun SettingsTextField(
                 horizontal = AppDimens.itemHorizontal,
                 vertical = AppDimens.itemVertical
             ),
+        singleLine = true,
         visualTransformation =
             if (isPassword && !passwordVisible.value) PasswordVisualTransformation()
             else VisualTransformation.None,

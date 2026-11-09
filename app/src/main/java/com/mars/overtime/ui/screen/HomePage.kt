@@ -183,7 +183,8 @@ fun HomePage(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     label = "搜索备注 / 月份",
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
             }
 
