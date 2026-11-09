@@ -550,7 +550,7 @@ private fun RecordCard(
                 modifier = Modifier
                     .width(AppDimens.typeBarWidth)
                     .height(40.dp)
-                    .background(typeColor, RoundedCornerShape(AppDimens.chartBarRadius))
+                    .background(typeColor, AppShapes.radiusXs)
             )
 
             Spacer(modifier = Modifier.width(12.dp))

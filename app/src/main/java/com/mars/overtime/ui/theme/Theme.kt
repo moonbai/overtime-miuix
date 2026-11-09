@@ -4,6 +4,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import com.mars.overtime.util.AppDefaults
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
@@ -12,7 +13,7 @@ import top.yukonga.miuix.kmp.theme.lightColorScheme
 @Composable
 fun OvertimeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    keyColor: Color = Color(0xFF3482FF),
+    keyColor: Color = Color(AppDefaults.PRIMARY_ARGB),
     monet: Boolean = false,
     content: @Composable () -> Unit
 ) {
@@ -23,7 +24,7 @@ fun OvertimeTheme(
     // window 背景与转场兜底底色都取 colorScheme.background，会自动跟随。
     val lightColors = remember {
         lightColorScheme(
-            background = Color(0xFFF1F3F7)
+            background = Color(AppDefaults.BACKGROUND_ARGB)
         )
     }
     val controller = remember(darkTheme, keyColor, monet) {
