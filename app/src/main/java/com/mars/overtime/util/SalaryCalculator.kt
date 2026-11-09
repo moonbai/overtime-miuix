@@ -56,14 +56,18 @@ object SalaryCalculator {
         return -calculateOvertimeAmount(baseSalary, OvertimeType.WORKDAY, 1.0, absHours)
     }
     
+    /**
+     * 全局时长显示统一为小时制：0.5H / 1H / 1.5H（整数不带小数点）。
+     * 库中请假存负时长用于统计抵扣，这里保留负号、数值取绝对值；
+     * 需要正数展示的调用方自行取 abs。
+     */
     fun formatHours(hours: Double): String {
-        // 总时长可能为负（请假抵扣后），先取绝对值再拼分钟，
-        // 否则 -2.5h 会被拼成「-2小时-30分钟」。
         val sign = if (hours < 0) "-" else ""
         val absHours = kotlin.math.abs(hours)
-        val h = absHours.toInt()
-        val m = ((absHours - h) * 60).toInt()
-        return if (m > 0) "$sign${h}小时${m}分钟" else "$sign${h}小时"
+        // 保留两位小数，避免浮点误差打出 1.4999999999 这类长串
+        val rounded = kotlin.math.round(absHours * 100) / 100.0
+        val number = if (rounded % 1.0 == 0.0) rounded.toLong().toString() else rounded.toString()
+        return "$sign${number}H"
     }
     
     fun formatAmount(amount: Double): String {

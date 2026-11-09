@@ -89,7 +89,7 @@ data class PushPayload(
             }
         ).append('\n')
         append(if (recordMode == "请假") "请假时长：" else "加班时长：")
-            .append(num(hours)).append('\n')
+            .append(SalaryCalculator.formatHours(hours)).append('\n')
         append("小时薪资：").append(num(hourlySalary)).append('\n')
         append("加班费：").append(num(amount)).append('\n')
         append("倍数：").append(num(rate)).append('\n')

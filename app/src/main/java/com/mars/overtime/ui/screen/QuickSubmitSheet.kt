@@ -257,8 +257,7 @@ fun QuickSubmitSheet(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            // 不能用 h.toInt()：0.5h 会被渲染成「0h」
-                            text = if (h % 1.0 == 0.0) "${h.toInt()}h" else "${h}h",
+                            text = SalaryCalculator.formatHours(h),
                             style = MiuixTheme.textStyles.body2,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                             modifier = Modifier
@@ -293,12 +292,12 @@ fun QuickSubmitSheet(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "0.5h",
+                        text = SalaryCalculator.formatHours(0.5),
                         style = MiuixTheme.textStyles.footnote1,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
                     Text(
-                        text = "最多${maxDurationHours.toInt()}h",
+                        text = "最多${SalaryCalculator.formatHours(maxDurationHours)}",
                         style = MiuixTheme.textStyles.footnote1,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )

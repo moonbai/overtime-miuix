@@ -493,12 +493,12 @@ fun StatisticsPage(
                 StatsCard(
                     title = "$selectedMonth 统计",
                     items = listOf(
-                        "总时长" to (stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0小时"),
+                        "总时长" to (stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0H"),
                         "预估薪资" to (stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00"),
                         "记录数" to "${stats?.recordCount ?: 0}条",
-                        "工作日加班" to (stats?.let { SalaryCalculator.formatHours(it.workdayHours) } ?: "0小时"),
-                        "休息日加班" to (stats?.let { SalaryCalculator.formatHours(it.weekendHours) } ?: "0小时"),
-                        "节假日加班" to (stats?.let { SalaryCalculator.formatHours(it.holidayHours) } ?: "0小时")
+                        "工作日加班" to (stats?.let { SalaryCalculator.formatHours(it.workdayHours) } ?: "0H"),
+                        "休息日加班" to (stats?.let { SalaryCalculator.formatHours(it.weekendHours) } ?: "0H"),
+                        "节假日加班" to (stats?.let { SalaryCalculator.formatHours(it.holidayHours) } ?: "0H")
                     )
                 )
             }
@@ -509,7 +509,7 @@ fun StatisticsPage(
             StatsCard(
                 title = if (viewMode == StatsViewMode.YEAR) "${selectedYear} 年度统计" else "${selectedMonth.split("-")[0]} 年度统计",
                 items = listOf(
-                    "年度总时长" to (yearlyStats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0小时"),
+                    "年度总时长" to (yearlyStats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0H"),
                     "年度预估薪资" to (yearlyStats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
                 )
             )
@@ -957,17 +957,8 @@ private fun CalendarCard(
     }
 }
 
-private fun compactHours(hours: Double): String {
-    val sign = if (hours < 0) "-" else ""
-    val absH = abs(hours)
-    val h = absH.toInt()
-    val m = ((absH - h) * 60).toInt()
-    return when {
-        m <= 0 -> "$sign${h}h"
-        h <= 0 -> "$sign${m}m"
-        else -> "$sign${h}h${m}"
-    }
-}
+/** 图表 / 日历格也用全局小时制，避免同一页面出现 8h30 与 8.5H 两套写法。 */
+private fun compactHours(hours: Double): String = SalaryCalculator.formatHours(hours)
 
 @Composable
 private fun StatsCard(title: String, items: List<Pair<String, String>>) {

@@ -53,11 +53,13 @@ enum class BackExitDirection(val label: String) {
     }
 }
 
-// 主题模式选项：value → label，其中 monet_* 映射到 ColorSchemeMode.MonetLight/MonetDark
+// 主题模式选项：value → label。monet_* 前缀同时开启 Monet 动态取色，
+// 其中 monet_system 深浅跟随系统，monet_light / monet_dark 固定浅色 / 深色。
 private val THEME_OPTIONS = listOf(
     "system" to "跟随系统",
     "light" to "浅色模式",
     "dark" to "深色模式",
+    "monet_system" to "Monet 跟随系统",
     "monet_light" to "Monet 浅色",
     "monet_dark" to "Monet 深色"
 )
@@ -129,7 +131,7 @@ fun AppearanceSettingsPage(
                     items = themeItems,
                     selectedIndex = themeSelected,
                     title = "主题模式",
-                    summary = "跟随系统、浅色、深色及 Monet 取色浅色/深色",
+                    summary = "跟随系统、浅色、深色，以及 Monet 跟随系统 / 浅色 / 深色",
                     onSelectedIndexChange = { index ->
                         val value = THEME_OPTIONS[index].first
                         scope.launch {

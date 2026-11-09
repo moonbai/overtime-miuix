@@ -458,7 +458,7 @@ fun AddEditRecordPage(
             BackHandler(enabled = true) { showDurationPicker = false }
             OverlayDialog(
                 show = showDurationPicker,
-                title = "选择加班时长（0.5 小时梯度，最多 ${maxDurationHours.toInt()}h）",
+                title = "选择加班时长",
                 onDismissRequest = { showDurationPicker = false }
             ) {
                 Column(
@@ -469,12 +469,7 @@ fun AddEditRecordPage(
                         value = pickDurationIndex,
                         onValueChange = { pickDurationIndex = it },
                         range = 0 until durationOptions.size,
-                        label = {
-                            val h = durationOptions[it]
-                            val hi = h.toInt()
-                            val m = ((h - hi) * 60).toInt()
-                            if (m > 0) "${hi}h${m}m" else "${hi}h"
-                        },
+                        label = { SalaryCalculator.formatHours(durationOptions[it]) },
                         modifier = Modifier.heightIn(min = 180.dp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -531,7 +526,7 @@ fun AddEditRecordPage(
                     range = 0 until leaveOptions.size,
                     label = {
                         val h = kotlin.math.abs(leaveOptions[it])
-                        "${h.toInt()}小时${if (h >= 8.0) "（全天）" else "（半天）"}"
+                        "${SalaryCalculator.formatHours(h)}${if (h >= 8.0) "（全天）" else "（半天）"}"
                     },
                     modifier = Modifier.heightIn(min = 180.dp)
                 )

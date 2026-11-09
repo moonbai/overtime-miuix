@@ -121,13 +121,16 @@ class MainActivity : ComponentActivity() {
             val darkTheme = when (themeMode) {
                 "dark", "monet_dark" -> true
                 "light", "monet_light" -> false
+                // "system" / "monet_system" 及未知值都跟随系统深浅
                 else -> isSystemInDarkTheme()
             }
 
             OvertimeTheme(
                 darkTheme = darkTheme,
                 keyColor = androidx.compose.ui.graphics.Color(accentColor),
-                monet = monetEnabled
+                // 以主题模式为准：旧备份可能只有 theme_mode 而缺 monet_enabled，
+                // 用前缀兜底保证 monet_* 选项仍能启用系统壁纸动态取色。
+                monet = themeMode.startsWith("monet_") || monetEnabled
             ) {
                 // 状态栏 / 导航栏图标（时间、电量、手势条）的明暗随主题切换：
                 // MiuixTheme 不管理该项，默认始终深色图标，深色模式下在深色背景上不可见。

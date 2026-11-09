@@ -147,7 +147,7 @@ private fun matchesRecordDate(cal: Calendar, millis: Long, q: RecordDateQuery): 
             (q.day == null || cal.get(Calendar.DAY_OF_MONTH) == q.day)
 }
 
-/** 时长的数字写法（8.5 → "8.5"），让数字输入也能命中「8小时30分钟」。 */
+/** 时长的纯数字写法（8.5 → "8.5"），让数字输入也能命中「8.5H」。 */
 private fun durationNumberText(hours: Double): String {
     val v = kotlin.math.abs(hours)
     return if (v % 1.0 == 0.0) v.toLong().toString() else v.toString()
