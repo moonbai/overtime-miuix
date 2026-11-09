@@ -15,6 +15,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.Dp
 import com.mars.overtime.ui.theme.AppBody1Medium
+import com.mars.overtime.ui.theme.AppTitle3Semibold
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -224,4 +227,87 @@ fun Pill(
             .background(color),
         content = content
     )
+}
+
+/**
+ * 全局「无记录」空状态：首页与记录页共用同一套插画、文案与主操作按钮。
+ * 尺寸 / 圆角 / 图标 / 字重全部走令牌层，避免两页各自维护一份逐渐漂移的实现。
+ */
+@Composable
+fun AppEmptyState(
+    icon: ImageVector,
+    onAction: () -> Unit,
+    title: String = "还没有加班记录",
+    subtitle: String = "记录第一笔加班，从这里开始",
+    actionText: String = "添加记录",
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = AppDimens.spaceLg * 2),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(AppDimens.spaceMd)
+    ) {
+        Box(
+            modifier = Modifier.size(AppDimens.emptyCanvas),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(AppDimens.emptyCircle)
+                    .clip(AppShapes.pill)
+                    .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.7f))
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(AppDimens.emptyDotLarge)
+                    .offset(x = AppDimens.spaceXs, y = -AppDimens.spaceXs)
+                    .clip(AppShapes.pill)
+                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .size(AppDimens.emptyDotSmall)
+                    .offset(x = -AppDimens.spaceSm, y = AppDimens.spaceXs)
+                    .clip(AppShapes.pill)
+                    .background(MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.9f))
+            )
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.size(AppDimens.emptyIcon)
+            )
+        }
+        Text(
+            text = title,
+            style = AppTitle3Semibold(),
+            color = MiuixTheme.colorScheme.onSurface
+        )
+        Text(
+            text = subtitle,
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+        )
+        Button(
+            onClick = onAction,
+            colors = ButtonDefaults.buttonColorsPrimary(),
+            cornerRadius = AppDimens.controlCorner,
+            insideMargin = PaddingValues(
+                horizontal = AppDimens.fabExtendedHorizontal,
+                vertical = AppDimens.spaceXs
+            )
+        ) {
+            Icon(
+                MiuixIcons.Add,
+                contentDescription = null,
+                modifier = Modifier.size(AppIconSize.xs)
+            )
+            Spacer(modifier = Modifier.width(AppDimens.spaceXxs))
+            Text(actionText, style = AppBody1Medium())
+        }
+    }
 }

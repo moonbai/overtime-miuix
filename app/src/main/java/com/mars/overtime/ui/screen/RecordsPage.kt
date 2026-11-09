@@ -23,6 +23,7 @@ import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.ui.component.AppEmptyState
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.snackbar.dismissDeleteSnackbars
 import com.mars.overtime.ui.snackbar.showCustomToast
@@ -498,77 +499,10 @@ private fun RecordsLoadingPlaceholder() {
     }
 }
 
-/**
- * 记录页空状态：与首页空状态同款插画与文案结构，
- * 弱化「无数据」空旷感，并把首条记录的转化入口放在显眼处。
- */
+/** 记录页空状态：复用全局标准件，仅按页面语义换插画图标。 */
 @Composable
 private fun RecordsEmptyState(onAdd: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Box(
-            modifier = Modifier.size(156.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(140.dp)
-                    .clip(AppShapes.pill)
-                    .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.7f))
-            )
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .size(42.dp)
-                    .offset(x = 10.dp, y = (-8).dp)
-                    .clip(AppShapes.pill)
-                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
-            )
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .size(30.dp)
-                    .offset(x = (-12).dp, y = 10.dp)
-                    .clip(AppShapes.pill)
-                    .background(MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.9f))
-            )
-            Icon(
-                MiuixIcons.Notes,
-                contentDescription = null,
-                tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(64.dp)
-            )
-        }
-        Text(
-            text = "还没有加班记录",
-            style = AppTitle3Semibold(),
-            color = MiuixTheme.colorScheme.onSurface
-        )
-        Text(
-            text = "记录第一笔加班，从这里开始",
-            style = MiuixTheme.textStyles.footnote1,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-        )
-        Button(
-            onClick = onAdd,
-            colors = ButtonDefaults.buttonColorsPrimary(),
-            cornerRadius = AppDimens.controlCorner,
-            insideMargin = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
-        ) {
-            Icon(
-                MiuixIcons.Add,
-                contentDescription = null,
-                modifier = Modifier.size(AppIconSize.xs)
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("添加记录", fontWeight = FontWeight.Medium)
-        }
-    }
+    AppEmptyState(icon = MiuixIcons.Notes, onAction = onAdd)
 }
 
 @Composable

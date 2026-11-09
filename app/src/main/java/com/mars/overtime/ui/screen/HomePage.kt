@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigation.NavHostController
 import com.mars.overtime.data.model.OvertimeType
+import com.mars.overtime.ui.component.AppEmptyState
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
 import com.mars.overtime.data.repository.DEFAULT_HOME_LAYOUT
@@ -488,83 +489,8 @@ private fun StatItem(label: String, value: String) {
     }
 }
 
-/**
- * 首页空状态：轻量插画 + 引导文案 + 主操作按钮。
- * 用「主题色图标嵌套淡色圆 + 两个点缀圆」构成一张克制的小插画，
- * 弱化了「无数据」的空旷感，并把首条记录的转化入口放在最显眼处。
- */
+/** 首页空状态：复用全局标准件，仅按页面语义换插画图标。 */
 @Composable
 private fun HomeEmptyState(onAdd: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = AppDimens.spaceLg * 2),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(AppDimens.spaceMd)
-    ) {
-        Box(
-            modifier = Modifier.size(AppDimens.emptyCanvas),
-            contentAlignment = Alignment.Center
-        ) {
-            // 主圆（淡色容器）
-            Box(
-                modifier = Modifier
-                    .size(AppDimens.emptyCircle)
-                    .clip(AppShapes.pill)
-                    .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.7f))
-            )
-            // 右上点缀（主题色浅块）
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .size(AppDimens.emptyDotLarge)
-                    .offset(x = AppDimens.spaceXs, y = -AppDimens.spaceXs)
-                    .clip(AppShapes.pill)
-                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
-            )
-            // 左下点缀（次容器块）
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .size(AppDimens.emptyDotSmall)
-                    .offset(x = -AppDimens.spaceSm, y = AppDimens.spaceXs)
-                    .clip(AppShapes.pill)
-                    .background(MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.9f))
-            )
-            // 主题色插画主体图标（闹钟：呼应加班/打卡）
-            Icon(
-                MiuixIcons.Alarm,
-                contentDescription = null,
-                tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(AppDimens.emptyIcon)
-            )
-        }
-        Text(
-            text = "还没有加班记录",
-            style = AppTitle3Semibold(),
-            color = MiuixTheme.colorScheme.onSurface
-        )
-        Text(
-            text = "记录第一笔加班，从这里开始",
-            style = MiuixTheme.textStyles.footnote1,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-        )
-        Button(
-            onClick = onAdd,
-            colors = ButtonDefaults.buttonColorsPrimary(),
-            cornerRadius = AppDimens.controlCorner,
-            insideMargin = PaddingValues(
-                horizontal = AppDimens.fabExtendedHorizontal,
-                vertical = AppDimens.spaceXs
-            )
-        ) {
-            Icon(
-                MiuixIcons.Add,
-                contentDescription = null,
-                modifier = Modifier.size(AppIconSize.xs)
-            )
-            Spacer(modifier = Modifier.width(AppDimens.spaceXxs))
-            Text("添加记录", style = AppBody1Medium())
-        }
-    }
+    AppEmptyState(icon = MiuixIcons.Alarm, onAction = onAdd)
 }
