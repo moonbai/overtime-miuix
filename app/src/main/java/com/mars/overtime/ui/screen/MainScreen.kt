@@ -1,8 +1,5 @@
 package com.mars.overtime.ui.screen
 
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -51,6 +48,12 @@ fun MainScreen(
         .collectAsState(initial = 5)
     val quickSubmit by settingsRepository.quickSubmit.collectAsState(initial = false)
     val blurSupported = isRuntimeShaderSupported()
+
+    // 首页是否存在记录：决定 FAB 是否显示。未添加任何记录时隐藏右下角 FAB，
+    // 由首页空状态的主操作按钮承担「添加」入口，避免未记录时首页出现三个按钮；
+    // 存在记录时显示 FAB、隐藏首页空状态（与用户预期「有记录时悬浮出现」一致）。
+    val allRecords by repository.getAllRecords().collectAsState(initial = emptyList())
+    val hasRecords = allRecords.isNotEmpty()
     val context = androidx.compose.ui.platform.LocalContext.current
 
     // 快速提报对话框显隐
@@ -266,8 +269,8 @@ fun MainScreen(
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
 
-                // 悬浮模式首页 FAB：位于悬浮底栏上方
-                if (selectedTab == 0) {
+                // 悬浮模式首页 FAB：位于悬浮底栏上方；未添加任何记录时隐藏
+                if (hasRecords && selectedTab == 0) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
@@ -285,8 +288,8 @@ fun MainScreen(
                 }
             }
 
-            // 普通模式首页 FAB：位于普通底栏上方
-            if (!useFloatingNav && selectedTab == 0) {
+            // 普通模式首页 FAB：位于普通底栏上方；未添加任何记录时隐藏
+            if (!useFloatingNav && hasRecords && selectedTab == 0) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -322,9 +325,9 @@ fun MainScreen(
 }
 
 /**
- * 悬浮胶囊底栏：MIUIX 0.9.4 的 FloatingNavigationBarItem 仅对选中 icon 着色，
- * 这里补上 HyperOS 风格的「液态」选中指示器 —— 两层圆角胶囊以不同刚度的
- * spring 动画在三个等宽 item 间滑动，主体先到、尾层滞后回弹，形成流体拖尾。
+ * 悬浮胶囊底栏：选中态与 MIUIX 标准 NavigationBar 保持一致 —— 仅靠图标 / 文字
+ * 变色（选中 = primary、未选中 = onSurfaceVariantSummary + 半粗），不使用选中背景
+ * 色块（MIUIX 设计语言里导航项本就没有选中底块），从而与「普通底栏」视觉统一。
  *
  * 胶囊本体仍使用 MIUIX 的 textureBlur 毛玻璃与 MiuixTheme 配色，图标取自
  * MIUIX / AppIcons，视觉与框架设计语言保持一致。
@@ -368,50 +371,6 @@ private fun LiquidFloatingNavBar(
                 else MiuixTheme.colorScheme.surfaceContainer
             )
     ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val itemWidth = maxWidth / 3f
-            val target = itemWidth * selectedTab.toFloat()
-
-            // 双层不同刚度的 spring：主体快速到位，尾层慢半拍形成液体拉伸感
-            val leadX by animateDpAsState(
-                targetValue = target,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessMedium
-                ),
-                label = "liquidLead"
-            )
-            val trailX by animateDpAsState(
-                targetValue = target,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessLow
-                ),
-                label = "liquidTrail"
-            )
-
-            // 尾层：慢、淡
-            Box(
-                modifier = Modifier
-                    .offset(x = trailX)
-                    .width(itemWidth)
-                    .height(AppDimens.navBarHeight)
-                    .padding(horizontal = AppDimens.spaceSm, vertical = AppDimens.spaceXs)
-                    .clip(AppShapes.indicator)
-                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
-            )
-            // 主体：快、实（选中块更明显，强化悬浮底栏的选中态）
-            Box(
-                modifier = Modifier
-                    .offset(x = leadX)
-                    .width(itemWidth)
-                    .height(AppDimens.navBarHeight)
-                    .padding(horizontal = AppDimens.spaceSm, vertical = AppDimens.spaceXs)
-                    .clip(AppShapes.indicator)
-                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.24f))
-            )
-        }
-
         Row(modifier = Modifier.fillMaxSize()) {
             items.forEachIndexed { index, (icon, label) ->
                 Surface(

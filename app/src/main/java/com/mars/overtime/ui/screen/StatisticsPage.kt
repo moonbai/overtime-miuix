@@ -716,10 +716,11 @@ private fun TypeRatioCard(
             )
             Spacer(modifier = Modifier.height(12.dp))
             if (total <= 0) {
-                Text(
-                    text = "本年暂无加班记录",
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                // 与「按月趋势」空态统一为同一 EmptyState 组件，保持统计页无记录样式一致
+                EmptyState(
+                    icon = MiuixIcons.Months,
+                    title = "本年暂无加班记录",
+                    subtitle = "添加记录后这里会按类型展示占比"
                 )
             } else {
                 // 占比条
