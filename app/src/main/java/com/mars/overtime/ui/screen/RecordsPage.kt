@@ -272,17 +272,15 @@ fun RecordsPage(
     // 搜索索引按 records 变化重算一次；过滤 + 按月分组（倒序）也合成一次遍历。
     // 旧写法每次按键都对全表做日期 / 时长格式化，再 filter + groupBy + 排序。
     val searchIndex = remember(records) {
-        val monthFormatter = SimpleDateFormat("yyyy-MM", Locale.getDefault())
-        val cal = Calendar.getInstance()
         records.map { rec ->
-            cal.timeInMillis = rec.date
+            val (year, month, day) = AppDateFormats.dateParts(rec.date)
             RecordSearchIndex(
-                monthKey = monthFormatter.format(Date(rec.date)),
+                monthKey = AppDateFormats.monthKey(rec.date),
                 hoursText = SalaryCalculator.formatHours(rec.durationHours),
                 hoursNumber = durationNumberText(rec.durationHours),
-                year = cal.get(Calendar.YEAR),
-                month = cal.get(Calendar.MONTH) + 1,
-                day = cal.get(Calendar.DAY_OF_MONTH)
+                year = year,
+                month = month,
+                day = day
             )
         }
     }

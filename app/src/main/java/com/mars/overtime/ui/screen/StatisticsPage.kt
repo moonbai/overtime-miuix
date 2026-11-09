@@ -873,6 +873,12 @@ private fun RatioItem(color: Color, label: String, value: Double, total: Double)
     }
 }
 
+private data class CalendarMonth(
+    val weeks: List<List<Int?>>,
+    val isCurrentMonth: Boolean,
+    val todayDay: Int
+)
+
 @Composable
 private fun CalendarCard(
     selectedMonth: String,
