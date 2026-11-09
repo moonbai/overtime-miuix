@@ -319,7 +319,13 @@ private fun HomeWidgetGrid(
                         showIndication = true,
                         pressFeedbackType = PressFeedbackType.Sink
                     ) {
-                        WidgetBody(item.id, agg, month, typeColor)
+                        WidgetBody(
+                            item.id,
+                            agg,
+                            month,
+                            typeColor,
+                            scale = widgetScale(item.spanX, item.spanY)
+                        )
                     }
                     if (editingState.value) {
                         // 左上：拖拽提示

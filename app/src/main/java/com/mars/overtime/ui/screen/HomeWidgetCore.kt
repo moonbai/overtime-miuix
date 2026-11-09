@@ -5,13 +5,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mars.overtime.data.database.OvertimeRecord
@@ -35,6 +38,17 @@ const val GRID_COLUMNS = 2
 
 /** 网格基础单元高度（1x1 卡片高度），由它推导 2x1 / 1x2 / 2x2 */
 val CELL_HEIGHT: Dp = 104.dp
+
+/**
+ * 卡片内容缩放比：卡片放大后文字/间距/图表元素同步放大。
+ * 以「宽度」为主要依据——1x2 只是变高、宽度不变，文字若放大容易横向溢出，
+ * 故保持 1f；2x1 与 2x2 变宽才放大，2x2 因面积最大再高一档。
+ */
+fun widgetScale(spanX: Int, spanY: Int): Float = when {
+    spanX >= 2 && spanY >= 2 -> 1.45f
+    spanX >= 2 -> 1.3f
+    else -> 1f
+}
 
 // ───────────────────────── 组件目录 ─────────────────────────
 
@@ -247,8 +261,15 @@ fun WidgetBody(
     agg: Aggregate,
     month: String,
     typeColor: (OvertimeType) -> Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    scale: Float = 1f
 ) {
+    // 覆盖 LocalDensity 让内部所有 dp / sp 等比缩放：数值、图例、图表条、间距
+    // 一次性跟随卡片尺寸，无需逐个改字号；fillMaxSize / weight 仍按卡片实际
+    // 尺寸自适应填充，不会被拉伸变形。
+    val density = LocalDensity.current
+    val scaledDensity = if (scale == 1f) density else Density(density.density * scale, density.fontScale)
+    CompositionLocalProvider(LocalDensity provides scaledDensity) {
     Column(modifier.fillMaxSize()) {
         Text(
             text = widgetTitle(id),
@@ -304,6 +325,7 @@ fun WidgetBody(
             )
             else -> StatRows("--", "")
         }
+    }
     }
 }
 
@@ -580,13 +602,21 @@ fun PreviewWidgetCard(
     agg: Aggregate,
     month: String,
     typeColor: (OvertimeType) -> Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    spanX: Int = 1,
+    spanY: Int = 1
 ) {
     Card(
         modifier = modifier,
         cornerRadius = AppDimens.cardCorner,
         insideMargin = PaddingValues(14.dp)
     ) {
-        WidgetBody(id = id, agg = agg, month = month, typeColor = typeColor)
+        WidgetBody(
+            id = id,
+            agg = agg,
+            month = month,
+            typeColor = typeColor,
+            scale = widgetScale(spanX, spanY)
+        )
     }
 }

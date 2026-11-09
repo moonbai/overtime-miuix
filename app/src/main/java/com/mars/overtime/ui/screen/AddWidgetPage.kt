@@ -109,7 +109,9 @@ fun AddWidgetPage(
                             agg = agg,
                             month = currentMonth,
                             typeColor = typeColor,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            spanX = chosen.value.first,
+                            spanY = chosen.value.second
                         )
                     }
                 }
