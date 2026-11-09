@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -21,7 +22,6 @@ import com.mars.overtime.ui.snackbar.showCustomToast
 import com.mars.overtime.util.BackupData
 import com.mars.overtime.util.BackupFileEntry
 import com.mars.overtime.util.BackupManager
-import com.mars.overtime.util.BackupSource
 import com.mars.overtime.util.BackupSources
 import com.mars.overtime.util.DataMigrationUtil
 import com.mars.overtime.util.FeaturePermissions
@@ -48,6 +48,14 @@ private enum class RestoreScope(val label: String) {
     ALL("全部恢复"),
     RECORDS_ONLY("仅恢复记录"),
     SETTINGS_ONLY("仅恢复配置")
+}
+
+/** 导入来源：点「导入数据」后在同一个弹窗里切换，避免页面上堆一排重复入口 */
+private enum class ImportSource(val label: String) {
+    DEVICE("设备文件"),
+    AUTO("自动备份目录"),
+    CUSTOM("自定义目录"),
+    CLOUD("WebDAV 云端")
 }
 
 @Composable
@@ -81,16 +89,16 @@ fun BackupSettingsPage(
 
     var status by remember { mutableStateOf<String?>(null) }
 
-    // 从目录导入：自动备份目录 / 自定义目录的文件列表与选择弹窗
-    var showBackupPicker by remember { mutableStateOf(false) }
+    // 统一导入弹窗：null = 关闭，非 null = 当前选中的来源
+    var importSource by remember { mutableStateOf<ImportSource?>(null) }
     var autoEntries by remember { mutableStateOf<List<BackupFileEntry>>(emptyList()) }
     var customEntries by remember { mutableStateOf<List<BackupFileEntry>>(emptyList()) }
     var customDirReadable by remember { mutableStateOf(true) }
-
-    // 云端恢复：远端文件列表与选择弹窗
-    var showRestoreDialog by remember { mutableStateOf(false) }
     var remoteFiles by remember { mutableStateOf<List<String>>(emptyList()) }
     var loadingRemote by remember { mutableStateOf(false) }
+
+    // 云端来源仅在 WebDAV 已启用且填好服务器地址与账号时显示
+    val cloudConfigured = webdavEnabled && webdavUrl.isNotBlank() && webdavUsername.isNotBlank()
 
     // 导入/恢复二次确认：解析完成后暂存，由确认框触发真正写入
     var pendingImport by remember { mutableStateOf<BackupData?>(null) }
@@ -203,7 +211,11 @@ fun BackupSettingsPage(
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
+        if (uri == null) {
+            // 取消选择后回到导入弹窗，不必重新点一次「导入数据」
+            importSource = ImportSource.AUTO
+            return@rememberLauncherForActivityResult
+        }
         scope.launch {
             try {
                 val fileName = uri.lastPathSegment ?: ""
@@ -233,14 +245,66 @@ fun BackupSettingsPage(
         }
     }
 
+    /** 扫描自动备份目录与自定义目录的备份文件（IO 线程） */
+    suspend fun refreshLocalEntries(dirUri: String) {
+        val (auto, custom, readable) = withContext(Dispatchers.IO) {
+            val a = BackupSources.autoFiles(context)
+            val c = BackupSources.customFiles(context, dirUri)
+            val ok = dirUri.isBlank() || BackupSources.hasReadPermission(context, dirUri) || c.isNotEmpty()
+            Triple(a, c, ok)
+        }
+        autoEntries = auto
+        customEntries = custom
+        customDirReadable = readable
+    }
+
+    /** 点「导入数据」：先扫描本地两个目录，再打开统一导入弹窗 */
+    suspend fun openImportDialog() {
+        refreshLocalEntries(customBackupDirUri)
+        importSource = ImportSource.AUTO
+    }
+
+    /** 切到云端来源时拉取 WebDAV 上的备份文件列表 */
+    suspend fun loadRemoteFiles() {
+        if (loadingRemote) return
+        loadingRemote = true
+        showToast("正在获取云端备份列表 ...")
+        val files = try {
+            withContext(Dispatchers.IO) { WebDavManager.listFiles(buildWebDavConfig()) }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList<String>()
+        }
+        remoteFiles = files.sortedDescending()
+        loadingRemote = false
+        if (remoteFiles.isEmpty()) showToast("云端没有可用的备份文件")
+    }
+
+    /** 解析选中的备份文件，交给已有的二次确认框决定恢复范围 */
+    suspend fun restoreFromEntry(entry: BackupFileEntry) {
+        importSource = null
+        showToast("正在读取 ${entry.name} ...")
+        val data = withContext(Dispatchers.IO) { BackupSources.parse(context, entry) }
+        if (data == null) {
+            showToast("文件解析失败")
+            return
+        }
+        pendingImport = data
+    }
+
     /**
-     * 选择自定义备份目录（SAF 目录树）。持久化读写授权，目录 URI 存到 DataStore，
-     * 之后导入时即可直接列出该目录下的备份文件，无需每次手动翻文件选择器。
+     * 选择自定义备份目录（SAF 目录树）。持久化读写授权，目录 URI 存到 DataStore；
+     * 选完自动回到导入弹窗的「自定义目录」来源并刷新文件列表。
      */
     val customDirLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
+        if (uri == null) {
+            // 取消选目录后回到自定义目录来源
+            importSource = ImportSource.CUSTOM
+            return@rememberLauncherForActivityResult
+        }
+        val dirUri = uri.toString()
         val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         val fullOk = runCatching {
             context.contentResolver.takePersistableUriPermission(uri, flags)
@@ -254,36 +318,11 @@ fun BackupSettingsPage(
             }
         }
         scope.launch {
-            settingsRepository.setCustomBackupDirUri(uri.toString())
-            showToast("已设置自定义备份目录：${BackupSources.customDirLabel(uri.toString())}")
+            settingsRepository.setCustomBackupDirUri(dirUri)
+            refreshLocalEntries(dirUri)
+            importSource = ImportSource.CUSTOM
+            showToast("已设置自定义备份目录：${BackupSources.customDirLabel(dirUri)}")
         }
-    }
-
-    /** 扫描两个来源目录的备份文件（IO 线程），再弹出选择框 */
-    suspend fun loadBackupEntries() {
-        val dirUri = customBackupDirUri
-        val (auto, custom, readable) = withContext(Dispatchers.IO) {
-            val a = BackupSources.autoFiles(context)
-            val c = BackupSources.customFiles(context, dirUri)
-            val ok = dirUri.isBlank() || BackupSources.hasReadPermission(context, dirUri) || c.isNotEmpty()
-            Triple(a, c, ok)
-        }
-        autoEntries = auto
-        customEntries = custom
-        customDirReadable = readable
-        showBackupPicker = true
-    }
-
-    /** 解析选中的备份文件，交给已有的二次确认框决定恢复范围 */
-    suspend fun restoreFromEntry(entry: BackupFileEntry) {
-        showBackupPicker = false
-        showToast("正在读取 ${entry.name} ...")
-        val data = withContext(Dispatchers.IO) { BackupSources.parse(context, entry) }
-        if (data == null) {
-            showToast("文件解析失败")
-            return
-        }
-        pendingImport = data
     }
 
     SettingsScreen(
@@ -291,103 +330,159 @@ fun BackupSettingsPage(
         onBack = { navController.popBackStack() },
         snackbarHostState = snackbarHostState,
         dialogs = {
-            // 云端恢复：选择远端备份文件
-            BackHandler(enabled = showRestoreDialog) { showRestoreDialog = false }
+            // 导入来源统一在下方「导入数据」弹窗里选择（含云端恢复）
+            // 统一导入弹窗：设备文件 / 自动备份目录 / 自定义目录 / WebDAV 云端
+            BackHandler(enabled = importSource != null) { importSource = null }
             OverlayDialog(
-                show = showRestoreDialog,
-                title = "选择要恢复的备份",
-                summary = "点击文件名从云端下载并恢复",
-                onDismissRequest = { showRestoreDialog = false }
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    remoteFiles.take(30).forEach { fileName ->
-                        BasicComponent(
-                            title = fileName,
-                            startAction = { Icon(MiuixIcons.Download, contentDescription = null) },
-                            onClick = {
-                                showRestoreDialog = false
-                                scope.launch { restoreFromCloud(fileName) }
-                            }
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TextButton(
-                        text = "取消",
-                        onClick = { showRestoreDialog = false },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
-            // 从目录导入：自动备份目录 / 自定义目录中选一个备份文件
-            BackHandler(enabled = showBackupPicker) { showBackupPicker = false }
-            OverlayDialog(
-                show = showBackupPicker,
-                title = "选择备份文件",
-                summary = "从自动备份目录或自定义目录中选择要恢复的备份",
-                onDismissRequest = { showBackupPicker = false }
+                show = importSource != null,
+                title = "导入数据",
+                summary = "选择备份来源，再点选要恢复的文件",
+                onDismissRequest = { importSource = null }
             ) {
                 Column(Modifier.fillMaxWidth()) {
                     Column(
                         Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 360.dp)
+                            .heightIn(max = 400.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
                         Text(
-                            text = "${BackupSource.AUTO.label}（${autoEntries.size}）",
+                            text = "导入来源",
                             style = MiuixTheme.textStyles.body1,
                             color = MiuixTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                         )
-                        if (autoEntries.isEmpty()) {
-                            BackupPickerHint("暂无自动备份文件，启用自动备份并保存一条记录后会生成")
-                        } else {
-                            autoEntries.forEach { entry ->
-                                BackupEntryRow(entry) { scope.launch { restoreFromEntry(entry) } }
+                        ImportSourceRow(
+                            title = ImportSource.DEVICE.label,
+                            summary = "从设备任意位置选择 ZIP / JSON",
+                            icon = MiuixIcons.Import,
+                            selected = false,
+                            onClick = {
+                                importSource = null
+                                importLauncher.launch(arrayOf("application/zip", "application/json", "*/*"))
                             }
+                        )
+                        ImportSourceRow(
+                            title = ImportSource.AUTO.label,
+                            summary = "${autoEntries.size} 个备份 · 应用自动备份目录",
+                            icon = MiuixIcons.Backup,
+                            selected = importSource == ImportSource.AUTO,
+                            onClick = { importSource = ImportSource.AUTO }
+                        )
+                        ImportSourceRow(
+                            title = ImportSource.CUSTOM.label,
+                            summary = if (customBackupDirUri.isBlank()) "未设置，可在下方选择目录"
+                            else "${BackupSources.customDirLabel(customBackupDirUri)} · ${customEntries.size} 个备份",
+                            icon = MiuixIcons.Folder,
+                            selected = importSource == ImportSource.CUSTOM,
+                            onClick = { importSource = ImportSource.CUSTOM }
+                        )
+                        if (cloudConfigured) {
+                            ImportSourceRow(
+                                title = ImportSource.CLOUD.label,
+                                summary = "${remoteFiles.size} 个备份 · WebDAV 服务器",
+                                icon = MiuixIcons.UploadCloud,
+                                selected = importSource == ImportSource.CLOUD,
+                                onClick = {
+                                    importSource = ImportSource.CLOUD
+                                    scope.launch { loadRemoteFiles() }
+                                }
+                            )
                         }
 
                         Spacer(Modifier.height(10.dp))
-
                         Text(
-                            text = "${BackupSource.CUSTOM.label}（${customEntries.size}）",
+                            text = "备份文件",
                             style = MiuixTheme.textStyles.body1,
                             color = MiuixTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                         )
-                        when {
-                            customBackupDirUri.isBlank() ->
-                                BackupPickerHint("尚未设置自定义目录，点下方「选择目录」指定")
-                            !customDirReadable ->
-                                BackupPickerHint("目录授权已失效，请点下方「选择目录」重新授权")
-                            customEntries.isEmpty() ->
-                                BackupPickerHint("该目录下没有 .zip / .json 备份文件")
-                            else -> customEntries.forEach { entry ->
-                                BackupEntryRow(entry) { scope.launch { restoreFromEntry(entry) } }
+                        when (importSource) {
+                            ImportSource.AUTO -> {
+                                BackupPickerHint("目录：$autoBackupDirPath")
+                                if (autoEntries.isEmpty()) {
+                                    BackupPickerHint("暂无自动备份文件，启用自动备份并保存一条记录后会生成")
+                                } else {
+                                    autoEntries.forEach { entry ->
+                                        BackupEntryRow(entry) { scope.launch { restoreFromEntry(entry) } }
+                                    }
+                                }
                             }
+                            ImportSource.CUSTOM -> {
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    TextButton(
+                                        text = if (customBackupDirUri.isBlank()) "选择目录" else "更换目录",
+                                        onClick = {
+                                            importSource = null
+                                            customDirLauncher.launch(null)
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (customBackupDirUri.isNotBlank()) {
+                                        TextButton(
+                                            text = "清除",
+                                            onClick = {
+                                                scope.launch {
+                                                    settingsRepository.setCustomBackupDirUri("")
+                                                    refreshLocalEntries("")
+                                                    showToast("已清除自定义备份目录")
+                                                }
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                                when {
+                                    customBackupDirUri.isBlank() ->
+                                        BackupPickerHint("尚未设置自定义目录，点上方「选择目录」指定")
+                                    !customDirReadable ->
+                                        BackupPickerHint("目录授权已失效，请点上方「更换目录」重新授权")
+                                    customEntries.isEmpty() ->
+                                        BackupPickerHint("该目录下没有 .zip / .json 备份文件")
+                                    else -> customEntries.forEach { entry ->
+                                        BackupEntryRow(entry) { scope.launch { restoreFromEntry(entry) } }
+                                    }
+                                }
+                            }
+                            ImportSource.CLOUD -> {
+                                when {
+                                    !cloudConfigured -> BackupPickerHint("未配置 WebDAV 账号信息")
+                                    loadingRemote -> BackupPickerHint("正在获取云端备份列表 ...")
+                                    remoteFiles.isEmpty() -> BackupPickerHint("云端没有可用的备份文件")
+                                    else -> remoteFiles.take(30).forEach { fileName ->
+                                        BasicComponent(
+                                            title = fileName,
+                                            startAction = {
+                                                Icon(
+                                                    MiuixIcons.Download,
+                                                    contentDescription = null,
+                                                    tint = MiuixTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            },
+                                            onClick = {
+                                                importSource = null
+                                                scope.launch { restoreFromCloud(fileName) }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            ImportSource.DEVICE, null ->
+                                BackupPickerHint("点上方「设备文件」从任意位置选择备份")
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TextButton(
-                            text = "选择目录",
-                            onClick = {
-                                showBackupPicker = false
-                                customDirLauncher.launch(null)
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        TextButton(
-                            text = "取消",
-                            onClick = { showBackupPicker = false },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    TextButton(
+                        text = "取消",
+                        onClick = { importSource = null },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 
@@ -482,41 +577,13 @@ fun BackupSettingsPage(
                 )
                 SettingsActionItem(
                     title = "导入数据",
-                    summary = "从任意位置的 ZIP / JSON 恢复记录与设置（自动去重）",
+                    summary = "从设备文件 / 自动备份目录 / 自定义目录 / WebDAV 云端选择备份恢复",
                     icon = MiuixIcons.Import,
-                    onClick = { importLauncher.launch(arrayOf("application/zip", "application/json", "*/*")) }
+                    onClick = { scope.launch { openImportDialog() } }
                 )
-                SettingsActionItem(
-                    title = "从备份目录恢复",
-                    summary = "列出自动备份目录与自定义目录中的备份文件，直接选择恢复",
-                    icon = MiuixIcons.Backup,
-                    onClick = { scope.launch { loadBackupEntries() } }
-                )
-                SettingsActionItem(
-                    title = "自定义备份目录",
-                    summary = if (customBackupDirUri.isBlank())
-                        "未设置；点此选择一个目录作为导入来源"
-                    else
-                        "当前：${BackupSources.customDirLabel(customBackupDirUri)}（点击更换）",
-                    icon = MiuixIcons.Folder,
-                    onClick = { customDirLauncher.launch(null) }
-                )
-                if (customBackupDirUri.isNotBlank()) {
-                    SettingsActionItem(
-                        title = "清除自定义目录",
-                        summary = "清除后仅从自动备份目录导入",
-                        icon = MiuixIcons.Delete,
-                        onClick = {
-                            scope.launch {
-                                settingsRepository.setCustomBackupDirUri("")
-                                showToast("已清除自定义备份目录")
-                            }
-                        }
-                    )
-                }
                 SettingsNote(
                     text = "自动备份目录：$autoBackupDirPath\n" +
-                        "自定义目录仅作为导入来源；自动备份仍写入上方目录。"
+                        "自定义目录与云端来源在「导入数据」弹窗内设置。"
                 )
             }
         }
@@ -630,26 +697,8 @@ fun BackupSettingsPage(
                             }
                         }
                     )
-                    SettingsActionItem(
-                        title = "从云端恢复",
-                        summary = "列出 WebDAV 上的备份文件并下载恢复",
-                        icon = MiuixIcons.Download,
-                        onClick = {
-                            if (!loadingRemote) {
-                                loadingRemote = true
-                                scope.launch {
-                                    showToast("正在获取云端备份列表 ...")
-                                    val files = WebDavManager.listFiles(buildWebDavConfig())
-                                    remoteFiles = files.sortedDescending()
-                                    loadingRemote = false
-                                    if (remoteFiles.isEmpty()) {
-                                        showToast("云端没有可用的备份文件")
-                                    } else {
-                                        showRestoreDialog = true
-                                    }
-                                }
-                            }
-                        }
+                    SettingsNote(
+                        text = "云端备份文件在「本地备份 → 导入数据」弹窗里选择恢复。"
                     )
                 }
             }
@@ -683,5 +732,39 @@ private fun BackupPickerHint(text: String) {
         style = MiuixTheme.textStyles.footnote1,
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+    )
+}
+
+/** 导入弹窗里的一行来源，当前选中的来源右侧打勾 */
+@Composable
+private fun ImportSourceRow(
+    title: String,
+    summary: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    BasicComponent(
+        title = title,
+        summary = summary,
+        startAction = {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+        },
+        endActions = {
+            if (selected) {
+                Icon(
+                    MiuixIcons.Ok,
+                    contentDescription = "当前来源",
+                    tint = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        },
+        onClick = onClick
     )
 }
