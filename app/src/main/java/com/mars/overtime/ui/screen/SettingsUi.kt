@@ -113,6 +113,10 @@ fun SettingsScreen(
 ) {
     // 窗口背景被设为透明（去白闪），二级页必须自己刷主题背景，否则深色下透出黑底、
     // 顶栏文字贴着状态栏造成「重叠」观感。这里用 Box 兜底整页主题背景（含状态栏区域）。
+    // 与主界面 / 独立统计页一致：内容层延伸到顶栏背后作为采样源，
+    // 不支持运行时 shader 时回退到不透明 surface，保证标题始终可读。
+    val navBackdrop = rememberLayerBackdrop()
+    val blurSupported = isRuntimeShaderSupported()
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -120,24 +124,42 @@ fun SettingsScreen(
     ) {
         Scaffold(
             topBar = {
-                SmallTopAppBar(
-                    title = title,
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
-                        }
-                    }
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .textureBlur(
+                            backdrop = navBackdrop,
+                            shape = AppShapes.radiusZero,
+                            blurRadius = 40f,
+                            enabled = blurSupported
+                        )
+                ) {
+                    SmallTopAppBar(
+                        title = title,
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(MiuixIcons.ChevronBackward, contentDescription = "返回")
+                            }
+                        },
+                        color = if (blurSupported) Color.Transparent
+                        else MiuixTheme.colorScheme.surface
+                    )
+                }
             },
             snackbarHost = { SnackbarHost(snackbarHostState) }
         ) { paddingValues ->
-            SettingsList(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues),
-                bottomReserve = bottomReserve,
-                content = content
-            )
+                    .layerBackdrop(navBackdrop)
+            ) {
+                SettingsList(
+                    modifier = Modifier.fillMaxSize(),
+                    topReserve = paddingValues.calculateTopPadding(),
+                    bottomReserve = bottomReserve + paddingValues.calculateBottomPadding(),
+                    content = content
+                )
+            }
             dialogs()
         }
     }

@@ -27,14 +27,16 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 fun SettingsPage(
     navController: NavHostController,
-    topReserve: Dp = 0.dp,
-    bottomReserve: Dp = 0.dp
+    topReserve: Dp = AppDimens.zero,
+    bottomReserve: Dp = AppDimens.zero
 ) {
     val context = LocalContext.current
     val versionName = remember { getVersionName(context) }
 
     SettingsList(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MiuixTheme.colorScheme.background),
         topReserve = topReserve,
         bottomReserve = bottomReserve
     ) {
