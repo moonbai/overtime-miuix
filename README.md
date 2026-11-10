@@ -1,7 +1,6 @@
 # OvertimeMiuix 加班记
 
-> 简洁实用的加班记录与薪资计算工具，基于 MIUIX 0.9.4 Compose 框架开发。
-> 最低支持 Android 13（API 33）。
+> 基于 MIUIX 0.9.4 Compose 框架的加班记录与薪资计算工具，最低支持 Android 13（API 33）。
 
 [![MIUIX](https://img.shields.io/badge/MIUIX-0.9.4-blue)](https://github.com/moonbai/miuix)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-purple)](https://kotlinlang.org)
@@ -33,7 +32,7 @@
 
 ### 扩展能力
 
-- **多渠道推送** — 钉钉、飞书、企业微信、WxPusher、Telegram、Discord、自定义 WebHook（结构化 JSON 载荷）。飞书以正则识别官方机器人 hook 与企业工作流 webhook（`*.feishu.cn/base/workflow/webhook/event/...`），不硬编码企业域名：官方机器人按协议附加 `msg_type / content.text / timestamp / sign`，企业工作流与自定义地址则把每条信息**平铺为 body 的一个键名**（`date`、`weekday`、`hours`、`amount` 等）。可读文本与日历事件标题中的时长统一为小时制（`0.5H` / `1H` / `1.5H`），旧版「x小时y分钟」/「X.XX小时」文案不再输出，按文本解析的下游需适配；删除日历事件时仍同时匹配新旧标题以清理历史数据
+- **多渠道推送** — 钉钉、飞书、企业微信、WxPusher、Telegram、Discord、自定义 WebHook（结构化 JSON 载荷）。飞书以正则识别官方机器人 hook 与企业工作流 webhook（`*.feishu.cn/base/workflow/webhook/event/...`）。官方机器人按协议附加 `msg_type / content.text / timestamp / sign`，企业工作流与自定义地址则把每条信息**平铺为 body 的一个键名**（`date`、`weekday`、`hours`、`amount` 等）。可读文本与日历事件标题中的时长统一为小时制（`0.5H` / `1H` / `1.5H`），旧版「x小时y分钟」/「X.XX小时」文案不再输出，按文本解析的下游需适配；删除日历事件时仍同时匹配新旧标题以清理历史数据
 - **日历同步** — 自动将加班记录写入系统日历，支持批量同步
 - **备份与恢复** — ZIP 导入 / 导出（`records.json` + `settings.json`）、自动备份（本地 / WebDAV 云端双模式）、WebDAV 手动上传下载。**「导入数据」单一入口**，弹窗内选择来源：设备文件 / 自动备份目录 / 自定义 SAF 目录 / WebDAV 云端；云端入口仅在 WebDAV 配置完整时显示。自动备份落在 `Android/data/com.mars.overtime/files/backup/`（外部存储不可用时回退应用私有目录），文件名 `overtime_backup_yyyyMMdd_HHmmss.zip`
 - **MCP 服务** — 内置基于 Ktor 的 Model Context Protocol 服务，AI 助手可通过标准协议读写加班数据（[安全须知](#mcp-服务)）
@@ -133,18 +132,6 @@ Release 签名需要 `KEYSTORE_BASE64` / `KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KE
 
 GitHub Actions 所需 Secrets：`KEYSTORE_BASE64` / `KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD`，以及可选的 `GH_PAT`（长效只读 PAT，不要用短时效的默认 `secrets.GITHUB_TOKEN`）。
 
-## 应用内更新检查
-
-入口：设置 → 关于应用 → 检查更新
-
-- **数据源**：GitHub 官方单源双通道 —— 主通道为 `releases/latest` REST API（ETag 条件请求 + 结果缓存 + 403/429 限流处理），限流或不可达时降级到官方 `releases.atom` 订阅源（不受 REST 匿名配额限制）
-- **鉴权**：公开仓库可匿名访问；注入 PAT 后提升到 5000 次/小时
-- **即时反馈**：点击后 300ms 内未返回即弹出「正在检查更新…」，结束后精确收起；失败展示具体原因，不会出现「点了没反应」
-- **对比**：优先解析发布说明中的 `versionCode`，缺失时逐段比较 `versionName`；有新版本弹窗引导下载 APK 直链（atom 通道回退到发布页）
-- **校验**：版本相同但 SHA256 不一致时提示「安装包校验不一致」
-
-> **PAT 安全**：`BuildConfig.GITHUB_TOKEN` 会编译进 APK，**可被反编译提取**。只能注入对公开仓库的只读细粒度 PAT，且须可随时轮换；不要使用具备写权限或跨仓库权限的令牌。
-
 ## 权限与隐私
 
 应用**启动时不申请任何运行时权限**，仅在用户主动启用对应功能时按需请求（`util/FeaturePermissions.kt` 与各设置页）：
@@ -163,9 +150,8 @@ GitHub Actions 所需 Secrets：`KEYSTORE_BASE64` / `KEYSTORE_PASSWORD` / `KEY_A
 **隐私须知**：
 
 - 导出的 ZIP 中 `settings.json` **明文包含全部推送 Webhook 地址与密钥、WebDAV 密码、MXNZP `app_secret`、自定义请求头**。备份文件分享或上传云端前请自行评估；自定义备份目录的 SAF URI 授权仅在本机有效，因此不写入备份
-- `android:allowBackup="true"`，系统备份 / `adb backup` 会一并带走 DataStore 偏好（含上述凭据）。不希望如此可关闭系统备份，仅使用应用内 ZIP 备份
+- `android:allowBackup="true"`，系统备份 / `adb backup` 会一并带走 DataStore 偏好（含上述凭据）；`dataExtractionRules` 在 Android 12+ 上排除 `datastore` 目录，但系统备份仍可能涉及其他偏好。不希望如此可关闭系统备份，仅使用应用内 ZIP 备份
 - 所有外部地址的日志均经 `util/LogUrls.kt` 的 `redactUrl()` 脱敏，只保留协议与主机，避免 webhook token / `app_secret` 进入 logcat
-- 详见 [AUDIT.md](AUDIT.md) 的「P0：安全与隐私」
 
 ## 项目结构
 
@@ -179,10 +165,10 @@ app/src/main/java/com/mars/overtime/
 │   └── repository/                 # OvertimeRepository / SettingsRepository（DataStore、
 │                                   # WidgetPlacement / HomeWidgetIds / DEFAULT_HOME_LAYOUT）
 ├── ui/
-│   ├── screen/                     # 20 个页面与设置页体系
+│   ├── screen/                     # 页面与设置页体系
 │   │   ├── MainScreen.kt           # 主框架、底栏、FAB、Snackbar
-│   │   ├── HomePage.kt             # 首页：月度概览 + 2 列小组件网格（长按拖动、编辑态删除）
-│   │   ├── HomeWidgetCore.kt       # 小组件目录（29 项）、固定尺寸、网格排布、聚合与图表
+│   │   ├── HomePage.kt             # 首页：月度概览 + 2 列小组件网格
+│   │   ├── HomeWidgetCore.kt       # 小组件目录、固定尺寸、网格排布、聚合与图表
 │   │   ├── AddWidgetPage.kt        # 添加组件：仅未添加项 + 分类筛选 + 实时预览
 │   │   ├── HomeWidgetsSettingsPage.kt  # 组件管理：概览模式、已添加列表、删除
 │   │   ├── RecordsPage.kt / StatisticsPage.kt / AddEditRecordPage.kt
@@ -224,10 +210,6 @@ app/src/main/java/com/mars/overtime/
 支持工具：`add_overtime_record` / `query_overtime_records` / `get_monthly_stats`
 
 > **安全须知**：服务监听 `0.0.0.0`，**当前无鉴权**（`Mcp-Session-Id` 只是会话标识，不是认证）。同一局域网内任何设备都可调用工具读写加班记录，并触发保存后的推送 / 日历 / 备份联动。请仅在可信网络（如家庭局域网）启用，用完及时关闭；不要在有公共 Wi-Fi 的环境长期开启。
-
-## 文档
-
-- [AUDIT.md](AUDIT.md) — 代码与依赖审计报告：问题清单、依赖兼容性决策、优化路线图与待决策事项
 
 ## 开源协议
 
