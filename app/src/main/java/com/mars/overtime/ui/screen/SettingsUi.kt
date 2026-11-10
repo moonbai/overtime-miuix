@@ -227,6 +227,8 @@ fun SettingsTextField(
     label: String,
     enabled: Boolean = true,
     isPassword: Boolean = false,
+    /** 显式指定键盘类型（如 PIN 用 NumberPassword）；留空时 [isPassword] 决定。 */
+    keyboardType: KeyboardType? = null,
     modifier: Modifier = Modifier
 ) {
     // 密码框：默认以圆点掩码显示，点击尾部的眼睛图标可临时查看明文
@@ -246,11 +248,15 @@ fun SettingsTextField(
         visualTransformation =
             if (isPassword && !passwordVisible.value) PasswordVisualTransformation()
             else VisualTransformation.None,
-        keyboardOptions = if (isPassword)
-            androidx.compose.foundation.text.KeyboardOptions(
+        keyboardOptions = when {
+            keyboardType != null -> androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = keyboardType
+            )
+            isPassword -> androidx.compose.foundation.text.KeyboardOptions(
                 keyboardType = KeyboardType.Password
             )
-        else androidx.compose.foundation.text.KeyboardOptions.Default,
+            else -> androidx.compose.foundation.text.KeyboardOptions.Default
+        },
         trailingIcon = if (isPassword) {
             {
                 IconButton(onClick = { passwordVisible.value = !passwordVisible.value }) {

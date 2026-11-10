@@ -128,7 +128,7 @@ fun AppearanceSettingsPage(
                     items = themeItems,
                     selectedIndex = themeSelected,
                     title = "主题模式",
-                    summary = "跟随系统、浅色、深色，以及 Monet 跟随系统 / 浅色 / 深色",
+                    summary = "跟随系统 / 浅色 / 深色",
                     onSelectedIndexChange = { index ->
                         val value = THEME_OPTIONS[index].first
                         // 一次 edit 同时写 theme_mode 与 monet_enabled，避免半生效状态
@@ -154,7 +154,7 @@ fun AppearanceSettingsPage(
                 )
                 SettingsSwitchItem(
                     title = "悬浮底栏",
-                    summary = "使用悬浮式导航栏与毛玻璃背景",
+                    summary = "悬浮式 + 毛玻璃背景",
                     checked = useFloatingNav,
                     onCheckedChange = { scope.launch { settingsRepository.setUseFloatingNav(it) } }
                 )
@@ -209,7 +209,7 @@ fun AppearanceSettingsPage(
                 }
                 SettingsSwitchItem(
                     title = "快速提报模式",
-                    summary = "首页显示一键记录今天的快捷按钮",
+                    summary = "首页显示一键记录",
                     checked = quickSubmit,
                     onCheckedChange = { scope.launch { settingsRepository.setQuickSubmit(it) } }
                 )
@@ -220,7 +220,7 @@ fun AppearanceSettingsPage(
             SettingsGroup {
                 SettingsSwitchItem(
                     title = "返回预测",
-                    summary = "开启后，系统返回手势会实时预览目标页面并显示返回动画",
+                    summary = "返回手势实时预览",
                     checked = predictiveBackEnabled,
                     onCheckedChange = { scope.launch { settingsRepository.setPredictiveBackEnabled(it) } }
                 )
@@ -229,7 +229,7 @@ fun AppearanceSettingsPage(
                         items = backTransitionItems,
                         selectedIndex = backTransitionSelected,
                         title = "返回动画",
-                        summary = "返回、手势返回预览与页面退出时使用的动画",
+                        summary = "返回与页面退出动画",
                         onSelectedIndexChange = { index ->
                             scope.launch {
                                 settingsRepository.setPredictiveBackTransition(
@@ -258,7 +258,7 @@ fun AppearanceSettingsPage(
                     }
                     if (!systemBackAnimationEnabled) {
                         SettingsNote(
-                            text = "系统未开启预测性返回：请到「开发者选项 → 预测性返回动画」打开，跟手预览与方向判定才生效"
+                            text = "请在开发者选项中开启「预测性返回动画」"
                         )
                     }
                 }
@@ -355,7 +355,7 @@ private fun ColorPickerRow(
     OverlayDialog(
         show = showDialog,
         title = label,
-        summary = "拖动滑块自由取色，或点击预设色快速选择",
+        summary = "拖动取色或点击预设色",
         onDismissRequest = { showDialog = false }
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {

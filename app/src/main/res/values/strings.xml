@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">加班记</string>
+    <string name="shortcut_quick">快速提报</string>
+    <string name="shortcut_records">记录</string>
+    <string name="shortcut_mcp">启动 MCP</string>
+    <string name="shortcut_disabled">当前不可用</string>
 </resources>

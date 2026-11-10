@@ -82,8 +82,7 @@ fun HomeWidgetsSettingsPage(
         item {
             SettingsGroup(title = "已添加组件") {
                 SettingsNote(
-                    text = "共 ${WIDGET_CATALOG.size} 种组件，分为本月概览 / 类型分项 / 趋势图表 / 大图分析四类。" +
-                        "\n组件尺寸按内容固定，无需调整；排序与删除在首页长按组件直接完成。"
+                    text = "共 ${WIDGET_CATALOG.size} 种组件；排序与删除在首页长按组件完成。"
                 )
                 if (layout.isEmpty()) {
                     Text(
@@ -129,7 +128,7 @@ fun HomeWidgetsSettingsPage(
             SettingsGroup(title = "添加") {
                 BasicComponent(
                     title = "添加组件",
-                    summary = "仅显示未添加组件，按分类筛选并预览后添加",
+                    summary = "按分类筛选并预览后添加",
                     startAction = {
                         Box(Modifier.padding(end = AppDimens.spaceSm)) {
                             Icon(

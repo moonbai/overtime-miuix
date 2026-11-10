@@ -3,6 +3,7 @@ package com.mars.overtime.util
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
+import com.mars.overtime.security.BackupReadResult
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -132,13 +133,22 @@ object BackupSources {
     /**
      * 统一解析：file:// 直接按路径读（避免跨进程暴露 file Uri），
      * content:// 的 ZIP 先落到 cache 再交给 [BackupManager]，JSON 直接读文本。
+     *
+     * 返回 [BackupReadResult]：加密包只回传「需口令」信号，不在这里解密，
+     * 由 UI 弹出口令输入框。旧版明文 ZIP / JSON 继续原样返回 [BackupReadResult.Plain]。
+     * 返回 null 表示读取本身失败（IO / 权限），与 [BackupReadResult.Invalid] 区分。
      */
-    fun parse(context: Context, entry: BackupFileEntry): BackupData? = try {
+    fun parse(context: Context, entry: BackupFileEntry): BackupReadResult? = try {
         val isZip = entry.name.endsWith(".zip", true)
         if ("file" == entry.uri.scheme) {
             val path = entry.uri.path
-            if (path == null) null
-            else if (isZip) BackupManager.importZip(path) else BackupManager.importData(path)
+            when {
+                path == null -> null
+                isZip -> BackupManager.readBackup(path)
+                else -> BackupManager.importData(path)
+                    ?.let { BackupReadResult.Plain(it) }
+                    ?: BackupReadResult.Invalid
+            }
         } else if (isZip) {
             // 与「导入数据」直接选文件时的临时文件错开，避免连续操作互相覆盖
             val tmp = File(context.cacheDir, "import_dir_tmp.zip")
@@ -149,14 +159,17 @@ object BackupSources {
             if (!ok) {
                 null
             } else {
-                val data = BackupManager.importZip(tmp.absolutePath)
+                val result = BackupManager.readBackup(tmp.absolutePath)
                 tmp.delete()
-                data
+                result
             }
         } else {
             val json = context.contentResolver.openInputStream(entry.uri)
                 ?.bufferedReader()?.use { it.readText() }
-            json?.let { BackupManager.deserialize(it) }
+            if (json == null) BackupReadResult.Invalid
+            else BackupManager.deserialize(json)
+                ?.let { BackupReadResult.Plain(it) }
+                ?: BackupReadResult.Invalid
         }
     } catch (e: Exception) {
         e.printStackTrace()

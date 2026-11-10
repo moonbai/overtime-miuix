@@ -5,6 +5,7 @@ import android.content.ComponentCallbacks2
 import com.mars.overtime.data.database.AppDatabase
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.security.AppLockManager
 import com.mars.overtime.util.FairMemoryManager
 
 class OvertimeApplication : Application() {
@@ -17,6 +18,8 @@ class OvertimeApplication : Application() {
         database = AppDatabase.getDatabase(this)
         overtimeRepository = OvertimeRepository(database)
         settingsRepository = SettingsRepository(this)
+        // 启动锁的后台超时重锁依赖进程级生命周期回调，必须尽早注册
+        AppLockManager.install(this)
         runLeaveTypeMigration()
     }
 

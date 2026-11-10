@@ -17,6 +17,8 @@ import androidx.navigation.NavHostController
 import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
+import com.mars.overtime.security.BackupReadResult
+import com.mars.overtime.security.BackupSession
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.snackbar.showCustomToast
 import com.mars.overtime.util.BackupData
@@ -38,7 +40,6 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
-import java.io.FileOutputStream
 
 /** 业务去重键：同日期 + 同类型 + 同时长 + 同请假标记 + 同备注 视为同一条记录 */
 private fun recordKey(r: OvertimeRecord): String =
@@ -103,6 +104,16 @@ fun BackupSettingsPage(
 
     // 导入/恢复二次确认：解析完成后暂存，由确认框触发真正写入
     var pendingImport by remember { mutableStateOf<BackupData?>(null) }
+
+    // 备份加密状态：开关、是否已设置口令、会话密钥是否就绪
+    val backupEncryptionEnabled by settingsRepository.backupEncryptionEnabled
+        .collectAsState(initial = false)
+    val backupVerifier by settingsRepository.backupVerifier.collectAsState(initial = "")
+    val sessionActive by BackupSession.activeFlow.collectAsState()
+    val hasBackupPassword = backupVerifier.isNotBlank()
+
+    // 备份口令请求：解密导入 / 验证会话密钥后再导出或上传
+    var passwordRequest by remember { mutableStateOf<PasswordRequest?>(null) }
 
     // 恢复范围：全部 / 仅记录 / 仅配置；解析成功后按备份内容自动纠正默认值
     var restoreScope by remember { mutableStateOf(RestoreScope.ALL) }
@@ -189,7 +200,17 @@ fun BackupSettingsPage(
         showToast(msg)
     }
 
-    // 从云端下载指定备份文件并恢复记录与设置（支持 ZIP 和旧版 JSON）
+    /** 统一分流读取结果：明文进二次确认；加密包先弹口令；其余提示失败。 */
+    suspend fun handleReadResult(result: BackupReadResult?) {
+        when (result) {
+            is BackupReadResult.Plain -> pendingImport = result.data
+            is BackupReadResult.Encrypted ->
+                passwordRequest = PasswordRequest(PasswordAction.DECRYPT_IMPORT, result)
+            else -> showToast("文件解析失败或格式不受支持")
+        }
+    }
+
+    // 从云端下载指定备份文件并恢复记录与设置（支持明文、加密 ZIP 和旧版 JSON）
     suspend fun restoreFromCloud(fileName: String) {
         if (fileName.isBlank()) {
             showToast("备份文件名无效")
@@ -205,42 +226,125 @@ fun BackupSettingsPage(
             showToast("下载失败：$fileName")
             return
         }
-        val data = withContext(Dispatchers.IO) {
-            val parsed = if (isZip) BackupManager.importZip(localPath) else BackupManager.importData(localPath)
+        val result = withContext(Dispatchers.IO) {
+            val parsed = BackupSecurity.readBackupFromFile(localPath)
             runCatching { File(localPath).delete() }
             parsed
         }
-        if (data == null) {
-            showToast("文件解析失败")
-            return
-        }
-        // 解析成功，交由二次确认框触发真正写入
-        pendingImport = data
+        handleReadResult(result)
     }
 
-    // 导出到用户选择的文件（ZIP 格式，包含 records.json + settings.json）
+    // 导出到用户选择的文件：加密开启时写 manifest.json + payload.bin，否则写明文 ZIP
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             val settings = settingsRepository.exportSettingsMap()
+            // 安全键不进 exportSettingsMap 白名单，这里单独读真实开关，不依赖回调捕获的重组值
+            val encryptionOn = settingsRepository.backupEncryptionEnabled.first()
+            val session = if (encryptionOn) BackupSession.snapshot() else null
+            if (encryptionOn && session == null) {
+                showToast("请先验证备份口令后再导出")
+                return@launch
+            }
             try {
                 withContext(Dispatchers.IO) {
-                    context.contentResolver.openOutputStream(uri)?.use { os ->
-                        val ok = BackupManager.exportZip(records, settings, os)
+                    val os = context.contentResolver.openOutputStream(uri)
+                        ?: throw Exception("无法写入所选文件")
+                    os.use { stream ->
+                        val ok = if (session != null) {
+                            BackupManager.exportEncryptedZip(
+                                records, settings, stream, session.master, session.salt
+                            )
+                        } else {
+                            BackupManager.exportZip(records, settings, stream)
+                        }
                         if (!ok) throw Exception("ZIP 打包失败")
                     }
                 }
-                showToast("导出成功（ZIP 包含记录与设置）")
+                showToast(
+                    if (session != null) "导出成功（备份已加密，导入需口令）"
+                    else "导出成功（ZIP 包含记录与设置）"
+                )
             } catch (e: Exception) {
                 e.printStackTrace()
                 showToast("导出失败：${e.message}")
+            } finally {
+                session?.wipe()
             }
         }
     }
 
-    // 从用户选择的文件导入（支持 ZIP 和旧版 JSON）
+    /** 导出前检查会话密钥；缺失时先弹口令框，验证成功后再调起文件选择器。 */
+    fun startExport() {
+        if (backupEncryptionEnabled && !BackupSession.isActive()) {
+            if (!hasBackupPassword) {
+                scope.launch { showToast("请先在「安全与隐私」设置备份口令") }
+                navController.navigate("security_settings")
+            } else {
+                passwordRequest = PasswordRequest(PasswordAction.BEFORE_EXPORT)
+            }
+            return
+        }
+        exportLauncher.launch(DataMigrationUtil.generateBackupFileName())
+    }
+
+    /** 立即上传：与自动备份同一口径，加密开启时必须有会话密钥，绝不降级明文。 */
+    suspend fun doUpload() {
+        val settings = settingsRepository.exportSettingsMap().toMutableMap().apply {
+            this["auto_backup_enabled"] = "true"
+            this["auto_backup_location"] = "cloud"
+        }
+        val encryptionOn = settingsRepository.backupEncryptionEnabled.first()
+        val session = if (encryptionOn) BackupSession.snapshot() else null
+        if (encryptionOn && session == null) {
+            showToast("请先验证备份口令后再上传")
+            return
+        }
+        val result = try {
+            withContext(Dispatchers.IO) {
+                val fileName = DataMigrationUtil.generateBackupFileName()
+                val localPath = DataMigrationUtil.getBackupFilePath(context, fileName)
+                val exported = if (session != null) {
+                    BackupManager.exportEncryptedZip(
+                        records, settings, localPath, session.master, session.salt
+                    )
+                } else {
+                    BackupManager.exportZip(records, settings, localPath)
+                }
+                if (!exported) null
+                else WebDavManager.uploadFile(buildWebDavConfig(), localPath, fileName)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        } finally {
+            session?.wipe()
+        }
+        showToast(
+            when (result) {
+                null -> "生成本地备份失败"
+                true -> "上传成功"
+                false -> "上传失败"
+            }
+        )
+    }
+
+    fun startUpload() {
+        if (backupEncryptionEnabled && !BackupSession.isActive()) {
+            if (!hasBackupPassword) {
+                scope.launch { showToast("请先在「安全与隐私」设置备份口令") }
+                navController.navigate("security_settings")
+            } else {
+                passwordRequest = PasswordRequest(PasswordAction.BEFORE_UPLOAD)
+            }
+            return
+        }
+        scope.launch { doUpload() }
+    }
+
+    // 从用户选择的文件导入：明文 ZIP / 加密 ZIP / 旧版 JSON 统一按文件头识别
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -251,28 +355,8 @@ fun BackupSettingsPage(
         }
         scope.launch {
             try {
-                val data: BackupData? = withContext(Dispatchers.IO) {
-                    val fileName = uri.lastPathSegment ?: ""
-                    if (fileName.endsWith(".zip", ignoreCase = true)) {
-                        val tmpFile = File(context.cacheDir, "import_tmp.zip")
-                        context.contentResolver.openInputStream(uri)?.use { input ->
-                            FileOutputStream(tmpFile).use { output ->
-                                input.copyTo(output)
-                            }
-                        }
-                        val result = BackupManager.importZip(tmpFile.absolutePath)
-                        tmpFile.delete()
-                        result
-                    } else {
-                        val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText()
-                        if (json != null) BackupManager.deserialize(json) else null
-                    }
-                }
-                if (data == null) {
-                    showToast("文件解析失败")
-                    return@launch
-                }
-                pendingImport = data
+                val result = BackupSecurity.readBackupFromUri(context, uri)
+                handleReadResult(result)
             } catch (e: Exception) {
                 e.printStackTrace()
                 showToast("导入失败：${e.message}")
@@ -316,16 +400,12 @@ fun BackupSettingsPage(
         if (remoteFiles.isEmpty()) showToast("云端没有可用的备份文件")
     }
 
-    /** 解析选中的备份文件，交给已有的二次确认框决定恢复范围 */
+    /** 解析选中的备份文件；加密包先弹口令，明文包交给二次确认框决定恢复范围 */
     suspend fun restoreFromEntry(entry: BackupFileEntry) {
         importSource = null
         showToast("正在读取 ${entry.name} ...")
-        val data = withContext(Dispatchers.IO) { BackupSources.parse(context, entry) }
-        if (data == null) {
-            showToast("文件解析失败")
-            return
-        }
-        pendingImport = data
+        val result = withContext(Dispatchers.IO) { BackupSources.parse(context, entry) }
+        handleReadResult(result)
     }
 
     /**
@@ -372,7 +452,7 @@ fun BackupSettingsPage(
             OverlayDialog(
                 show = importSource != null,
                 title = "导入数据",
-                summary = "选择备份来源，再点选要恢复的文件",
+                summary = "选择备份来源",
                 onDismissRequest = { importSource = null }
             ) {
                 Column(Modifier.fillMaxWidth()) {
@@ -594,6 +674,28 @@ fun BackupSettingsPage(
                     }
                 }
             }
+
+            // 备份口令：解密导入 / 验证会话密钥（冷启动后加密自动备份的前置条件）
+            BackHandler(enabled = passwordRequest != null) { passwordRequest = null }
+            val currentRequest = passwordRequest
+            if (currentRequest != null) {
+                BackupPasswordDialog(
+                    request = currentRequest,
+                    settingsRepository = settingsRepository,
+                    onDismiss = { passwordRequest = null },
+                    onDecryptSuccess = { data -> pendingImport = data },
+                    onSessionVerified = {
+                        when (currentRequest.action) {
+                            PasswordAction.BEFORE_EXPORT ->
+                                exportLauncher.launch(DataMigrationUtil.generateBackupFileName())
+                            PasswordAction.BEFORE_UPLOAD -> scope.launch { doUpload() }
+                            PasswordAction.VERIFY_ONLY ->
+                                scope.launch { showToast("备份口令已验证，加密自动备份已就绪") }
+                            PasswordAction.DECRYPT_IMPORT -> Unit
+                        }
+                    }
+                )
+            }
         }
     ) {
         status?.let { message ->
@@ -604,27 +706,47 @@ fun BackupSettingsPage(
             SettingsGroup(title = "本地备份") {
                 SettingsActionItem(
                     title = "导出数据",
-                    summary = "将记录与设置导出为 ZIP 文件",
+                    summary = if (backupEncryptionEnabled) "导出加密 ZIP（导入需口令）"
+                    else "将记录与设置导出为 ZIP 文件",
                     icon = MiuixIcons.Download,
-                    onClick = {
-                        val name = DataMigrationUtil.generateBackupFileName()
-                        exportLauncher.launch(name)
-                    }
+                    onClick = { startExport() }
                 )
                 SettingsNote(
-                    text = "注意：备份 ZIP 内的 settings.json 包含 WebDAV 密码、各渠道推送密钥等明文凭据，" +
-                        "请勿公开分享或上传到不可信位置。"
+                    text = if (backupEncryptionEnabled)
+                        "ZIP 内容已加密，导入需备份口令。"
+                    else "备份含明文凭据，请勿上传至不可信位置。"
                 )
                 SettingsActionItem(
                     title = "导入数据",
-                    summary = "从设备文件 / 自动备份目录 / 自定义目录 / WebDAV 云端选择备份恢复",
+                    summary = "从本地或 WebDAV 恢复（加密包需口令）",
                     icon = MiuixIcons.Import,
                     onClick = { scope.launch { openImportDialog() } }
                 )
-                SettingsNote(
-                    text = "自动备份目录：$autoBackupDirPath\n" +
-                        "自定义目录与云端来源在「导入数据」弹窗内设置。"
+                SettingsNote(text = "自动备份目录：$autoBackupDirPath")
+            }
+        }
+
+        item {
+            SettingsGroup(title = "备份加密") {
+                // 开关统一收敛在「安全与隐私」页：开启加密需同时完成「设置口令 + 装载会话密钥」，
+                // 这里只读展示状态，避免出现「开关已开但自动备份静默跳过」的伪开启状态。
+                SettingsActionItem(
+                    title = "备份加密",
+                    summary = when {
+                        !backupEncryptionEnabled -> "未开启，点此前往「安全与隐私」开启"
+                        !sessionActive -> "已开启，会话密钥未就绪 — 点此验证"
+                        else -> "已开启，会话密钥就绪"
+                    },
+                    icon = MiuixIcons.Scan,
+                    onClick = {
+                        if (backupEncryptionEnabled && !sessionActive && hasBackupPassword) {
+                            passwordRequest = PasswordRequest(PasswordAction.VERIFY_ONLY)
+                        } else {
+                            navController.navigate("security_settings")
+                        }
+                    }
                 )
+                SettingsNote(text = "冷启动后未验证口令会跳过自动备份，不降级写出明文。")
             }
         }
 
@@ -632,7 +754,7 @@ fun BackupSettingsPage(
             SettingsGroup(title = "自动备份") {
                 SettingsSwitchItem(
                     title = "启用自动备份",
-                    summary = "新增记录时自动保存到本地或云端",
+                    summary = "新增记录时自动保存",
                     checked = autoBackupEnabled,
                     onCheckedChange = { enabled ->
                         scope.launch { settingsRepository.setAutoBackupEnabled(enabled) }
@@ -669,7 +791,7 @@ fun BackupSettingsPage(
             SettingsGroup(title = "WebDAV 云端同步") {
                 SettingsSwitchItem(
                     title = "启用 WebDAV",
-                    summary = "配置 WebDAV 服务器进行备份同步",
+                    summary = "配置 WebDAV 服务器",
                     checked = webdavEnabled,
                     onCheckedChange = { enabled ->
                         scope.launch { settingsRepository.setWebdavEnabled(enabled) }
@@ -709,30 +831,7 @@ fun BackupSettingsPage(
                             }
                         },
                         secondText = "立即上传",
-                        onSecondClick = {
-                            scope.launch {
-                                val settings = settingsRepository.exportSettingsMap().toMutableMap().apply {
-                                    this["auto_backup_enabled"] = "true"
-                                    this["auto_backup_location"] = "cloud"
-                                }
-                                val result = withContext(Dispatchers.IO) {
-                                    val fileName = DataMigrationUtil.generateBackupFileName()
-                                    val localPath = DataMigrationUtil.getBackupFilePath(context, fileName)
-                                    if (!BackupManager.exportZip(records, settings, localPath)) null
-                                    else WebDavManager.uploadFile(buildWebDavConfig(), localPath, fileName)
-                                }
-                                showToast(
-                                    when (result) {
-                                        null -> "生成本地备份失败"
-                                        true -> "上传成功"
-                                        false -> "上传失败"
-                                    }
-                                )
-                            }
-                        }
-                    )
-                    SettingsNote(
-                        text = "云端备份文件在「本地备份 → 导入数据」弹窗里选择恢复。"
+                        onSecondClick = { startUpload() }
                     )
                 }
             }

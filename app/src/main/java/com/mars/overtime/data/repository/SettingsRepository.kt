@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.mars.overtime.security.PasswordCrypto
 import com.mars.overtime.util.AppDefaults
 import com.mars.overtime.util.HolidayDataSource
 import kotlinx.coroutines.flow.Flow
@@ -168,6 +169,33 @@ class SettingsRepository(private val context: Context) {
     val holidayMxnzpAppSecret: Flow<String> = settingsFlow.map { it[KEY_HOLIDAY_MXNZP_APP_SECRET] ?: "" }
     val holidayIgnoreHoliday: Flow<Boolean> = settingsFlow.map { it[KEY_HOLIDAY_IGNORE_HOLIDAY] ?: false }
 
+    // ===== 安全与隐私（默认全部关闭）=====
+    //
+    // 下列键一律不加入 exportSettingsMap() / importSettings() 白名单：
+    //   - 锁开关、PIN 校验值、Keystore 包裹材料属于本机凭据，随备份导出等于把锁一起搬走；
+    //   - 备份口令的 salt / verifier 若被旧备份覆盖，用户自己的口令会突然失效；
+    //   - 失败次数与锁定截止时间更不该被恢复成旧值。
+    // 新增安全键时请同步检查这两处映射，保持「只在本机保存」。
+    val appLockEnabled: Flow<Boolean> = settingsFlow.map { it[KEY_APP_LOCK_ENABLED] ?: false }
+    val appLockBiometricEnabled: Flow<Boolean> =
+        settingsFlow.map { it[KEY_APP_LOCK_BIOMETRIC_ENABLED] ?: false }
+    val appLockSalt: Flow<String> = settingsFlow.map { it[KEY_APP_LOCK_SALT] ?: "" }
+    val appLockVerifier: Flow<String> = settingsFlow.map { it[KEY_APP_LOCK_VERIFIER] ?: "" }
+    val appLockIterations: Flow<Int> =
+        settingsFlow.map { it[KEY_APP_LOCK_ITERATIONS] ?: PasswordCrypto.DEFAULT_ITERATIONS }
+    val appLockFailedAttempts: Flow<Int> = settingsFlow.map { it[KEY_APP_LOCK_FAILED_ATTEMPTS] ?: 0 }
+    val appLockLockedUntil: Flow<Long> = settingsFlow.map { it[KEY_APP_LOCK_LOCKED_UNTIL] ?: 0L }
+    val appLockBioIv: Flow<String> = settingsFlow.map { it[KEY_APP_LOCK_BIO_IV] ?: "" }
+    val appLockBioWrapped: Flow<String> = settingsFlow.map { it[KEY_APP_LOCK_BIO_WRAPPED] ?: "" }
+    val appLockBioVerifier: Flow<String> = settingsFlow.map { it[KEY_APP_LOCK_BIO_VERIFIER] ?: "" }
+
+    val backupEncryptionEnabled: Flow<Boolean> =
+        settingsFlow.map { it[KEY_BACKUP_ENCRYPTION_ENABLED] ?: false }
+    val backupKdfSalt: Flow<String> = settingsFlow.map { it[KEY_BACKUP_KDF_SALT] ?: "" }
+    val backupVerifier: Flow<String> = settingsFlow.map { it[KEY_BACKUP_VERIFIER] ?: "" }
+    val backupKdfIterations: Flow<Int> =
+        settingsFlow.map { it[KEY_BACKUP_KDF_ITERATIONS] ?: PasswordCrypto.DEFAULT_ITERATIONS }
+
     suspend fun setThemeMode(mode: String) { context.dataStore.edit { it[KEY_THEME_MODE] = mode } }
 
     /**
@@ -261,8 +289,92 @@ class SettingsRepository(private val context: Context) {
     suspend fun setHolidayMxnzpAppSecret(secret: String) { context.dataStore.edit { it[KEY_HOLIDAY_MXNZP_APP_SECRET] = secret } }
     suspend fun setHolidayIgnoreHoliday(ignore: Boolean) { context.dataStore.edit { it[KEY_HOLIDAY_IGNORE_HOLIDAY] = ignore } }
 
+    // ===== 安全与隐私 setter =====
+
+    suspend fun setAppLockEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_APP_LOCK_ENABLED] = enabled }
+    }
+
+    suspend fun setAppLockBiometricEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_APP_LOCK_BIOMETRIC_ENABLED] = enabled }
+    }
+
+    /** 设置 PIN：salt / verifier / 迭代数一次写入，并清空失败次数与退避截止时间。 */
+    suspend fun setAppLockPin(salt: String, verifier: String, iterations: Int) {
+        context.dataStore.edit {
+            it[KEY_APP_LOCK_SALT] = salt
+            it[KEY_APP_LOCK_VERIFIER] = verifier
+            it[KEY_APP_LOCK_ITERATIONS] = iterations
+            it[KEY_APP_LOCK_FAILED_ATTEMPTS] = 0
+            it[KEY_APP_LOCK_LOCKED_UNTIL] = 0L
+        }
+    }
+
+    /** 关闭启动锁时抹掉全部 PIN 与生物识别材料，避免残留可被复用的校验值。 */
+    suspend fun clearAppLockCredentials() {
+        context.dataStore.edit {
+            it.remove(KEY_APP_LOCK_SALT)
+            it.remove(KEY_APP_LOCK_VERIFIER)
+            it.remove(KEY_APP_LOCK_ITERATIONS)
+            it.remove(KEY_APP_LOCK_FAILED_ATTEMPTS)
+            it.remove(KEY_APP_LOCK_LOCKED_UNTIL)
+            it.remove(KEY_APP_LOCK_BIO_IV)
+            it.remove(KEY_APP_LOCK_BIO_WRAPPED)
+            it.remove(KEY_APP_LOCK_BIO_VERIFIER)
+            it[KEY_APP_LOCK_BIOMETRIC_ENABLED] = false
+            it[KEY_APP_LOCK_ENABLED] = false
+        }
+    }
+
+    suspend fun setAppLockAttemptState(failedAttempts: Int, lockedUntil: Long) {
+        context.dataStore.edit {
+            it[KEY_APP_LOCK_FAILED_ATTEMPTS] = failedAttempts
+            it[KEY_APP_LOCK_LOCKED_UNTIL] = lockedUntil
+        }
+    }
+
+    suspend fun setAppLockBiometricEnrollment(iv: String, wrapped: String, verifier: String) {
+        context.dataStore.edit {
+            it[KEY_APP_LOCK_BIO_IV] = iv
+            it[KEY_APP_LOCK_BIO_WRAPPED] = wrapped
+            it[KEY_APP_LOCK_BIO_VERIFIER] = verifier
+        }
+    }
+
+    suspend fun clearAppLockBiometricEnrollment() {
+        context.dataStore.edit {
+            it.remove(KEY_APP_LOCK_BIO_IV)
+            it.remove(KEY_APP_LOCK_BIO_WRAPPED)
+            it.remove(KEY_APP_LOCK_BIO_VERIFIER)
+            it[KEY_APP_LOCK_BIOMETRIC_ENABLED] = false
+        }
+    }
+
+    suspend fun setBackupEncryptionEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_BACKUP_ENCRYPTION_ENABLED] = enabled }
+    }
+
+    /** 设置备份口令：保存与口令绑定的固定 KDF salt、verifier、迭代数（不保存口令或主密钥）。 */
+    suspend fun setBackupPassword(salt: String, verifier: String, iterations: Int) {
+        context.dataStore.edit {
+            it[KEY_BACKUP_KDF_SALT] = salt
+            it[KEY_BACKUP_VERIFIER] = verifier
+            it[KEY_BACKUP_KDF_ITERATIONS] = iterations
+        }
+    }
+
+    suspend fun clearBackupPassword() {
+        context.dataStore.edit {
+            it.remove(KEY_BACKUP_KDF_SALT)
+            it.remove(KEY_BACKUP_VERIFIER)
+            it.remove(KEY_BACKUP_KDF_ITERATIONS)
+            it[KEY_BACKUP_ENCRYPTION_ENABLED] = false
+        }
+    }
+
     /**
      * 批量导入设置（用于备份恢复）。仅写入备份中存在的已知键。
+     * 安全与隐私相关键故意不在此白名单内：见上文「安全与隐私」注释。
      */
     suspend fun importSettings(settings: Map<String, String>) {
         context.dataStore.edit { prefs ->
@@ -467,6 +579,23 @@ class SettingsRepository(private val context: Context) {
         private val KEY_HOLIDAY_MXNZP_APP_ID = stringPreferencesKey("holiday_mxnzp_app_id")
         private val KEY_HOLIDAY_MXNZP_APP_SECRET = stringPreferencesKey("holiday_mxnzp_app_secret")
         private val KEY_HOLIDAY_IGNORE_HOLIDAY = booleanPreferencesKey("holiday_ignore_holiday")
+
+        // 安全与隐私：全部为本机键，禁止加入 exportSettingsMap() / importSettings()
+        private val KEY_APP_LOCK_ENABLED = booleanPreferencesKey("app_lock_enabled")
+        private val KEY_APP_LOCK_BIOMETRIC_ENABLED = booleanPreferencesKey("app_lock_biometric_enabled")
+        private val KEY_APP_LOCK_SALT = stringPreferencesKey("app_lock_salt")
+        private val KEY_APP_LOCK_VERIFIER = stringPreferencesKey("app_lock_verifier")
+        private val KEY_APP_LOCK_ITERATIONS = intPreferencesKey("app_lock_iterations")
+        private val KEY_APP_LOCK_FAILED_ATTEMPTS = intPreferencesKey("app_lock_failed_attempts")
+        private val KEY_APP_LOCK_LOCKED_UNTIL = longPreferencesKey("app_lock_locked_until")
+        private val KEY_APP_LOCK_BIO_IV = stringPreferencesKey("app_lock_bio_iv")
+        private val KEY_APP_LOCK_BIO_WRAPPED = stringPreferencesKey("app_lock_bio_wrapped")
+        private val KEY_APP_LOCK_BIO_VERIFIER = stringPreferencesKey("app_lock_bio_verifier")
+
+        private val KEY_BACKUP_ENCRYPTION_ENABLED = booleanPreferencesKey("backup_encryption_enabled")
+        private val KEY_BACKUP_KDF_SALT = stringPreferencesKey("backup_kdf_salt")
+        private val KEY_BACKUP_VERIFIER = stringPreferencesKey("backup_verifier")
+        private val KEY_BACKUP_KDF_ITERATIONS = intPreferencesKey("backup_kdf_iterations")
     }
 }
 

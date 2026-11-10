@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import android.view.MotionEvent
 import android.window.BackEvent
 import androidx.compose.ui.platform.LocalView
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.core.view.WindowCompat
 import com.mars.overtime.util.AppDefaults
+import com.mars.overtime.util.FeaturePermissions
 import androidx.core.view.WindowInsetsControllerCompat
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import android.window.OnBackAnimationCallback
@@ -46,6 +48,7 @@ import com.mars.overtime.data.database.AppDatabase
 import com.mars.overtime.data.repository.OvertimeRepository
 import com.mars.overtime.data.repository.SettingsRepository
 import com.mars.overtime.mcp.McpHostService
+import com.mars.overtime.security.AppLockManager
 import com.mars.overtime.ui.component.FabAnchorState
 import com.mars.overtime.ui.component.LocalFabAnchor
 import com.mars.overtime.ui.screen.*
@@ -58,6 +61,8 @@ import androidx.navigationevent.NavigationEvent
 import androidx.navigationevent.OnBackInvokedOverlayInput
 import com.mars.overtime.ui.theme.OvertimeTheme
 import com.mars.overtime.util.SalaryCalculator
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
@@ -65,8 +70,26 @@ import top.yukonga.miuix.kmp.basic.SnackbarHostState
 class MainActivity : ComponentActivity() {
 
     companion object {
+        private const val TAG = "MainActivity"
+
         /** 通知 / 外部入口携带的目标导航路由 extra，值为 NavHost 中的路由字符串。 */
         const val EXTRA_NAVIGATE_TO = "navigate_to"
+
+        // 桌面长按 shortcut：action 为主识别通道，extra / shortcutId 为备用。
+        // 部分国产 launcher 会把静态 shortcut 的 intent action 规范化成 MAIN，
+        // 只认 action 会出现「应用打开了但动作没执行」。
+        const val ACTION_SHORTCUT_QUICK_SUBMIT = "com.mars.overtime.action.QUICK_SUBMIT"
+        const val ACTION_SHORTCUT_RECORDS = "com.mars.overtime.action.RECORDS"
+        const val ACTION_SHORTCUT_START_MCP = "com.mars.overtime.action.START_MCP"
+        const val EXTRA_SHORTCUT_ACTION = "com.mars.overtime.shortcut_action"
+
+        private const val SHORTCUT_QUICK_SUBMIT = "quick_submit"
+        private const val SHORTCUT_RECORDS = "records"
+        private const val SHORTCUT_START_MCP = "start_mcp"
+
+        private val VALID_SHORTCUTS = setOf(
+            SHORTCUT_QUICK_SUBMIT, SHORTCUT_RECORDS, SHORTCUT_START_MCP
+        )
     }
 
     /**
@@ -86,9 +109,26 @@ class MainActivity : ComponentActivity() {
      */
     private val pendingNavigation = mutableStateOf<String?>(null)
 
+    /** 桌面 shortcut 待执行动作；只在 AppLockGate 门内消费，未解锁不执行。 */
+    private val pendingShortcutAction = mutableStateOf<String?>(null)
+
+    /**
+     * 已下发给主界面的 shortcut 事件 token 与动作类型。
+     * 用一次性 token 而非「字符串参数 + 双方各自 LaunchedEffect」：MainScreen 可能因
+     * 导航被移出组合再重建，token 留在 Activity 层不会丢，重建后仍能补上动作；
+     * MainScreen 记住已处理的 token，避免同一事件重复弹出。token 每次都不同，
+     * 因此 Activity 配置变更重建后字段归零也不会与历史值撞车。
+     */
+    private val shortcutEventToken = mutableStateOf<String?>(null)
+    private val shortcutEventKind = mutableStateOf<String?>(null)
+
     /** 系统预测性返回手势的实时进度（0..1），仅 API 36+ 的非消费型观察者能读到。 */
     private val backProgress = mutableFloatStateOf(0f)
     private var backObserver: OnBackAnimationCallback? = null
+
+    /** 启动锁是否放行 MCP 服务：上锁期间不启动/主动停止，解锁后按 mcp_enabled 恢复。 */
+    @Volatile
+    private var mcpAllowedByLock = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,6 +144,8 @@ class MainActivity : ComponentActivity() {
 
         // 通知点击冷启动：从 intent 读取目标路由（如 MCP 服务子界面）
         pendingNavigation.value = intent?.getStringExtra(EXTRA_NAVIGATE_TO)
+        // 桌面 shortcut：识别后清除 intent 上的所有标记，防止配置变更重复消费
+        pendingShortcutAction.value = resolveShortcutAction(intent)
 
         // 启动流程不申请任何运行时权限：POST_NOTIFICATIONS / ACCESS_LOCAL_NETWORK
         // 只在用户主动启用 MCP 服务、WebDAV 云端备份等开关那一刻按需请求，
@@ -113,6 +155,7 @@ class MainActivity : ComponentActivity() {
         val repository = OvertimeRepository(database)
         val settingsRepository = SettingsRepository(this)
         registerBackObserver()
+        observeAppLockForMcp(settingsRepository)
 
         setContent {
             val themeMode by settingsRepository.themeMode.collectAsState(initial = "system")
@@ -160,19 +203,48 @@ class MainActivity : ComponentActivity() {
                     SalaryCalculator.configure(workingDaysPerMonth, hoursPerDay)
                 }
                 val navController = rememberNavController()
-                // 消费待执行的导航：通知点击后直达目标子界面（如 MCP 服务设置）
-                LaunchedEffect(pendingNavigation.value) {
-                    pendingNavigation.value?.let { route ->
-                        navController.navigate(route) { launchSingleTop = true }
-                        pendingNavigation.value = null
+                // 启动锁门控：未解锁时不组合主界面，也不消费通知 deep link。
+                // navController 放在门控外，解锁后能恢复原有导航栈。
+                AppLockGate(settingsRepository = settingsRepository) {
+                    // 消费待执行的导航：通知点击后直达目标子界面（如 MCP 服务设置）
+                    LaunchedEffect(pendingNavigation.value) {
+                        pendingNavigation.value?.let { route ->
+                            navController.navigate(route) { launchSingleTop = true }
+                            pendingNavigation.value = null
+                        }
                     }
+                    // 桌面 shortcut 动作统一在门内消费：锁屏时这段不会组合，
+                    // 因此「启动 MCP」绝不会在未解锁状态下把服务拉起。
+                    // 动作在这里一次性转成事件序号，MainScreen 不再参与「清空 pending」，
+                    // 消除两个 LaunchedEffect 抢同一个 key 的竞态。
+                    val shortcutAction = pendingShortcutAction.value
+                    LaunchedEffect(shortcutAction) {
+                        if (shortcutAction == null) return@LaunchedEffect
+                        try {
+                            when (shortcutAction) {
+                                SHORTCUT_START_MCP -> startMcpFromShortcut()
+                                SHORTCUT_QUICK_SUBMIT, SHORTCUT_RECORDS -> {
+                                    // 热启动停留在子页面时回到主界面。用 popBackStack 而非
+                                    // navigate，避免重建 main 导致弹窗状态被重置。
+                                    navController.popBackStack("main", inclusive = false)
+                                    shortcutEventKind.value = shortcutAction
+                                    shortcutEventToken.value =
+                                        "$shortcutAction-${System.nanoTime()}"
+                                }
+                            }
+                        } finally {
+                            pendingShortcutAction.value = null
+                        }
+                    }
+                    MainNavHost(
+                        navController = navController,
+                        repository = repository,
+                        settingsRepository = settingsRepository,
+                        backSwipeEdge = backSwipeEdge,
+                        shortcutEventToken = shortcutEventToken.value,
+                        shortcutEventKind = shortcutEventKind.value
+                    )
                 }
-                MainNavHost(
-                    navController = navController,
-                    repository = repository,
-                    settingsRepository = settingsRepository,
-                    backSwipeEdge = backSwipeEdge
-                )
             }
         }
     }
@@ -270,6 +342,50 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         intent.getStringExtra(EXTRA_NAVIGATE_TO)?.let { pendingNavigation.value = it }
+        resolveShortcutAction(intent)?.let { pendingShortcutAction.value = it }
+    }
+
+    /**
+     * 识别桌面 shortcut 动作，三重通道兜底：
+     * 1) intent.action（静态 shortcuts.xml 声明的主通道）
+     * 2) intent extra（部分 ROM 会把 action 规范化，extra 仍保留）
+     * 3) Intent.EXTRA_SHORTCUT_ID（系统启动 shortcut 时附带的 shortcutId）
+     *
+     * 识别后清除这三个标记：Activity 因配置变更重建时 onCreate 会再次读同一个
+     * intent，不清除将导致重复提报 / 重复启动服务。
+     */
+    private fun resolveShortcutAction(intent: Intent?): String? {
+        if (intent == null) return null
+        val fromAction = when (intent.action) {
+            ACTION_SHORTCUT_QUICK_SUBMIT -> SHORTCUT_QUICK_SUBMIT
+            ACTION_SHORTCUT_RECORDS -> SHORTCUT_RECORDS
+            ACTION_SHORTCUT_START_MCP -> SHORTCUT_START_MCP
+            else -> null
+        }
+        val fromExtra = intent.getStringExtra(EXTRA_SHORTCUT_ACTION)
+            ?.takeIf { it in VALID_SHORTCUTS }
+        val fromId = intent.getStringExtra(Intent.EXTRA_SHORTCUT_ID)
+            ?.takeIf { it in VALID_SHORTCUTS }
+        val result = fromAction ?: fromExtra ?: fromId
+        if (result == null) {
+            // 真机排查通道：若 ROM 把三个标记全部改写，logcat 里能看到原始 intent 信息
+            Log.d(
+                TAG, "shortcut: unmatched action=${intent.action}" +
+                    " extra=${intent.getStringExtra(EXTRA_SHORTCUT_ACTION)}" +
+                    " id=${intent.getStringExtra(Intent.EXTRA_SHORTCUT_ID)}"
+            )
+            return null
+        }
+        Log.d(TAG, "shortcut resolved=$result from=" +
+            when {
+                fromAction != null -> "action"
+                fromExtra != null -> "extra"
+                else -> "shortcutId"
+            })
+        intent.action = Intent.ACTION_MAIN
+        intent.removeExtra(EXTRA_SHORTCUT_ACTION)
+        intent.removeExtra(Intent.EXTRA_SHORTCUT_ID)
+        return result
     }
 
     override fun onDestroy() {
@@ -284,17 +400,88 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 每次回到前台同步 MCP 服务状态：mcp_enabled 是持久化设置，但 Service 不会随
-     * 应用进程重启自动复活，也可能被系统回收。旧实现只在设置页点开关时启动，
-     * 冷启动后开关显示「已开启」而端口无人监听，是「MCP 服务无效」最典型的场景。
-     * 放在 onStart 而非 onCreate，确保此时 Activity 已处于前台，可合法启动前台服务。
-     * 这里只恢复已开启的服务，绝不补申请权限：即使权限被用户在系统设置中撤销，
-     * 启动流程也保持零弹窗，需要时由用户在 MCP 设置页再次触发启用动作。
+     * 启动锁状态变化时同步 MCP 服务：上锁（含冷启动未解锁）立即停服，解锁后按
+     * mcp_enabled 恢复。放在 onCreate 持续 collect，覆盖「解锁瞬间」这个时点。
      */
+    private fun observeAppLockForMcp(settingsRepository: SettingsRepository) {
+        lifecycleScope.launch {
+            combine(
+                settingsRepository.appLockEnabled,
+                AppLockManager.isUnlocked
+            ) { enabled: Boolean, unlocked: Boolean -> !(enabled && !unlocked) }
+                .distinctUntilChanged()
+                .collect { allowed ->
+                    mcpAllowedByLock = allowed
+                    syncMcpService(allowed)
+                }
+        }
+    }
+
+    /**
+     * 每次回到前台同步 MCP 服务状态：mcp_enabled 是持久化设置，但 Service 不会随
+     * 应用进程重启自动复活，也可能被系统回收。放在 onStart 而非 onCreate，确保此时
+     * Activity 已处于前台，可合法启动前台服务。这里只恢复已开启的服务，绝不补申请权限。
+     */
+    /**
+     * 桌面 shortcut「一键自启动 MCP」。调用点位于 AppLockGate 门内，已确保解锁。
+     *
+     * 这是一个「从桌面触发、界面无开关可点」的动作，必须给出明确反馈：
+     * - 先弹即时 Toast，覆盖 DataStore 读取与 Service 启动之间的等待；
+     * - 全流程 try 包裹，任一步异常都取消占位 Toast 并给出结果提示，绝不静默失败；
+     * - 结果 Toast 用 LENGTH_LONG，文案明确写出「自启动」与端口。
+     *
+     * 写回 mcp_enabled 是必需的：否则下次 onStart 的 syncMcpService 会把服务按「已关闭」停掉。
+     * 权限采用提示而非阻断：前台服务本身可启动，缺 POST_NOTIFICATIONS / ACCESS_LOCAL_NETWORK
+     * 只会让通知或局域网客户端连不上。
+     */
+    private suspend fun startMcpFromShortcut() {
+        val holding = Toast.makeText(this, "正在自启动 MCP 服务…", Toast.LENGTH_SHORT)
+        holding.show()
+        var port = 0
+        var running = false
+        var started = false
+        var persisted = true
+        try {
+            val repo = SettingsRepository(this@MainActivity)
+            port = repo.mcpPort.first()
+            try {
+                repo.setMcpEnabled(true)
+            } catch (e: Exception) {
+                persisted = false
+                Log.w(TAG, "shortcut: persist mcp_enabled failed", e)
+            }
+            running = McpHostService.isRunning()
+            if (!running) started = McpHostService.start(this@MainActivity, port)
+        } catch (e: Exception) {
+            Log.w(TAG, "shortcut: start MCP failed", e)
+        }
+        val missing = try {
+            FeaturePermissions.missing(this, FeaturePermissions.forMcpService())
+        } catch (_: Exception) {
+            emptyArray()
+        }
+        holding.cancel()
+        val message = when {
+            !running && !started -> "MCP 服务自启动失败，请在应用内手动启用"
+            missing.isNotEmpty() -> "已自启动 MCP 服务 · 端口 $port（通知/局域网权限未授予）"
+            !persisted -> "已自启动 MCP 服务 · 端口 $port（状态保存失败，重启后需重开）"
+            else -> "已自启动 MCP 服务 · 端口 $port"
+        }
+        Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+    }
+
     override fun onStart() {
         super.onStart()
+        syncMcpService(mcpAllowedByLock)
+    }
+
+    private fun syncMcpService(allowedByLock: Boolean) {
         lifecycleScope.launch {
             val repo = SettingsRepository(this@MainActivity)
+            if (!allowedByLock) {
+                if (McpHostService.isRunning()) McpHostService.stop(this@MainActivity)
+                return@launch
+            }
             val enabled = repo.mcpEnabled.first()
             if (enabled && !McpHostService.isRunning()) {
                 McpHostService.start(this@MainActivity, repo.mcpPort.first())
@@ -400,7 +587,9 @@ fun MainNavHost(
     navController: NavHostController,
     repository: OvertimeRepository,
     settingsRepository: SettingsRepository,
-    backSwipeEdge: MutableIntState
+    backSwipeEdge: MutableIntState,
+    shortcutEventToken: String? = null,
+    shortcutEventKind: String? = null
 ) {
     // Miuix 的 OverlayDialog 内部使用 NavigationBackHandler，
     // 需要 LocalNavigationEventDispatcherOwner（navigationevent-compose 1.1.2）。
@@ -491,7 +680,9 @@ fun MainNavHost(
                 MainScreen(
                     navController = navController,
                     repository = repository,
-                    settingsRepository = settingsRepository
+                    settingsRepository = settingsRepository,
+                    shortcutEventToken = shortcutEventToken,
+                    shortcutEventKind = shortcutEventKind
                 )
             }
         }
@@ -542,6 +733,14 @@ fun MainNavHost(
                 BackupSettingsPage(
                     navController = navController,
                     repository = repository,
+                    settingsRepository = settingsRepository
+                )
+            }
+        }
+        composable("security_settings") {
+            PageSnackbarScope {
+                SecuritySettingsPage(
+                    navController = navController,
                     settingsRepository = settingsRepository
                 )
             }

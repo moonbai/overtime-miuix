@@ -40,7 +40,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun MainScreen(
     navController: NavHostController,
     repository: OvertimeRepository,
-    settingsRepository: SettingsRepository
+    settingsRepository: SettingsRepository,
+    shortcutEventToken: String? = null,
+    shortcutEventKind: String? = null
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     val bottomBarStyle by settingsRepository.bottomBarStyle.collectAsState(initial = "ICON_TEXT")
@@ -60,8 +62,22 @@ fun MainScreen(
     val sharedRecords = repository.getAllRecords().collectAsState(initial = null)
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    // 快速提报对话框显隐
-    var showQuickSubmit by remember { mutableStateOf(false) }
+    // 快速提报对话框显隐。用 rememberSaveable：NavHost 重建 main 时弹窗状态不丢。
+    var showQuickSubmit by rememberSaveable { mutableStateOf(false) }
+
+    // 桌面 shortcut：Activity 在启动锁放行后发一个一次性 token。
+    // token 留在 Activity 层，MainScreen 无论因导航被重建多少次都不会丢动作；
+    // 本地记录已处理 token，保证同一事件只弹一次 / 只切一次 tab。
+    var lastHandledShortcutToken by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(shortcutEventToken) {
+        val token = shortcutEventToken ?: return@LaunchedEffect
+        if (token == lastHandledShortcutToken) return@LaunchedEffect
+        lastHandledShortcutToken = token
+        when (shortcutEventKind) {
+            "quick_submit" -> showQuickSubmit = true
+            "records" -> selectedTab = 1
+        }
+    }
     val snackbarHostStateForQuick = LocalSnackbarHostState.current
     val quickScope = rememberCoroutineScope()
 

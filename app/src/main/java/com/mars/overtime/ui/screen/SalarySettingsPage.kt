@@ -138,7 +138,7 @@ fun SalarySettingsPage(
     ) {
         item {
             SettingsGroup(title = "基础薪资与倍率") {
-                SettingsNote(text = "小时薪资 = 基础薪资 ÷ 月计薪天数 ÷ 每日工时\n以下数据修改后需点击底部「保存设置」才会生效。")
+                SettingsNote(text = "小时薪资 = 基础薪资 ÷ 月计薪天数 ÷ 每日工时\n修改后需点击「保存设置」生效。")
                 SettingsTextField(
                     value = salaryText,
                     onValueChange = { salaryText = it },

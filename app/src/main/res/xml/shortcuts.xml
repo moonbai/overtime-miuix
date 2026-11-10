@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    桌面长按应用图标的静态快捷方式。
+    action 为主识别通道，同名 extra 作为备用（部分 ROM 会规范化 action），
+    系统附带的 EXTRA_SHORTCUT_ID 再兜一层。MainActivity 识别后清除三个标记，
+    避免配置变更 / Activity 重建时重复消费。
+    所有动作都在 AppLockGate 门内消费，未解锁不会执行（尤其是启动 MCP 服务）。
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <shortcut
+        android:shortcutId="quick_submit"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_quick"
+        android:shortcutShortLabel="@string/shortcut_quick"
+        android:shortcutLongLabel="@string/shortcut_quick"
+        android:shortcutDisabledMessage="@string/shortcut_disabled">
+        <intent
+            android:action="com.mars.overtime.action.QUICK_SUBMIT"
+            android:targetPackage="com.mars.overtime"
+            android:targetClass="com.mars.overtime.MainActivity">
+            <extra
+                android:name="com.mars.overtime.shortcut_action"
+                android:value="quick_submit" />
+        </intent>
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="records"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_records"
+        android:shortcutShortLabel="@string/shortcut_records"
+        android:shortcutLongLabel="@string/shortcut_records"
+        android:shortcutDisabledMessage="@string/shortcut_disabled">
+        <intent
+            android:action="com.mars.overtime.action.RECORDS"
+            android:targetPackage="com.mars.overtime"
+            android:targetClass="com.mars.overtime.MainActivity">
+            <extra
+                android:name="com.mars.overtime.shortcut_action"
+                android:value="records" />
+        </intent>
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="start_mcp"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_mcp"
+        android:shortcutShortLabel="@string/shortcut_mcp"
+        android:shortcutLongLabel="@string/shortcut_mcp"
+        android:shortcutDisabledMessage="@string/shortcut_disabled">
+        <intent
+            android:action="com.mars.overtime.action.START_MCP"
+            android:targetPackage="com.mars.overtime"
+            android:targetClass="com.mars.overtime.MainActivity">
+            <extra
+                android:name="com.mars.overtime.shortcut_action"
+                android:value="start_mcp" />
+        </intent>
+    </shortcut>
+
+</shortcuts>

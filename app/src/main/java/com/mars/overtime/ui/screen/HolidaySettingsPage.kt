@@ -121,7 +121,7 @@ fun HolidaySettingsPage(
         if (selectedSource == HolidayDataSource.CUSTOM) {
             item {
                 SettingsGroup(title = "自定义 API 配置") {
-                    SettingsNote(text = "支持 {year} 或 \${year} 占位符自动替换年份，响应格式需兼容 Uapis（days 数组）、Timor 或 MXNZP。")
+                    SettingsNote(text = "支持 {year} / \${year} 占位符；兼容 Uapis / Timor / MXNZP 响应。")
                     SettingsTextField(
                         value = customUrlText,
                         onValueChange = {
@@ -138,7 +138,7 @@ fun HolidaySettingsPage(
             SettingsGroup(title = "日期判定") {
                 SettingsSwitchItem(
                     title = "忽略节假日",
-                    summary = "只按休息日判定加班类型，不读取法定节假日规则",
+                    summary = "不读取法定节假日规则",
                     checked = ignoreHoliday,
                     onCheckedChange = {
                         scope.launch { settingsRepository.setHolidayIgnoreHoliday(it) }
@@ -173,7 +173,7 @@ fun HolidaySettingsPage(
                 )
                 SettingsActionItem(
                     title = "清除缓存",
-                    summary = "清除本地缓存的节假日数据",
+                    summary = "清除本地缓存",
                     icon = MiuixIcons.Delete,
                     onClick = {
                         HolidayManager.clearCache()

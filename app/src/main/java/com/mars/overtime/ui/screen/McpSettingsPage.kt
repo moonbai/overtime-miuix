@@ -151,10 +151,10 @@ fun McpSettingsPage(
                         else -> "服务运行中 · 监听端口 $port"
                     }
                 )
-                SettingsNote(text = "服务以常驻通知方式运行。首次启用时会按需申请「通知」与「本地网络」权限；\n若客户端连不上，先确认此处显示「运行中」。")
+                SettingsNote(text = "以常驻通知运行，首次启用按需申请权限。")
                 SettingsActionItem(
                     title = if (runningPort == null) "启动服务" else "重启服务",
-                    summary = "按当前端口重新拉起并刷新状态",
+                    summary = "按当前端口重启",
                     onClick = { enableMcpService() }
                 )
             }
@@ -162,10 +162,10 @@ fun McpSettingsPage(
 
         item {
             SettingsGroup(title = "服务") {
-                SettingsNote(text = "Model Context Protocol 服务允许 AI 助手通过标准协议读写加班记录；仅建议在可信网络下开启。")
+                SettingsNote(text = "仅建议在可信网络下开启。")
                 SettingsSwitchItem(
                     title = "启用 MCP 服务",
-                    summary = "开启后可通过本地网络访问",
+                    summary = "本地网络可访问",
                     checked = mcpEnabled,
                     onCheckedChange = { enabled ->
                         if (enabled) enableMcpService() else stopService()
@@ -177,7 +177,7 @@ fun McpSettingsPage(
                     label = "服务端口（1-65535）",
                     enabled = !mcpEnabled
                 )
-                SettingsNote(text = "端口需在服务停止时修改并点击保存，服务运行中不可更改。")
+                SettingsNote(text = "服务运行中不可修改端口。")
             }
         }
 
@@ -208,7 +208,7 @@ fun McpSettingsPage(
 
         item {
             SettingsGroup(title = "配置 JSON") {
-                SettingsNote(text = "复制以下配置到 AI 客户端即可接入。\n手机与客户端需在同一局域网。")
+                SettingsNote(text = "手机与客户端需在同一局域网。")
                 SettingsButtonRow(
                     firstText = "复制本机配置",
                     onFirstClick = { copyConfig("本机配置", localConfigJson) },

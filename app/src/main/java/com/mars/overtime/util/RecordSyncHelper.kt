@@ -82,7 +82,17 @@ object RecordSyncHelper {
                     )
                 } else null
                 val allRecords = repository.getAllRecords().first()
-                BackupManager.performAutoBackup(context, allRecords, settingsMap, webdavConfig)
+                // 安全键不进 exportSettingsMap 白名单，加密开关必须从设置仓库单独读。
+                val encryptionEnabled = settingsRepository.backupEncryptionEnabled.first()
+                when (val result = BackupManager.performAutoBackup(
+                    context, allRecords, settingsMap, webdavConfig, encryptionEnabled
+                )) {
+                    AutoBackupResult.NeedBackupPassword ->
+                        failures += "加密自动备份已跳过：请先在「安全与隐私」验证备份口令"
+                    is AutoBackupResult.Failed ->
+                        failures += "自动备份未成功：${result.reason}"
+                    else -> Unit
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()

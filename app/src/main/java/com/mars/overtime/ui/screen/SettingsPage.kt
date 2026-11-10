@@ -75,6 +75,12 @@ fun SettingsPage(
                     onClick = { navController.navigate("backup_settings") }
                 )
                 SettingsActionItem(
+                    title = "安全与隐私",
+                    summary = "启动锁、生物识别与备份加密",
+                    icon = MiuixIcons.Scan,
+                    onClick = { navController.navigate("security_settings") }
+                )
+                SettingsActionItem(
                     title = "推送设置",
                     summary = "保存记录后推送到所选渠道",
                     icon = MiuixIcons.Send,

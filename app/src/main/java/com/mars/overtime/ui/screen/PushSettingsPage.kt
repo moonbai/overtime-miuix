@@ -134,7 +134,7 @@ fun PushSettingsPage(
                     items = channelItems,
                     selectedIndex = selectedIndex,
                     title = "推送渠道",
-                    summary = "选择渠道后自动开启；选择「关闭推送」即停用",
+                    summary = "选择渠道即启用",
                     onSelectedIndexChange = { index ->
                         val key = channelOptions[index].first
                         scope.launch {
@@ -143,7 +143,7 @@ fun PushSettingsPage(
                         }
                     }
                 )
-                SettingsNote(text = "保存加班记录后自动推送，配置修改立即生效，无需手动保存。")
+                SettingsNote(text = "配置修改即时生效。")
             }
         }
 
@@ -198,14 +198,14 @@ fun PushSettingsPage(
         } else {
             item {
                 SettingsGroup(title = "当前状态") {
-                    SettingsNote(text = "未选择推送渠道，推送功能已关闭。在上方选择一种渠道即可开启。")
+                    SettingsNote(text = "未选择渠道，推送已关闭。")
                 }
             }
         }
 
         item {
             SettingsGroup(title = "消息内容") {
-                SettingsNote(text = "所有渠道使用同一份字段。自定义 WebHook 默认发送结构化 JSON（含以下字段与 text 纯文本副本）；请求头显式声明 Content-Type: text/plain 时改为发送纯文本。")
+                SettingsNote(text = "自定义 WebHook 默认发送 JSON；请求头 Content-Type: text/plain 时改为纯文本。")
                 SettingsPreviewText(text = previewText)
             }
         }
