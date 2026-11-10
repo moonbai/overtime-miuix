@@ -18,7 +18,9 @@ import java.util.Locale
  * - 数据模型中没有「调休标记」「记录创建时间」：
  *   · 调休由节假日缓存的日期名称推断，缓存无该日期数据时为 null（未知），不臆测为 false；
  *   · 时间戳取推送发动时刻，而非记录创建时刻（后者需要 Room 加列并做迁移）。
- * - 数据模型中没有请假类别，因此不输出「请假类型」字段；请假记录通过「记录模式」区分。
+ * - 请假记录通过「记录模式」区分；另按录入两档（半天 4h / 全天 8h）以单一键值 `请假类别` 输出「半天事假」/「事假」。
+ * - 请假时长固定两档（与录入界面一致）：半天 4h、全天 8h，[kotlin.math.abs] 后 ≥6h 视为全天。
+ *   为方便考勤系统对接，请假时额外输出单一键值 `请假类别`，值为「半天事假」或「事假」，非请假不输出。
  *
  * 文本渠道使用 [toText]，自定义 WebHook 使用 [toJson]（结构化字段 + text 纯文本副本）。
  */
@@ -34,7 +36,9 @@ data class PushPayload(
     val rate: Double,
     val recordMode: String,
     val note: String,
-    val timestamp: String
+    val timestamp: String,
+    /** 请假类别：半天请假为「半天事假」，全天请假为「事假」，非请假为空串 */
+    val leaveCategory: String = ""
 ) {
     companion object {
         /** 数值统一格式：最多两位小数、去掉尾随 0（5.00→5，13.80→13.8） */
@@ -70,7 +74,16 @@ data class PushPayload(
                 rate = record.rate,
                 recordMode = if (record.isLeave) "请假" else "加班",
                 note = record.note,
-                timestamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", locale).format(now)
+                timestamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", locale).format(now),
+                // 请假时长固定两档：abs ≥6h 视为全天（与录入界面、MCP 口径一致）。
+                // 请假时以单一键值「请假类别」输出「半天事假」或「事假」，非请假留空。
+                leaveCategory = if (!record.isLeave) {
+                    ""
+                } else if (kotlin.math.abs(record.durationHours) >= 6.0) {
+                    "事假"
+                } else {
+                    "半天事假"
+                }
             )
         }
     }
@@ -94,6 +107,9 @@ data class PushPayload(
         append("加班费：").append(num(amount)).append('\n')
         append("倍数：").append(num(rate)).append('\n')
         append("记录模式：").append(recordMode).append('\n')
+        if (recordMode == "请假") {
+            append("请假类别：").append(leaveCategory).append('\n')
+        }
         append("备注：").append(note).append('\n')
         append("时间戳：").append(timestamp)
     }
@@ -110,6 +126,10 @@ data class PushPayload(
         put("amount", amount)
         put("rate", rate)
         put("record_mode", recordMode)
+        // 仅请假记录输出独立的「请假类别」键值，值为「半天事假」或「事假」，非请假不输出
+        if (recordMode == "请假") {
+            put("请假类别", leaveCategory)
+        }
         put("note", note)
         put("timestamp", timestamp)
         put("text", toText())
