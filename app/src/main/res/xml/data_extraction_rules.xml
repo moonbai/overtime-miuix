@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  数据萃取规则（配合 android:allowBackup="true"）：
+  系统级云备份 / 设备迁移 / 全量备份时，显式排除 DataStore 目录。
+  该目录下的 settings.preferences_pb 保存了全部偏好，含 webdav_password、
+  各渠道推送密钥、飞书/钉钉 webhook、MXNZP secret 等明文凭据。
+  排除后系统备份不再带走这些密钥；用户换机仍需依赖应用内 ZIP 备份恢复。
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="datastore" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="datastore" />
+    </device-transfer>
+    <full-backup>
+        <exclude domain="file" path="datastore" />
+    </full-backup>
+</data-extraction-rules>

@@ -310,6 +310,10 @@ class SettingsRepository(private val context: Context) {
                     KEY_PUSH_CUSTOM.name -> prefs[KEY_PUSH_CUSTOM] = value
                     KEY_PUSH_CUSTOM_HEADERS.name -> prefs[KEY_PUSH_CUSTOM_HEADERS] = value
                     KEY_DELETE_CONFIRM.name -> prefs[KEY_DELETE_CONFIRM] = value.toBoolean()
+                    KEY_ACCENT_COLOR.name -> prefs[KEY_ACCENT_COLOR] = value.toIntOrNull() ?: AppDefaults.PRIMARY_ARGB
+                    KEY_QUICK_SUBMIT.name -> prefs[KEY_QUICK_SUBMIT] = value.toBoolean()
+                    KEY_MCP_ENABLED.name -> prefs[KEY_MCP_ENABLED] = value.toBoolean()
+                    KEY_MCP_PORT.name -> prefs[KEY_MCP_PORT] = value.toIntOrNull() ?: 8080
                     KEY_HOME_LAYOUT.name -> prefs[KEY_HOME_LAYOUT] = value
                     // 兼容旧备份：旧 `home_widgets`（逗号分隔 id）转换为新布局（全部 1x1）
                     KEY_HOME_WIDGETS.name -> prefs[KEY_HOME_LAYOUT] = serializeLayout(parseLayout(value))
@@ -371,6 +375,10 @@ class SettingsRepository(private val context: Context) {
             KEY_PUSH_CUSTOM.name to pushCustom.first(),
             KEY_PUSH_CUSTOM_HEADERS.name to pushCustomHeaders.first(),
             KEY_DELETE_CONFIRM.name to deleteConfirmEnabled.first().toString(),
+            KEY_ACCENT_COLOR.name to accentColor.first().toString(),
+            KEY_QUICK_SUBMIT.name to quickSubmit.first().toString(),
+            KEY_MCP_ENABLED.name to mcpEnabled.first().toString(),
+            KEY_MCP_PORT.name to mcpPort.first().toString(),
             KEY_HOME_LAYOUT.name to serializeLayout(homeLayout.first()),
             KEY_HOME_OVERVIEW_MODE.name to homeOverviewMode.first(),
             KEY_CALENDAR_SYNC.name to calendarSyncEnabled.first().toString(),

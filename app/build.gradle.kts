@@ -104,16 +104,11 @@ android {
         }
     }
 
-    // Room KSP 配置
-    sourceSets["main"].java.srcDirs("build/generated/ksp/main/kotlin")
-
     // Release APK 输出命名规则：加班记-android-universal-版本号.apk
     androidComponents {
         onVariants(selector().withBuildType("release")) { variant ->
             variant.outputs.forEach { output ->
-                (output as? com.android.build.api.variant.impl.VariantOutputImpl)?.let { impl ->
-                    impl.outputFileName = "Overtime-android-universal-${defaultConfig.versionName}.apk"
-                }
+                output.outputFileName = "Overtime-android-universal-${defaultConfig.versionName}.apk"
             }
         }
     }

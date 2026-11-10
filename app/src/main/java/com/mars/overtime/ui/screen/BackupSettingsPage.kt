@@ -530,9 +530,9 @@ fun BackupSettingsPage(
                 summary = if (pendingImport != null) {
                     when (restoreScope) {
                         RestoreScope.ALL ->
-                            "将导入 ${pendingImport!!.records.size} 条记录（自动跳过重复），并覆盖恢复设置，确定继续吗？"
+                            "将导入 ${pendingImport?.records?.size ?: 0} 条记录（自动跳过重复），并覆盖恢复设置，确定继续吗？"
                         RestoreScope.RECORDS_ONLY ->
-                            "将仅导入 ${pendingImport!!.records.size} 条记录（自动跳过重复），不改动任何设置，确定继续吗？"
+                            "将仅导入 ${pendingImport?.records?.size ?: 0} 条记录（自动跳过重复），不改动任何设置，确定继续吗？"
                         RestoreScope.SETTINGS_ONLY ->
                             "将仅覆盖恢复设置，不导入任何记录，确定继续吗？"
                     }
@@ -610,6 +610,10 @@ fun BackupSettingsPage(
                         val name = DataMigrationUtil.generateBackupFileName()
                         exportLauncher.launch(name)
                     }
+                )
+                SettingsNote(
+                    text = "注意：备份 ZIP 内的 settings.json 包含 WebDAV 密码、各渠道推送密钥等明文凭据，" +
+                        "请勿公开分享或上传到不可信位置。"
                 )
                 SettingsActionItem(
                     title = "导入数据",

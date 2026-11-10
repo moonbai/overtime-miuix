@@ -19,8 +19,9 @@ object AppIcons
 
 val AppIcons.Home: ImageVector
     get() {
-        if (_homeRegular != null) return _homeRegular!!
-        _homeRegular = ImageVector.Builder(
+        val cached = _homeRegular
+        if (cached != null) return cached
+        val built = ImageVector.Builder(
             name = "Home.Regular",
             defaultWidth = 24.0f.dp,
             defaultHeight = 24.0f.dp,
@@ -68,7 +69,8 @@ val AppIcons.Home: ImageVector
                 pathFillType = PathFillType.NonZero,
             )
         }.build()
-        return _homeRegular!!
+        _homeRegular = built
+        return built
     }
 
 private var _homeRegular: ImageVector? = null

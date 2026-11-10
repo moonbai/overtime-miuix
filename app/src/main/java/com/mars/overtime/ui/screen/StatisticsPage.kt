@@ -567,8 +567,8 @@ fun StatisticsPage(
     }
 
     // 某天具体记录弹窗
-    if (showDayDetail && detailDay != null) {
-        val day = detailDay!!
+    val day = detailDay
+    if (showDayDetail && day != null) {
         val dateLabel = run {
             val parts = selectedMonth.split("-")
             "${parts[0]}年${parts[1]}月${day}日"
