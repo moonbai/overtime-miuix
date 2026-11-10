@@ -375,15 +375,15 @@ private fun MonthlyOverviewCard(
         stats = repository.getMonthlyStats(month)
     }
 
-    // 分类模式：本月三类加班工时（请假为负数的休息日，不单独分色，仅体现在净时长）
+    // 分类模式：本月三类工时；请假按「负数的休息日」并入休息日（状态仍显示请假）
     val typeHours = remember(records, month) {
         val cal = Calendar.getInstance()
-        var workday = 0.0; var weekend = 0.0; var holiday = 0.0; var leave = 0.0
+        var workday = 0.0; var weekend = 0.0; var holiday = 0.0
         records.forEach { rec ->
             cal.timeInMillis = rec.date
             val m = "${cal.get(Calendar.YEAR)}-${(cal.get(Calendar.MONTH) + 1).toString().padStart(2, '0')}"
             if (m == month) {
-                if (rec.isLeave) leave += rec.durationHours
+                if (rec.isLeave) weekend += rec.durationHours
                 else when (rec.type) {
                     OvertimeType.WORKDAY -> workday += rec.durationHours
                     OvertimeType.WEEKEND -> weekend += rec.durationHours
@@ -391,9 +391,9 @@ private fun MonthlyOverviewCard(
                 }
             }
         }
-        Triple(workday, weekend, holiday) to leave
+        Triple(workday, weekend, holiday)
     }
-    val maxType = maxOf(typeHours.first.first, typeHours.first.second, typeHours.first.third, 0.001)
+    val maxType = maxOf(typeHours.first, typeHours.second, typeHours.third, 0.001)
 
     Card(
         // 不再额外内缩 4dp：与小组件网格左右边缘严格对齐
@@ -450,9 +450,9 @@ private fun MonthlyOverviewCard(
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 listOf(
-                    OvertimeType.WORKDAY to typeHours.first.first,
-                    OvertimeType.WEEKEND to typeHours.first.second,
-                    OvertimeType.HOLIDAY to typeHours.first.third
+                    OvertimeType.WORKDAY to typeHours.first,
+                    OvertimeType.WEEKEND to typeHours.second,
+                    OvertimeType.HOLIDAY to typeHours.third
                 ).forEach { (type, hours) ->
                     Row(
                         modifier = Modifier

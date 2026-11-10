@@ -403,7 +403,8 @@ fun StatisticsPage(
             val month = cal.get(Calendar.MONTH)
             val bucket = buckets[month]
             if (rec.isLeave) {
-                bucket[0] += rec.durationHours
+                // 请假按「负数的休息日」并入休息日桶（不论存储的日期类型）
+                bucket[2] += rec.durationHours; typeWe += rec.durationHours
             } else when (rec.type) {
                 OvertimeType.WORKDAY -> {
                     bucket[1] += rec.durationHours; typeWd += rec.durationHours
@@ -531,9 +532,9 @@ fun StatisticsPage(
                         "总时长" to (stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0H"),
                         "加班薪资" to (stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00"),
                         "记录数" to "${stats?.recordCount ?: 0}条",
-                        "工作日加班" to (stats?.let { SalaryCalculator.formatHours(it.workdayHours) } ?: "0H"),
-                        "休息日加班" to (stats?.let { SalaryCalculator.formatHours(it.weekendHours) } ?: "0H"),
-                        "节假日加班" to (stats?.let { SalaryCalculator.formatHours(it.holidayHours) } ?: "0H")
+                        "工作日" to (stats?.let { SalaryCalculator.formatHours(it.workdayHours) } ?: "0H"),
+                        "休息日" to (stats?.let { SalaryCalculator.formatHours(it.weekendHours) } ?: "0H"),
+                        "节假日" to (stats?.let { SalaryCalculator.formatHours(it.holidayHours) } ?: "0H")
                     )
                 )
             }
@@ -718,7 +719,6 @@ private fun LegendRow(typeColor: (OvertimeType) -> Color) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        LegendItem(MiuixTheme.colorScheme.error, "请假")
         LegendItem(typeColor(OvertimeType.WORKDAY), "工作日")
         LegendItem(typeColor(OvertimeType.WEEKEND), "休息日")
         LegendItem(typeColor(OvertimeType.HOLIDAY), "节假日")

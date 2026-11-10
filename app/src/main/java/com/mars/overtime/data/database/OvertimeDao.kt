@@ -30,4 +30,12 @@ interface OvertimeDao {
 
     @Query("DELETE FROM overtime_records")
     suspend fun deleteAll()
+
+    /**
+     * 一次性数据迁移：把历史请假记录的 type 统一为休息日（WEEKEND），
+     * 实现「请假 = 负数的休息日」语义。仅更新 isLeave=1 且 type 非 WEEKEND 的记录，
+     * 幂等，重复执行无副作用。
+     */
+    @Query("UPDATE overtime_records SET type = 'WEEKEND' WHERE isLeave = 1 AND type != 'WEEKEND'")
+    suspend fun migrateLeaveTypeToWeekend(): Int
 }

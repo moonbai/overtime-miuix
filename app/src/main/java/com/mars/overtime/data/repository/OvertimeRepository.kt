@@ -37,6 +37,9 @@ class OvertimeRepository(private val database: AppDatabase) {
     
     suspend fun delete(record: OvertimeRecord) = dao.delete(record)
 
+    /** 一次性迁移：历史请假记录 type 统一为休息日，返回受影响行数（用于日志/验证）。 */
+    suspend fun migrateLeaveTypeToWeekend(): Int = dao.migrateLeaveTypeToWeekend()
+
     /** 获取某个月（yyyy-MM）内的全部记录，供日历视图按日聚合。 */
     suspend fun getMonthRecords(yearMonth: String): List<OvertimeRecord> {
         return getRecordsInRange(yearMonth, "yyyy-MM") { cal ->
@@ -103,8 +106,11 @@ class OvertimeRepository(private val database: AppDatabase) {
         records.forEach { record ->
             totalHours += record.durationHours
             totalAmount += record.amount
-            // 请假不计入加班时长分类（其负时长已通过 totalHours 抵扣，工资以负金额扣除）
-            if (!record.isLeave) {
+            // 请假按「负数的休息日」计入休息日分类（不论存储的日期类型），
+            // 与录入时 type=WEEKEND、durationHours 为负的存储口径一致
+            if (record.isLeave) {
+                weekendHours += record.durationHours
+            } else {
                 when (record.type) {
                     OvertimeType.WORKDAY -> workdayHours += record.durationHours
                     OvertimeType.WEEKEND -> weekendHours += record.durationHours

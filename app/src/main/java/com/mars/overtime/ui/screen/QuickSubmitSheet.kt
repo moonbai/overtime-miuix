@@ -355,7 +355,8 @@ fun QuickSubmitSheet(
                                 val record = OvertimeRecord(
                                     id = 0,
                                     date = today.time,
-                                    type = selectedType,
+                                    // 请假统一存为休息日（WEEKEND），落实「负数的休息日」语义
+                                    type = if (isLeave) OvertimeType.WEEKEND else selectedType,
                                     durationHours = finalDuration,
                                     baseSalary = baseSalary,
                                     rate = rate,

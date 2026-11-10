@@ -221,7 +221,6 @@ data class Aggregate(
     val monthLeaveCount: Int, val monthLeaveDeduct: Double,
     val latest: OvertimeRecord?,
     val typeWd: Double, val typeWe: Double, val typeHo: Double,
-    val typeLeave: Double,
     val typeAmountWd: Double, val typeAmountWe: Double, val typeAmountHo: Double,
     val dailyNet: List<Pair<Int, Double>>,
     val monthlyNet: List<Pair<Int, Double>>,
@@ -267,7 +266,7 @@ fun aggregateHome(records: List<OvertimeRecord>, month: String): Aggregate {
     var lNet = 0.0; var lCount = 0; var lAmount = 0.0
     var mAmount = 0.0; var mLeaveCount = 0; var mLeaveDeduct = 0.0
     var yNet = 0.0; var yAmount = 0.0; var yCount = 0
-    var wd = 0.0; var we = 0.0; var ho = 0.0; var lv = 0.0
+    var wd = 0.0; var we = 0.0; var ho = 0.0
     var amtWd = 0.0; var amtWe = 0.0; var amtHo = 0.0
     var gross = 0.0; var overtimeCount = 0
     var maxSingle = 0.0
@@ -321,10 +320,13 @@ fun aggregateHome(records: List<OvertimeRecord>, month: String): Aggregate {
             mAmount += rec.amount
             mCount++
             dailyMap[d] = (dailyMap[d] ?: 0.0) + rec.durationHours
+            // 请假按「负数的休息日」归入休息日分类（不论存储的日期类型），
+            // 同时累计请假次数与扣款用于状态展示；加班口径（gross/倍数桶）不含请假
             if (rec.isLeave) {
+                we += rec.durationHours
+                amtWe += rec.amount
                 mLeaveCount++
                 mLeaveDeduct += abs(rec.amount)
-                lv += rec.durationHours
             } else {
                 gross += rec.durationHours
                 overtimeCount++
@@ -402,7 +404,7 @@ fun aggregateHome(records: List<OvertimeRecord>, month: String): Aggregate {
         yearNet = yNet, yearAmount = yAmount, yearCount = yCount,
         monthLeaveCount = mLeaveCount, monthLeaveDeduct = mLeaveDeduct,
         latest = records.maxByOrNull { it.date },
-        typeWd = wd, typeWe = we, typeHo = ho, typeLeave = lv,
+        typeWd = wd, typeWe = we, typeHo = ho,
         typeAmountWd = amtWd, typeAmountWe = amtWe, typeAmountHo = amtHo,
         dailyNet = dailyMap.map { it.key to it.value },
         monthlyNet = monthMap.map { it.key to it.value },
@@ -431,8 +433,7 @@ fun buildTypeSegments(
 ): List<TypeSeg> = listOf(
     TypeSeg("工作日", agg.typeWd, typeColor(OvertimeType.WORKDAY)),
     TypeSeg("休息日", agg.typeWe, typeColor(OvertimeType.WEEKEND)),
-    TypeSeg("节假日", agg.typeHo, typeColor(OvertimeType.HOLIDAY)),
-    TypeSeg("请假", abs(agg.typeLeave), MiuixTheme.colorScheme.error)
+    TypeSeg("节假日", agg.typeHo, typeColor(OvertimeType.HOLIDAY))
 ).filter { it.hours > 0.0001 }
 
 // ───────────────────────── 格式化 / 配色工具 ─────────────────────────
@@ -625,7 +626,7 @@ fun WidgetBody(
                 id == "month_compare" -> MonthCompareChart(agg, accent)
                 id == "type_donut" -> DonutChart(
                     buildTypeSegments(agg, typeColor),
-                    agg.typeWd + agg.typeWe + agg.typeHo + agg.typeLeave,
+                    agg.typeWd + agg.typeWe + agg.typeHo,
                     accent
                 )
                 id == "year_month" -> ChartScaffold(

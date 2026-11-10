@@ -17,6 +17,24 @@ class OvertimeApplication : Application() {
         database = AppDatabase.getDatabase(this)
         overtimeRepository = OvertimeRepository(database)
         settingsRepository = SettingsRepository(this)
+        runLeaveTypeMigration()
+    }
+
+    /**
+     * 一次性数据迁移：历史请假记录 type 统一为休息日（WEEKEND），落实「请假 = 负数的休息日」。
+     * 用 SharedPreferences 标记保证只跑一次；迁移本身是单条 UPDATE，幂等、几乎无开销。
+     */
+    private fun runLeaveTypeMigration() {
+        val prefs = getSharedPreferences("app_migration", MODE_PRIVATE)
+        if (prefs.getBoolean("leave_type_to_weekend_v1", false)) return
+        kotlinx.coroutines.runBlocking {
+            try {
+                overtimeRepository.migrateLeaveTypeToWeekend()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        prefs.edit().putBoolean("leave_type_to_weekend_v1", true).apply()
     }
 
     // 公平运行内存机制：内存压力统一入口——预警时按档位释放缓存/空闲连接/非常驻服务

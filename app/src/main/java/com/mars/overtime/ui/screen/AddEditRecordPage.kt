@@ -641,15 +641,17 @@ private suspend fun saveRecord(
     isLeave: Boolean,
     leaveDuration: Double
 ): OvertimeRecord? {
-    // 请假记录：时长取 leaveDuration（半天 -4 / 全天 -8），工资按标准日薪比例扣减（负值）
+    // 请假记录：时长取 leaveDuration（半天 -4 / 全天 -8），工资按标准日薪比例扣减（负值）；
+    // type 统一存为休息日（WEEKEND），使「请假 = 负数的休息日」在存储层即成立
     val duration = if (isLeave) leaveDuration else durationHours
+    val recordType = if (isLeave) OvertimeType.WEEKEND else type
     val amount = if (isLeave) SalaryCalculator.calculateLeaveDeduction(baseSalary, duration)
     else SalaryCalculator.calculateOvertimeAmount(baseSalary, type, rate, duration)
 
     val record = OvertimeRecord(
         id = recordId ?: 0,
         date = date.time,
-        type = type,
+        type = recordType,
         durationHours = duration,
         baseSalary = baseSalary,
         rate = rate,
