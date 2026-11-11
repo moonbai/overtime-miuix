@@ -1,5 +1,6 @@
 package com.mars.overtime.ui.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,6 +23,7 @@ import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.mars.overtime.data.database.OvertimeRecord
@@ -114,6 +116,12 @@ fun HomePage(
             "last_month_hours" -> navController.navigate("statistics?month=${agg.lastMonth}")
             else -> navController.navigate("statistics")
         }
+    }
+
+    // 编辑态拦截系统返回：先退出编辑模式，而不是直接退出软件；
+    // 非编辑态时 enabled=false，返回键放行（正常退出 App）。
+    BackHandler(enabled = editingState.value) {
+        editingState.value = false
     }
 
     LazyColumn(
@@ -235,18 +243,25 @@ private fun HomeWidgetGrid(
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val cellW = (maxWidth - gap) / GRID_COLUMNS
         val cells = remember(draft) { packGrid(draft) }
+        // 2x2 大图卡独占整行并额外加高：它下方的所有行整体下移相同高度，
+        // 保证卡片不重叠、容器高度正确，拖拽命中测试也按新矩形计算。
+        val largeEndRows = remember(cells) {
+            cells.filter { it.spanY >= 2 }.map { it.row + it.spanY }
+        }
+        fun extraBefore(row: Int): Dp =
+            (AppDimens.widgetLargeExtraHeight.value * largeEndRows.count { it <= row }).dp
         val rects = remember(draft, cellW) {
             cells.map { c ->
                 RectDp(
                     x = (cellW + gap) * c.col,
-                    y = (cellH + gap) * c.row,
+                    y = (cellH + gap) * c.row + extraBefore(c.row),
                     w = cellW * c.spanX + gap * (c.spanX - 1),
-                    h = cellH * c.spanY + gap * (c.spanY - 1)
+                    h = widgetCardHeight(c.spanY)
                 )
             }
         }
         val totalRows = cells.maxOfOrNull { it.row + it.spanY } ?: 0
-        val totalHeight = cellH * totalRows + gap * (totalRows - 1)
+        val totalHeight = cellH * totalRows + gap * (totalRows - 1) + extraBefore(totalRows)
         val density = LocalDensity.current
         val refState = remember { mutableStateOf(GridRef(draft, rects, cells, cellW, cellH)) }
         refState.value = GridRef(draft, rects, cells, cellW, cellH)

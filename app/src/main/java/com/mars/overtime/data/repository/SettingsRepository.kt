@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import com.mars.overtime.security.PasswordCrypto
 import com.mars.overtime.util.AppDefaults
+import com.mars.overtime.util.OvertimeDurationEstimator
 import com.mars.overtime.util.HolidayDataSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -104,6 +105,10 @@ class SettingsRepository(private val context: Context) {
         .map { it[KEY_WORKING_DAYS_PER_MONTH] ?: DEFAULT_WORKING_DAYS_PER_MONTH }
     val hoursPerDay: Flow<Double> = settingsFlow
         .map { it[KEY_HOURS_PER_DAY] ?: DEFAULT_HOURS_PER_DAY }
+
+    /** 工作日下班时刻（距零点分钟数）；[OvertimeDurationEstimator.UNSET] 表示未配置、不自动识别。 */
+    val workdayEndMinutes: Flow<Int> = settingsFlow
+        .map { it[KEY_WORKDAY_END_MINUTES] ?: OvertimeDurationEstimator.UNSET }
 
     // 加班类型配色（统计日历等使用）
     val typeColorWorkday: Flow<Int> = settingsFlow.map { it[KEY_TYPE_COLOR_WORKDAY] ?: AppDefaults.PRIMARY_ARGB }
@@ -250,6 +255,14 @@ class SettingsRepository(private val context: Context) {
     suspend fun setWorkdayRate(rate: Double) { context.dataStore.edit { it[KEY_WORKDAY_RATE] = rate } }
     suspend fun setWeekendRate(rate: Double) { context.dataStore.edit { it[KEY_WEEKEND_RATE] = rate } }
     suspend fun setHolidayRate(rate: Double) { context.dataStore.edit { it[KEY_HOLIDAY_RATE] = rate } }
+
+    /** 写入工作日下班时刻；传入 [OvertimeDurationEstimator.UNSET] 表示关闭自动识别。 */
+    suspend fun setWorkdayEndMinutes(minutes: Int) {
+        context.dataStore.edit {
+            it[KEY_WORKDAY_END_MINUTES] =
+                minutes.takeIf { value -> value in 0..1439 } ?: OvertimeDurationEstimator.UNSET
+        }
+    }
 
     suspend fun setMcpEnabled(enabled: Boolean) { context.dataStore.edit { it[KEY_MCP_ENABLED] = enabled } }
     suspend fun setMcpPort(port: Int) { context.dataStore.edit { it[KEY_MCP_PORT] = port } }
@@ -444,6 +457,8 @@ class SettingsRepository(private val context: Context) {
                     KEY_HOLIDAY_MXNZP_APP_ID.name -> prefs[KEY_HOLIDAY_MXNZP_APP_ID] = value
                     KEY_HOLIDAY_MXNZP_APP_SECRET.name -> prefs[KEY_HOLIDAY_MXNZP_APP_SECRET] = value
                     KEY_HOLIDAY_IGNORE_HOLIDAY.name -> prefs[KEY_HOLIDAY_IGNORE_HOLIDAY] = value.toBoolean()
+                    KEY_WORKDAY_END_MINUTES.name -> prefs[KEY_WORKDAY_END_MINUTES] =
+                        value.toIntOrNull()?.takeIf { it in 0..1439 } ?: OvertimeDurationEstimator.UNSET
                 }
             }
         }
@@ -505,7 +520,8 @@ class SettingsRepository(private val context: Context) {
             KEY_HOLIDAY_CUSTOM_URL.name to holidayCustomUrl.first(),
             KEY_HOLIDAY_MXNZP_APP_ID.name to holidayMxnzpAppId.first(),
             KEY_HOLIDAY_MXNZP_APP_SECRET.name to holidayMxnzpAppSecret.first(),
-            KEY_HOLIDAY_IGNORE_HOLIDAY.name to holidayIgnoreHoliday.first().toString()
+            KEY_HOLIDAY_IGNORE_HOLIDAY.name to holidayIgnoreHoliday.first().toString(),
+            KEY_WORKDAY_END_MINUTES.name to workdayEndMinutes.first().toString()
         )
     }
 
@@ -542,6 +558,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_WORKDAY_RATE = doublePreferencesKey("workday_rate")
         private val KEY_WEEKEND_RATE = doublePreferencesKey("weekend_rate")
         private val KEY_HOLIDAY_RATE = doublePreferencesKey("holiday_rate")
+        private val KEY_WORKDAY_END_MINUTES = intPreferencesKey("workday_end_minutes")
 
         private val KEY_MCP_ENABLED = booleanPreferencesKey("mcp_enabled")
         private val KEY_MCP_PORT = intPreferencesKey("mcp_port")

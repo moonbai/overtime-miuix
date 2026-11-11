@@ -25,6 +25,7 @@ import com.mars.overtime.ui.snackbar.showCustomToast
 import com.mars.overtime.util.AppDateFormats
 import com.mars.overtime.util.HolidayDataSource
 import com.mars.overtime.util.HolidayManager
+import com.mars.overtime.util.OvertimeDurationEstimator
 import com.mars.overtime.util.RecordSyncHelper
 import com.mars.overtime.util.SalaryCalculator
 import kotlinx.coroutines.launch
@@ -110,13 +111,26 @@ fun AddEditRecordPage(
         )
     }
 
+    // 类型判定是 suspend（可能读节假日缓存 / 发请求），完成后再放行自动时长，
+    // 否则会先按默认 WORKDAY 算出时长、随后被改成休息日却留下工作日口径的值。
+    var autoTypeResolved by remember { mutableStateOf(false) }
+
     // 依据所选日期自动判定加班类型（除非用户已手动更改、或为请假记录）
     LaunchedEffect(selectedDate, isLeave, typeManuallyChanged) {
-        if (isLeave || typeManuallyChanged) return@LaunchedEffect
-        val dateStr = AppDateFormats.isoDay(selectedDate.time)
-        val autoType = HolidayManager.getOvertimeType(dateStr)
-        selectedType = autoType
-        autoTypeHint = autoType.label
+        if (isLeave || typeManuallyChanged) {
+            autoTypeResolved = true
+            return@LaunchedEffect
+        }
+        try {
+            val dateStr = AppDateFormats.isoDay(selectedDate.time)
+            val autoType = HolidayManager.getOvertimeType(dateStr)
+            selectedType = autoType
+            autoTypeHint = autoType.label
+        } finally {
+            // 判定失败也要放行：此时沿用默认 WORKDAY，按工作日下班时刻估算仍然合理，
+            // 不能让「已配置下班时间」变成静默不生效。
+            autoTypeResolved = true
+        }
     }
 
     var showTypePicker by remember { mutableStateOf(false) }
@@ -138,6 +152,35 @@ fun AddEditRecordPage(
     fun indexOfDuration(hours: Double): Int {
         val idx = ((hours / 0.5).roundToLong() - 1).toInt()
         return idx.coerceIn(0, durationOptions.size - 1)
+    }
+
+    val workdayEndMinutes by settingsRepository.workdayEndMinutes
+        .collectAsState(initial = OvertimeDurationEstimator.UNSET)
+    var autoDurationApplied by remember { mutableStateOf(false) }
+
+    // 新建 + 今天 + 工作日 + 非请假：按下班时刻自动填一次时长。
+    // 编辑已有记录、补录历史日期、休息日/节假日、未配置下班时刻都保持原默认 2.0h。
+    // 一次性标志避免用户手动调整时长后被后续重组覆盖。
+    LaunchedEffect(
+        recordId, workdayEndMinutes, selectedType, isLeave,
+        autoTypeResolved, autoDurationApplied
+    ) {
+        if (recordId != null || autoDurationApplied || !autoTypeResolved) return@LaunchedEffect
+        if (workdayEndMinutes < 0) return@LaunchedEffect // 等 Flow 就绪；-1 即未配置
+        if (isLeave || selectedType != OvertimeType.WORKDAY) return@LaunchedEffect
+        if (AppDateFormats.isoDay(selectedDate.time) !=
+            AppDateFormats.isoDay(System.currentTimeMillis())
+        ) return@LaunchedEffect
+        val estimated = OvertimeDurationEstimator.estimate(
+            workdayEndMinutes,
+            OvertimeDurationEstimator.nowMinutes(),
+            maxDurationHours
+        )
+        if (estimated != null) {
+            durationHours = estimated
+            pickDurationIndex = indexOfDuration(estimated)
+        }
+        autoDurationApplied = true
     }
 
     // 类型变化（手动切换/按日期自动判定）后，现有时长超过新上限时压到上限

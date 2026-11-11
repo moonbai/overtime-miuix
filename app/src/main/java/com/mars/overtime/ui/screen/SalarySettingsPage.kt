@@ -13,6 +13,7 @@ import androidx.navigation.NavHostController
 import com.mars.overtime.data.repository.SettingsRepository
 import com.mars.overtime.ui.snackbar.LocalSnackbarHostState
 import com.mars.overtime.ui.snackbar.showCustomToast
+import com.mars.overtime.util.OvertimeDurationEstimator
 import com.mars.overtime.util.SalaryCalculator
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
@@ -39,6 +40,8 @@ fun SalarySettingsPage(
         .collectAsState(initial = SalaryCalculator.DEFAULT_WORKING_DAYS_PER_MONTH)
     val hoursPerDay by settingsRepository.hoursPerDay
         .collectAsState(initial = SalaryCalculator.DEFAULT_HOURS_PER_DAY)
+    val workdayEndMinutes by settingsRepository.workdayEndMinutes
+        .collectAsState(initial = OvertimeDurationEstimator.UNSET)
 
     var salaryText by remember { mutableStateOf(baseSalary.toString()) }
     var workdayText by remember { mutableStateOf(workdayRate.toString()) }
@@ -46,6 +49,7 @@ fun SalarySettingsPage(
     var holidayText by remember { mutableStateOf(holidayRate.toString()) }
     var daysText by remember { mutableStateOf(workingDaysPerMonth.toString()) }
     var hoursText by remember { mutableStateOf(hoursPerDay.toString()) }
+    var endTimeText by remember { mutableStateOf("") }
 
     // DataStore 值被外部（如备份恢复）改变时同步回输入框
     LaunchedEffect(baseSalary) { salaryText = baseSalary.toString() }
@@ -54,8 +58,13 @@ fun SalarySettingsPage(
     LaunchedEffect(holidayRate) { holidayText = holidayRate.toString() }
     LaunchedEffect(workingDaysPerMonth) { daysText = workingDaysPerMonth.toString() }
     LaunchedEffect(hoursPerDay) { hoursText = hoursPerDay.toString() }
+    LaunchedEffect(workdayEndMinutes) {
+        endTimeText = OvertimeDurationEstimator.formatEndMinutes(workdayEndMinutes)
+    }
 
-    // 校验：基础薪资与倍率均须为正；非法输入拦截保存
+    // 校验：基础薪资与倍率均须为正；下班时间留空合法（关闭自动识别），非空须为 HH:mm
+    val endMinutesParsed = OvertimeDurationEstimator.parseEndMinutes(endTimeText)
+    val endTimeValid = endMinutesParsed != null
     fun parsePositive(text: String): Double? = text.toDoubleOrNull()?.takeIf { it > 0 }
     val salaryValid = parsePositive(salaryText) != null
     val workdayValid = parsePositive(workdayText) != null
@@ -64,7 +73,7 @@ fun SalarySettingsPage(
     val daysValid = parsePositive(daysText) != null
     val hoursValid = parsePositive(hoursText) != null
     val allValid = salaryValid && workdayValid && weekendValid && holidayValid &&
-            daysValid && hoursValid
+            daysValid && hoursValid && endTimeValid
 
     val isDirty = salaryText != baseSalary.toString()
             || workdayText != workdayRate.toString()
@@ -72,6 +81,7 @@ fun SalarySettingsPage(
             || holidayText != holidayRate.toString()
             || daysText != workingDaysPerMonth.toString()
             || hoursText != hoursPerDay.toString()
+            || endTimeText != OvertimeDurationEstimator.formatEndMinutes(workdayEndMinutes)
 
     // 按当前输入框草稿实时试算：口径与 SalaryCalculator 保持一致，
     // 让用户调整基础薪资/倍率/计薪口径时立刻看到结果，无需先保存再回记录页验证。
@@ -177,6 +187,20 @@ fun SalarySettingsPage(
         }
 
         item {
+            SettingsGroup(title = "时长自动识别") {
+                SettingsNote(text = "留空关闭；下班后按已完成的 0.5H 档自动填时长。")
+                SettingsTextField(
+                    value = endTimeText,
+                    onValueChange = { endTimeText = it },
+                    label = "工作日下班时间（HH:mm）"
+                )
+                if (!endTimeValid) {
+                    SettingsNote(text = "需为 HH:mm，如 17:00", isError = true)
+                }
+            }
+        }
+
+        item {
             SettingsGroup{
                 SettingsSwitchItem(
                     title = "记录删除确认",
@@ -207,6 +231,10 @@ fun SalarySettingsPage(
                             settingsRepository.setHolidayRate(holidayText.toDouble())
                             settingsRepository.setWorkingDaysPerMonth(daysText.toDouble())
                             settingsRepository.setHoursPerDay(hoursText.toDouble())
+                            settingsRepository.setWorkdayEndMinutes(
+                                OvertimeDurationEstimator.parseEndMinutes(endTimeText)
+                                    ?: OvertimeDurationEstimator.UNSET
+                            )
                             // 立即同步纯 Kotlin 计算工具，无需等 DataStore Flow 回填
                             SalaryCalculator.configure(daysText.toDouble(), hoursText.toDouble())
                             snackbarHostState.showCustomToast("已保存基础设置")

@@ -16,6 +16,7 @@ import com.mars.overtime.data.repository.SettingsRepository
 import com.mars.overtime.util.AppDateFormats
 import com.mars.overtime.util.HolidayDataSource
 import com.mars.overtime.util.HolidayManager
+import com.mars.overtime.util.OvertimeDurationEstimator
 import com.mars.overtime.util.RecordSyncHelper
 import com.mars.overtime.util.SalaryCalculator
 import kotlinx.coroutines.flow.first
@@ -61,6 +62,10 @@ fun QuickSubmitSheet(
     val holidayMxnzpAppId by settingsRepository.holidayMxnzpAppId.collectAsState(initial = "")
     val holidayMxnzpAppSecret by settingsRepository.holidayMxnzpAppSecret.collectAsState(initial = "")
     val holidayIgnoreHoliday by settingsRepository.holidayIgnoreHoliday.collectAsState(initial = false)
+    val workdayEndMinutes by settingsRepository.workdayEndMinutes
+        .collectAsState(initial = OvertimeDurationEstimator.UNSET)
+    // 常驻 LaunchedEffect 读最新值，但不加入 key：弹窗开着时设置值变化不应重跑并复位提交状态
+    val currentEndMinutes by rememberUpdatedState(workdayEndMinutes)
 
     val today = remember { Date() }
     val dateStr = remember { AppDateFormats.isoDay(today.time) }
@@ -115,6 +120,16 @@ fun QuickSubmitSheet(
                 )
                 selectedType = HolidayManager.getOvertimeType(dateStr)
                 autoDetected = true
+            }
+            // 打开时按工作日下班时刻自动填一次时长。必须在类型判定之后：
+            // 休息日 / 节假日没有下班时刻概念，保持原默认值不动。
+            if (!isLeave && selectedType == OvertimeType.WORKDAY) {
+                val estimated = OvertimeDurationEstimator.estimate(
+                    currentEndMinutes,
+                    OvertimeDurationEstimator.nowMinutes(),
+                    OvertimeDurationEstimator.MAX_WORKDAY_HOURS
+                )
+                if (estimated != null) durationHours = estimated
             }
         }
     }

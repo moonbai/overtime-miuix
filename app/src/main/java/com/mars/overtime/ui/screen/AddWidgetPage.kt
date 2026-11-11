@@ -143,7 +143,7 @@ fun AddWidgetPage(
                     ) {
                         val cellW = (maxWidth - AppDimens.groupSpacing) / GRID_COLUMNS
                         val w = cellW * def.fixedSpanX + AppDimens.groupSpacing * (def.fixedSpanX - 1)
-                        val h = CELL_HEIGHT * def.fixedSpanY + AppDimens.groupSpacing * (def.fixedSpanY - 1)
+                        val h = widgetCardHeight(def.fixedSpanY)
                         Box(Modifier.width(w).height(h)) {
                             PreviewWidgetCard(
                                 id = def.id,

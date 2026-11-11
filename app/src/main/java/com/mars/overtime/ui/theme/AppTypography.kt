@@ -1,8 +1,10 @@
 package com.mars.overtime.ui.theme
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -60,3 +62,26 @@ fun AppHeadline1Bold(): TextStyle =
 @Composable
 fun AppHeadline2Bold(): TextStyle =
     MiuixTheme.textStyles.headline2.copy(fontWeight = FontWeight.Bold)
+
+/**
+ * 密集网格 / 摘要条专用字号：以 dp 为物理锚点反算 sp，
+ * 抵消系统「大字体」的 fontScale，避免日历日期数字被撑出格子、摘要数值挤压换行。
+ * 字体大小决策仍集中在这一层，页面里不写裸 fontSize。
+ */
+@Composable
+private fun fixedDpText(dp: Float): androidx.compose.ui.unit.TextUnit =
+    (dp / LocalDensity.current.fontScale.coerceAtLeast(0.5f)).sp
+
+@Composable
+fun AppCalendarDayText(): TextStyle {
+    val size = fixedDpText(AppDimens.widgetCalendarDayText.value)
+    return MiuixTheme.textStyles.footnote1.copy(fontSize = size, lineHeight = size)
+}
+
+@Composable
+fun AppWidgetSummaryValue(): TextStyle =
+    MiuixTheme.textStyles.body2.copy(
+        fontWeight = FontWeight.SemiBold,
+        fontSize = fixedDpText(AppDimens.widgetSummaryText.value),
+        lineHeight = fixedDpText(AppDimens.widgetSummaryText.value)
+    )

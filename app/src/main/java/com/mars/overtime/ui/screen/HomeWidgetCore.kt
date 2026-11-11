@@ -2,6 +2,7 @@ package com.mars.overtime.ui.screen
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -20,9 +21,11 @@ import androidx.compose.ui.unit.sp
 import com.mars.overtime.data.database.OvertimeRecord
 import com.mars.overtime.data.model.OvertimeType
 import com.mars.overtime.data.repository.WidgetPlacement
+import com.mars.overtime.ui.theme.AppCalendarDayText
 import com.mars.overtime.ui.theme.AppDimens
 import com.mars.overtime.ui.theme.AppHeadline2Bold
 import com.mars.overtime.ui.theme.AppShapes
+import com.mars.overtime.ui.theme.AppWidgetSummaryValue
 import com.mars.overtime.util.SalaryCalculator
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
@@ -43,8 +46,19 @@ const val GRID_COLUMNS = 2
  * 旧值 104dp 扣掉 14dp×2 内边距后只剩 76dp，标题 + 数值 + 副信息必然挤在一起；
  * 取 128dp（内容区 100dp）：数值卡放得下「标题 / 主数值 / 进度条 / 胶囊」四层，
  * 2x1 图表卡也放得下「标题 / 摘要行 / 图形 / 图例」而不互相挤压。
+ * 2x2 大图卡另由 [widgetCardHeight] 追加留白，日历等密集网格不再被压扁。
  */
 val CELL_HEIGHT: Dp = AppDimens.widgetCellHeight
+
+/**
+ * 组件卡片最终高度：2x2 大图卡在两行基准之上额外增高 [AppDimens.widgetLargeExtraHeight]。
+ * 日历/环形/月度综合这类组件的信息层次远多于数值卡，只按 128dp×2 排会把格子压扁；
+ * 2x2 卡独占整行（spanX=2），单独加高不会与同行卡片错位。
+ * 首页网格与「添加组件」预览共用此函数，保证「预览即所见」。
+ */
+fun widgetCardHeight(spanY: Int): Dp =
+    CELL_HEIGHT * spanY + AppDimens.groupSpacing * (spanY - 1) +
+        if (spanY >= 2) AppDimens.widgetLargeExtraHeight else 0.dp
 
 // ───────────────────────── 组件目录 ─────────────────────────
 
@@ -601,7 +615,7 @@ fun WidgetBody(
             accent = accent,
             badge = widgetBadge(id, agg, month)
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 id in METRIC_IDS -> MetricContent(id, agg, accent)
@@ -650,7 +664,7 @@ fun WidgetBody(
                         "峰值" to widgetHours(agg.maxDailyHours)
                     )
                 ) {
-                    CalendarHeatmap(agg, accent)
+                    CalendarHeatmap(agg, accent, month)
                 }
                 id == "month_summary" -> ChartScaffold(
                     summary = listOf(
@@ -751,7 +765,7 @@ private fun MetricSub(m: Metric, accent: Color) {
                 if (m.trend > 0) accent.copy(alpha = 0.12f)
                 else MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.75f)
             )
-            .padding(horizontal = 8.dp, vertical = 5.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (m.trend != 0) {
@@ -783,20 +797,22 @@ private fun ChartScaffold(
 ) {
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f).fillMaxWidth(), content = content)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
         Row(
             Modifier
                 .fillMaxWidth()
                 .clip(AppShapes.radiusMd)
                 .background(MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f))
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
+                .padding(horizontal = 4.dp, vertical = 5.dp)
         ) {
             summary.forEach { (label, value) ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
                         text = value,
-                        style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.SemiBold),
+                        style = AppWidgetSummaryValue(),
                         color = MiuixTheme.colorScheme.onSurface,
                         maxLines = 1,
                         softWrap = false,
@@ -833,23 +849,16 @@ private fun ColumnBars(
     val trackColor = MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
     val subtle = MiuixTheme.colorScheme.onSurfaceVariantSummary
     Column(modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(
-                text = "峰值 ${widgetHours(maxAbs)}",
-                style = MiuixTheme.textStyles.footnote1,
-                color = subtle,
-                maxLines = 1,
-                softWrap = false
-            )
-            Text(
-                text = "${entries.count { abs(it.value) > 0.0001 }} 项有数据",
-                style = MiuixTheme.textStyles.footnote1,
-                color = subtle,
-                maxLines = 1,
-                softWrap = false
-            )
-        }
-        Spacer(Modifier.height(6.dp))
+        // 2x1 卡内容区仅 ~72dp：只留「峰值」这一条口径提示，
+        // 「N 项有数据」信息价值低且会压缩柱高，统一移除。
+        Text(
+            text = "峰值 ${widgetHours(maxAbs)}",
+            style = MiuixTheme.textStyles.footnote1,
+            color = subtle,
+            maxLines = 1,
+            softWrap = false
+        )
+        Spacer(Modifier.height(4.dp))
         Box(Modifier.weight(1f).fillMaxWidth()) {
             Canvas(Modifier.fillMaxSize()) {
                 for (i in 1..3) {
@@ -943,12 +952,13 @@ private fun TypeBarChart(segs: List<TypeSeg>) {
         return
     }
     val total = segs.sumOf { it.hours }
-    val subtle = MiuixTheme.colorScheme.onSurfaceVariantSummary
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("合计 ${widgetHours(total)}", style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurface, maxLines = 1)
-            Text("${segs.size} 类", style = MiuixTheme.textStyles.footnote1, color = subtle, maxLines = 1)
-        }
+        Text(
+            "合计 ${widgetHours(total)}",
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurface,
+            maxLines = 1
+        )
         Spacer(Modifier.height(4.dp))
         Box(
             Modifier
@@ -1257,87 +1267,101 @@ private fun DonutChart(segs: List<TypeSeg>, net: Double, accent: Color) {
     }
 }
 
-/** 本月日历热力图：周一为首列，色深表示单日净工时 */
+/**
+ * 本月日历热力图：周一为首列，色深表示单日净工时。
+ * 行/列统一留 [AppDimens.widgetCalendarCellGap] 间隙，避免相邻色块连成一片；
+ * 日期数字用 dp 锚定字号，系统大字体下也不会顶满格子；当天叠加主色描边。
+ */
 @Composable
-private fun CalendarHeatmap(agg: Aggregate, accent: Color) {
+private fun CalendarHeatmap(agg: Aggregate, accent: Color, month: String) {
     val days = agg.dailyNet
     val maxAbs = days.maxOfOrNull { abs(it.second) }?.coerceAtLeast(0.001) ?: 0.001
     val offset = agg.monthFirstDayOffset
     val rows = (offset + days.size + 6) / 7
     val subtle = MiuixTheme.colorScheme.onSurfaceVariantSummary
     val emptyCell = MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
+    val cellGap = AppDimens.widgetCalendarCellGap
+    // 只有展示当前月时才标记「今天」；切到历史月份不误标
+    val todayDay = if (month == SalaryCalculator.getCurrentYearMonth())
+        Calendar.getInstance().get(Calendar.DAY_OF_MONTH) else -1
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth()) {
-            listOf("一", "二", "三", "四", "五", "六", "日").forEach { d ->
+            listOf("一", "二", "三", "四", "五", "六", "日").forEachIndexed { i, d ->
                 Text(
                     text = d,
                     style = MiuixTheme.textStyles.footnote1,
-                    color = subtle,
+                    color = subtle.copy(alpha = if (i >= 5) 0.55f else 0.8f),
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     modifier = Modifier.weight(1f)
                 )
             }
         }
-        Spacer(Modifier.height(4.dp))
-        repeat(rows) { r ->
-            Row(
-                Modifier.fillMaxWidth().weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                repeat(7) { c ->
-                    // 网格线性索引从 0 开始，日期从 1 开始：必须 +1，
-                    // 否则 1 号会落到 offset 列的右边一格，整月日期与星期错开一天。
-                    val dayOfMonth = r * 7 + c - offset + 1
-                    val net = if (dayOfMonth in 1..days.size) days[dayOfMonth - 1].second else null
-                    val cellColor = when {
-                        net == null -> Color.Transparent
-                        abs(net) < 0.0001 -> emptyCell
-                        net < 0 -> MiuixTheme.colorScheme.error.copy(alpha = 0.7f)
-                        else -> accent.copy(alpha = 0.22f + 0.78f * (net / maxAbs).toFloat().coerceIn(0f, 1f))
-                    }
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(AppShapes.radiusXs)
-                            .background(cellColor),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (net != null) {
-                            Text(
-                                text = "$dayOfMonth",
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = if (abs(net) / maxAbs > 0.55f)
-                                    MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurface,
-                                maxLines = 1
-                            )
+        Spacer(Modifier.height(6.dp))
+        Column(
+            Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(cellGap)
+        ) {
+            repeat(rows) { r ->
+                Row(
+                    Modifier.fillMaxWidth().weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(cellGap)
+                ) {
+                    repeat(7) { c ->
+                        // 网格线性索引从 0 开始，日期从 1 开始：必须 +1，
+                        // 否则 1 号会落到 offset 列的右边一格，整月日期与星期错开一天。
+                        val dayOfMonth = r * 7 + c - offset + 1
+                        val net = if (dayOfMonth in 1..days.size) days[dayOfMonth - 1].second else null
+                        val cellColor = when {
+                            net == null -> Color.Transparent
+                            abs(net) < 0.0001 -> emptyCell
+                            net < 0 -> MiuixTheme.colorScheme.error.copy(alpha = 0.7f)
+                            else -> accent.copy(alpha = 0.22f + 0.78f * (net / maxAbs).toFloat().coerceIn(0f, 1f))
+                        }
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(AppShapes.radiusXs)
+                                .background(cellColor)
+                                .then(
+                                    if (net != null && dayOfMonth == todayDay) Modifier.border(
+                                        AppDimens.dayTodayBorderWidth,
+                                        MiuixTheme.colorScheme.primary,
+                                        AppShapes.radiusXs
+                                    ) else Modifier
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (net != null) {
+                                Text(
+                                    text = "$dayOfMonth",
+                                    style = AppCalendarDayText(),
+                                    color = if (abs(net) / maxAbs > 0.55f)
+                                        MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurface,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
                 }
             }
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
+        // 色阶图例压到一行；「峰值」由底部摘要条统一展示，这里不再重复
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("少", style = MiuixTheme.textStyles.footnote1, color = subtle, maxLines = 1)
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(4.dp))
             listOf(0.25f, 0.5f, 0.75f, 1f).forEach { a ->
                 Box(
                     Modifier
-                        .size(12.dp)
+                        .size(9.dp)
                         .clip(AppShapes.radiusXs)
                         .background(accent.copy(alpha = 0.15f + 0.85f * a))
                 )
-                Spacer(Modifier.width(4.dp))
+                Spacer(Modifier.width(3.dp))
             }
             Text("多", style = MiuixTheme.textStyles.footnote1, color = subtle, maxLines = 1)
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = "峰值 ${widgetHours(maxAbs)}",
-                style = MiuixTheme.textStyles.footnote1,
-                color = subtle,
-                maxLines = 1
-            )
         }
     }
 }

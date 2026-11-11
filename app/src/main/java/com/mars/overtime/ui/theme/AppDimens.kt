@@ -75,6 +75,13 @@ object AppDimens {
     val hairline = 1.dp              // 编辑态描边、图表细柱间隙
     val widgetDragElevation = 8.dp   // 拖动中的抬升阴影
     val widgetCellHeight = 128.dp    // 1x1 卡片高度，2x1 / 2x2 由它推导（容纳标题/数值/进度条/胶囊四层）
+    // 2x2 大图卡在两行基准之上额外增高：日历有「星期行 + 6 行格子 + 图例 + 摘要条」，
+    // 240dp 内容区里格子会被压到 ~18dp。独占整行，加高不会造成左右错位。
+    val widgetLargeExtraHeight = 28.dp
+    val widgetCalendarCellGap = 3.dp // 日历格子行/列间距，避免色块上下连片
+    // 密集数据文字用 dp 锚定字号，系统大字体下也不会撑破格子/摘要条
+    val widgetCalendarDayText = 12.dp
+    val widgetSummaryText = 14.dp
     val widgetDonutSize = 96.dp      // 2x2 卡片内环形图直径
     val overviewLabelWidth = 48.dp  // 概览卡分类行标签列宽
     val overviewValueWidth = 56.dp  // 概览卡分类行数值列宽
