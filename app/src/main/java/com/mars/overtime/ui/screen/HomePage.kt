@@ -458,7 +458,7 @@ private fun MonthlyOverviewCard(
                 ) {
                     StatItem(
                         "净时长",
-                        stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0小时"
+                        stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0H"
                     )
                     StatItem("预估薪资", stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
                     StatItem("记录数", "${stats?.recordCount ?: 0}条")
@@ -509,7 +509,7 @@ private fun MonthlyOverviewCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatItem("总时长", stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0小时")
+                    StatItem("总时长", stats?.let { SalaryCalculator.formatHours(it.totalHours) } ?: "0H")
                     StatItem("预估薪资", stats?.let { SalaryCalculator.formatAmount(it.totalAmount) } ?: "¥0.00")
                     StatItem("记录数", "${stats?.recordCount ?: 0}条")
                 }

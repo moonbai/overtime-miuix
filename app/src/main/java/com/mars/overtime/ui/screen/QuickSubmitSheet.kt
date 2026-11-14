@@ -3,6 +3,11 @@ import com.mars.overtime.ui.theme.AppShapes
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.unit.Dp
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +33,9 @@ import android.content.Context
 import androidx.activity.compose.BackHandler
 import java.text.SimpleDateFormat
 import java.util.*
+
+/** 时长档位条单个档位块宽度；与滑块共用 0.5h 步进，当前档位自动滚动居中 */
+private val DURATION_CHIP_WIDTH: Dp = 56.dp
 
 /**
  * 快速提报对话框：一键记录「今天」的加班。
@@ -255,39 +263,73 @@ fun QuickSubmitSheet(
                 }
             }
 
-            // 时长快捷选择：请假只提供半天(4h) / 全天(8h)，加班保留 0.5h 梯度档位
-            val durationOptions = if (isLeave) listOf(4.0, 8.0) else listOf(0.5, 1.0, 2.0, 3.0, 4.0)
+            // 时长选择：请假固定半天(4h)/全天(8h) 两档；加班与下方滑块共用 0.5h 步进档位条。
+            // 档位条覆盖滑块整个取值域，拖动滑块时当前档位自动滚动居中并高亮，
+            // 点击档位也会反向驱动滑块 —— 保证任意时长都有对应档位，不会整排全灰。
             val currentDuration = if (isLeave) kotlin.math.abs(leaveDuration) else durationHours
+            // 滑块拖动中：档位条即时定位跟手；松手/点击档位：平滑动画居中
+            var sliderDragging by remember { mutableStateOf(false) }
             SmallTitle(
                 text = if (isLeave) "请假时长：${SalaryCalculator.formatHours(kotlin.math.abs(leaveDuration))}"
                 else "加班时长：${SalaryCalculator.formatHours(durationHours)}"
             )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                durationOptions.forEach { h ->
-                    val selected = currentDuration == h
-                    Surface(
-                        onClick = { if (isLeave) leaveDuration = -h else durationHours = h },
-                        color = if (selected) MiuixTheme.colorScheme.primary
-                        else MiuixTheme.colorScheme.secondaryContainer,
-                        contentColor = if (selected) MiuixTheme.colorScheme.onPrimary
-                        else MiuixTheme.colorScheme.onSecondaryContainer,
-                        shape = AppShapes.radiusMd,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = SalaryCalculator.formatHours(h),
-                            style = MiuixTheme.textStyles.body2,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 10.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            if (isLeave) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(4.0, 8.0).forEach { h ->
+                        DurationChip(
+                            hours = h,
+                            selected = kotlin.math.abs(currentDuration - h) < 0.001,
+                            onClick = { leaveDuration = -h },
+                            modifier = Modifier.weight(1f)
                         )
+                    }
+                }
+            } else {
+                // 0.5h 步进覆盖到上限：0.5, 1.0, ..., maxDurationHours
+                val durationSteps = remember(maxDurationHours) {
+                    (1..(maxDurationHours / 0.5).toInt()).map { it * 0.5 }
+                }
+                val selectedIndex = remember(currentDuration, durationSteps) {
+                    durationSteps.indexOfFirst { kotlin.math.abs(it - currentDuration) < 0.001 }
+                        .coerceAtLeast(0)
+                }
+                val durationListState = rememberLazyListState()
+                // 首次直接定位（无动画）；拖动中即时跟随避免动画排队抖动，其余平滑居中。
+                var durationScrolled by remember { mutableStateOf(false) }
+                val dragging by rememberUpdatedState(sliderDragging)
+                LaunchedEffect(selectedIndex, durationSteps) {
+                    if (!durationScrolled) {
+                        durationListState.scrollToItem(selectedIndex)
+                        durationScrolled = true
+                    } else if (dragging) {
+                        durationListState.scrollToItem(selectedIndex)
+                    } else {
+                        durationListState.animateScrollToItem(selectedIndex)
+                    }
+                }
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    // 首尾留白 = (视口宽 - 单个档位宽)/2，使首尾档位也能滚到正中
+                    val sidePadding = if (maxWidth > DURATION_CHIP_WIDTH)
+                        (maxWidth - DURATION_CHIP_WIDTH) / 2 else 0.dp
+                    LazyRow(
+                        state = durationListState,
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = sidePadding)
+                    ) {
+                        items(durationSteps, key = { it }) { h ->
+                            DurationChip(
+                                hours = h,
+                                selected = kotlin.math.abs(currentDuration - h) < 0.001,
+                                onClick = { durationHours = h },
+                                modifier = Modifier.width(DURATION_CHIP_WIDTH)
+                            )
+                        }
                     }
                 }
             }
@@ -298,11 +340,12 @@ fun QuickSubmitSheet(
                 Slider(
                     value = durationHours.toFloat(),
                     onValueChange = { value ->
-                        // 吸附到 0.5h 档位，避免出现 2.3h 这类与上方快捷档位不一致的值
+                        sliderDragging = true
+                        // 吸附到 0.5h 档位，避免出现 2.3h 这类与档位条不一致的值
                         durationHours = (kotlin.math.round(value.toDouble() * 2) / 2.0)
                             .coerceIn(0.5, maxDurationHours)
                     },
-                    onValueChangeFinished = {},
+                    onValueChangeFinished = { sliderDragging = false },
                     valueRange = 0.5f..maxDurationHours.toFloat(),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -417,5 +460,36 @@ fun QuickSubmitSheet(
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
+    }
+}
+
+/** 单个时长档位块：选中态主题色填充，未选中态次容器色。 */
+@Composable
+private fun DurationChip(
+    hours: Double,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        color = if (selected) MiuixTheme.colorScheme.primary
+        else MiuixTheme.colorScheme.secondaryContainer,
+        contentColor = if (selected) MiuixTheme.colorScheme.onPrimary
+        else MiuixTheme.colorScheme.onSecondaryContainer,
+        shape = AppShapes.radiusMd,
+        modifier = modifier
+    ) {
+        Text(
+            text = SalaryCalculator.formatHours(hours),
+            style = MiuixTheme.textStyles.body2,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
     }
 }

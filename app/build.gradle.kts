@@ -27,8 +27,8 @@ android {
         // minSdk 33（Android 13）：与 miuix-blur AAR minSdk 对齐，甩掉存储/通知旧权限模型（2026-11 提升）
         minSdk = 33
         targetSdk = 37
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.0.3"
         // GitHub Token：从环境变量注入 BuildConfig（避免硬编码到源码被 Push Protection 拦截）
         // CI/本地构建时需设置 GITHUB_TOKEN 环境变量
         buildConfigField("String", "GITHUB_TOKEN", "\"${signProp("GITHUB_TOKEN") ?: ""}\"")

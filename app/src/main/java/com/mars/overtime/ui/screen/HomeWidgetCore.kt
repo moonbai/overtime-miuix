@@ -452,18 +452,14 @@ fun buildTypeSegments(
 
 // ───────────────────────── 格式化 / 配色工具 ─────────────────────────
 
-/** 小卡片专用紧凑时长：19h / 2h30m / 45m，避免「19小时30分钟」被省略号截断 */
+/**
+ * 小组件时长统一走全局小时制（0.5H / 20.5H），与统计页、记录页、快速提报保持同一口径，
+ * 避免同一 App 里同时出现 2h30m 与 2.5H 两套写法。
+ */
 fun widgetHours(hours: Double): String {
-    val sign = if (hours < 0) "-" else ""
-    val a = abs(hours)
-    val h = a.toInt()
-    val m = ((a - h) * 60).toInt()
-    return when {
-        h == 0 && m == 0 -> "0h"
-        m == 0 -> "$sign${h}h"
-        h == 0 -> "$sign${m}m"
-        else -> "$sign${h}h${m}m"
-    }
+    // 加班与请假抵消后可能留下 1e-15 级浮点残差，先归零，避免打出「-0H」
+    if (abs(hours) < 0.005) return "0H"
+    return SalaryCalculator.formatHours(hours)
 }
 
 /** 金额超过万元折算成「x.x万」，避免 1x1 卡片里大字号溢出 */
